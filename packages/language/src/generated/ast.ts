@@ -70,7 +70,7 @@ export function isAldaValue(item: unknown): item is AldaValue {
 export interface BarBlock extends langium.AstNode {
     readonly $container: SectionDeclaration;
     readonly $type: 'BarBlock';
-    commands: Array<TrackStatement>;
+    commands: Array<BarCommand>;
     number: number;
 }
 
@@ -82,6 +82,46 @@ export const BarBlock = {
 
 export function isBarBlock(item: unknown): item is BarBlock {
     return reflection.isInstance(item, BarBlock.$type);
+}
+
+export type BarCommand = ReservedStatement | TrackStatement;
+
+export const BarCommand = {
+    $type: 'BarCommand'
+} as const;
+
+export function isBarCommand(item: unknown): item is BarCommand {
+    return reflection.isInstance(item, BarCommand.$type);
+}
+
+export interface EffectReservedCommand extends langium.AstNode {
+    readonly $container: ReservedGlobalStatement | ReservedTrackStatement;
+    readonly $type: 'EffectReservedCommand';
+    value?: string;
+}
+
+export const EffectReservedCommand = {
+    $type: 'EffectReservedCommand',
+    value: 'value'
+} as const;
+
+export function isEffectReservedCommand(item: unknown): item is EffectReservedCommand {
+    return reflection.isInstance(item, EffectReservedCommand.$type);
+}
+
+export interface ExtendReservedCommand extends langium.AstNode {
+    readonly $container: ReservedGlobalStatement | ReservedTrackStatement;
+    readonly $type: 'ExtendReservedCommand';
+    value?: string;
+}
+
+export const ExtendReservedCommand = {
+    $type: 'ExtendReservedCommand',
+    value: 'value'
+} as const;
+
+export function isExtendReservedCommand(item: unknown): item is ExtendReservedCommand {
+    return reflection.isInstance(item, ExtendReservedCommand.$type);
 }
 
 export interface FiniteLength extends langium.AstNode {
@@ -230,6 +270,36 @@ export function isLevelNumber(item: unknown): item is LevelNumber {
     return typeof item === 'number';
 }
 
+export interface LyricsReservedCommand extends langium.AstNode {
+    readonly $container: ReservedGlobalStatement | ReservedTrackStatement;
+    readonly $type: 'LyricsReservedCommand';
+    value?: string;
+}
+
+export const LyricsReservedCommand = {
+    $type: 'LyricsReservedCommand',
+    value: 'value'
+} as const;
+
+export function isLyricsReservedCommand(item: unknown): item is LyricsReservedCommand {
+    return reflection.isInstance(item, LyricsReservedCommand.$type);
+}
+
+export interface LyricsThemeReservedCommand extends langium.AstNode {
+    readonly $container: ReservedGlobalStatement | ReservedTrackStatement;
+    readonly $type: 'LyricsThemeReservedCommand';
+    value?: string;
+}
+
+export const LyricsThemeReservedCommand = {
+    $type: 'LyricsThemeReservedCommand',
+    value: 'value'
+} as const;
+
+export function isLyricsThemeReservedCommand(item: unknown): item is LyricsThemeReservedCommand {
+    return reflection.isInstance(item, LyricsThemeReservedCommand.$type);
+}
+
 export interface Model extends langium.AstNode {
     readonly $type: 'Model';
     elements: Array<TopLevelElement>;
@@ -293,6 +363,83 @@ export function isPlayCommand(item: unknown): item is PlayCommand {
     return reflection.isInstance(item, PlayCommand.$type);
 }
 
+export interface PromptReservedCommand extends langium.AstNode {
+    readonly $container: ReservedGlobalStatement | ReservedTrackStatement;
+    readonly $type: 'PromptReservedCommand';
+    value?: string;
+}
+
+export const PromptReservedCommand = {
+    $type: 'PromptReservedCommand',
+    value: 'value'
+} as const;
+
+export function isPromptReservedCommand(item: unknown): item is PromptReservedCommand {
+    return reflection.isInstance(item, PromptReservedCommand.$type);
+}
+
+export type ReservedGlobalCommand = EffectReservedCommand | ExtendReservedCommand | LyricsReservedCommand | LyricsThemeReservedCommand | PromptReservedCommand;
+
+export const ReservedGlobalCommand = {
+    $type: 'ReservedGlobalCommand'
+} as const;
+
+export function isReservedGlobalCommand(item: unknown): item is ReservedGlobalCommand {
+    return reflection.isInstance(item, ReservedGlobalCommand.$type);
+}
+
+export interface ReservedGlobalStatement extends langium.AstNode {
+    readonly $container: BarBlock | Model | SectionDeclaration;
+    readonly $type: 'ReservedGlobalStatement';
+    command: ReservedGlobalCommand;
+}
+
+export const ReservedGlobalStatement = {
+    $type: 'ReservedGlobalStatement',
+    command: 'command'
+} as const;
+
+export function isReservedGlobalStatement(item: unknown): item is ReservedGlobalStatement {
+    return reflection.isInstance(item, ReservedGlobalStatement.$type);
+}
+
+export type ReservedStatement = ReservedGlobalStatement | ReservedTrackStatement;
+
+export const ReservedStatement = {
+    $type: 'ReservedStatement'
+} as const;
+
+export function isReservedStatement(item: unknown): item is ReservedStatement {
+    return reflection.isInstance(item, ReservedStatement.$type);
+}
+
+export type ReservedTrackCommand = EffectReservedCommand | ExtendReservedCommand | LyricsReservedCommand | LyricsThemeReservedCommand | PromptReservedCommand;
+
+export const ReservedTrackCommand = {
+    $type: 'ReservedTrackCommand'
+} as const;
+
+export function isReservedTrackCommand(item: unknown): item is ReservedTrackCommand {
+    return reflection.isInstance(item, ReservedTrackCommand.$type);
+}
+
+export interface ReservedTrackStatement extends langium.AstNode {
+    readonly $container: BarBlock | Model | SectionDeclaration;
+    readonly $type: 'ReservedTrackStatement';
+    command: ReservedTrackCommand;
+    track: langium.Reference<TrackDeclaration>;
+}
+
+export const ReservedTrackStatement = {
+    $type: 'ReservedTrackStatement',
+    command: 'command',
+    track: 'track'
+} as const;
+
+export function isReservedTrackStatement(item: unknown): item is ReservedTrackStatement {
+    return reflection.isInstance(item, ReservedTrackStatement.$type);
+}
+
 export interface SectionCall extends langium.AstNode {
     readonly $container: Model;
     readonly $type: 'SectionCall';
@@ -325,7 +472,7 @@ export function isSectionDeclaration(item: unknown): item is SectionDeclaration 
     return reflection.isInstance(item, SectionDeclaration.$type);
 }
 
-export type SectionItem = BarBlock | FlavorDeclaration | SectionLengthDeclaration | TrackStatement;
+export type SectionItem = BarBlock | FlavorDeclaration | ReservedStatement | SectionLengthDeclaration | TrackStatement;
 
 export const SectionItem = {
     $type: 'SectionItem'
@@ -425,7 +572,7 @@ export function isTimeSignatureDeclaration(item: unknown): item is TimeSignature
     return reflection.isInstance(item, TimeSignatureDeclaration.$type);
 }
 
-export type TopLevelElement = GlobalDeclaration | SectionCall | SectionDeclaration | TrackDeclaration | TrackStatement;
+export type TopLevelElement = GlobalDeclaration | ReservedStatement | SectionCall | SectionDeclaration | TrackDeclaration | TrackStatement;
 
 export const TopLevelElement = {
     $type: 'TopLevelElement'
@@ -482,6 +629,9 @@ export function isTrackStatement(item: unknown): item is TrackStatement {
 export type GasAstType = {
     AldaValue: AldaValue
     BarBlock: BarBlock
+    BarCommand: BarCommand
+    EffectReservedCommand: EffectReservedCommand
+    ExtendReservedCommand: ExtendReservedCommand
     FiniteLength: FiniteLength
     FlavorCommand: FlavorCommand
     FlavorDeclaration: FlavorDeclaration
@@ -492,10 +642,18 @@ export type GasAstType = {
     KeyDeclaration: KeyDeclaration
     LevelCommand: LevelCommand
     LevelDeclaration: LevelDeclaration
+    LyricsReservedCommand: LyricsReservedCommand
+    LyricsThemeReservedCommand: LyricsThemeReservedCommand
     Model: Model
     MotifCommand: MotifCommand
     NotesCommand: NotesCommand
     PlayCommand: PlayCommand
+    PromptReservedCommand: PromptReservedCommand
+    ReservedGlobalCommand: ReservedGlobalCommand
+    ReservedGlobalStatement: ReservedGlobalStatement
+    ReservedStatement: ReservedStatement
+    ReservedTrackCommand: ReservedTrackCommand
+    ReservedTrackStatement: ReservedTrackStatement
     SectionCall: SectionCall
     SectionDeclaration: SectionDeclaration
     SectionItem: SectionItem
@@ -534,6 +692,30 @@ export class GasAstReflection extends langium.AbstractAstReflection {
                 }
             },
             superTypes: [SectionItem.$type]
+        },
+        BarCommand: {
+            name: BarCommand.$type,
+            properties: {
+            },
+            superTypes: []
+        },
+        EffectReservedCommand: {
+            name: EffectReservedCommand.$type,
+            properties: {
+                value: {
+                    name: EffectReservedCommand.value
+                }
+            },
+            superTypes: [ReservedGlobalCommand.$type, ReservedTrackCommand.$type]
+        },
+        ExtendReservedCommand: {
+            name: ExtendReservedCommand.$type,
+            properties: {
+                value: {
+                    name: ExtendReservedCommand.value
+                }
+            },
+            superTypes: [ReservedGlobalCommand.$type, ReservedTrackCommand.$type]
         },
         FiniteLength: {
             name: FiniteLength.$type,
@@ -620,6 +802,24 @@ export class GasAstReflection extends langium.AbstractAstReflection {
             },
             superTypes: [GlobalDeclaration.$type]
         },
+        LyricsReservedCommand: {
+            name: LyricsReservedCommand.$type,
+            properties: {
+                value: {
+                    name: LyricsReservedCommand.value
+                }
+            },
+            superTypes: [ReservedGlobalCommand.$type, ReservedTrackCommand.$type]
+        },
+        LyricsThemeReservedCommand: {
+            name: LyricsThemeReservedCommand.$type,
+            properties: {
+                value: {
+                    name: LyricsThemeReservedCommand.value
+                }
+            },
+            superTypes: [ReservedGlobalCommand.$type, ReservedTrackCommand.$type]
+        },
         Model: {
             name: Model.$type,
             properties: {
@@ -653,6 +853,55 @@ export class GasAstReflection extends langium.AbstractAstReflection {
             properties: {
             },
             superTypes: [TrackCommand.$type]
+        },
+        PromptReservedCommand: {
+            name: PromptReservedCommand.$type,
+            properties: {
+                value: {
+                    name: PromptReservedCommand.value
+                }
+            },
+            superTypes: [ReservedGlobalCommand.$type, ReservedTrackCommand.$type]
+        },
+        ReservedGlobalCommand: {
+            name: ReservedGlobalCommand.$type,
+            properties: {
+            },
+            superTypes: []
+        },
+        ReservedGlobalStatement: {
+            name: ReservedGlobalStatement.$type,
+            properties: {
+                command: {
+                    name: ReservedGlobalStatement.command
+                }
+            },
+            superTypes: [ReservedStatement.$type]
+        },
+        ReservedStatement: {
+            name: ReservedStatement.$type,
+            properties: {
+            },
+            superTypes: [BarCommand.$type, SectionItem.$type, TopLevelElement.$type]
+        },
+        ReservedTrackCommand: {
+            name: ReservedTrackCommand.$type,
+            properties: {
+            },
+            superTypes: []
+        },
+        ReservedTrackStatement: {
+            name: ReservedTrackStatement.$type,
+            properties: {
+                command: {
+                    name: ReservedTrackStatement.command
+                },
+                track: {
+                    name: ReservedTrackStatement.track,
+                    referenceType: TrackDeclaration.$type
+                }
+            },
+            superTypes: [ReservedStatement.$type]
         },
         SectionCall: {
             name: SectionCall.$type,
@@ -772,7 +1021,7 @@ export class GasAstReflection extends langium.AbstractAstReflection {
                     referenceType: TrackDeclaration.$type
                 }
             },
-            superTypes: [SectionItem.$type, TopLevelElement.$type]
+            superTypes: [BarCommand.$type, SectionItem.$type, TopLevelElement.$type]
         }
     } as const satisfies langium.AstMetaData
 }

@@ -48,6 +48,13 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
           {
             "$type": "RuleCall",
             "rule": {
+              "$ref": "#/rules@20"
+            },
+            "arguments": []
+          },
+          {
+            "$type": "RuleCall",
+            "rule": {
               "$ref": "#/rules@12"
             },
             "arguments": []
@@ -55,7 +62,7 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
           {
             "$type": "RuleCall",
             "rule": {
-              "$ref": "#/rules@17"
+              "$ref": "#/rules@18"
             },
             "arguments": []
           },
@@ -69,7 +76,7 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
           {
             "$type": "RuleCall",
             "rule": {
-              "$ref": "#/rules@16"
+              "$ref": "#/rules@17"
             },
             "arguments": []
           }
@@ -150,7 +157,7 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@37"
+                "$ref": "#/rules@48"
               },
               "arguments": []
             }
@@ -178,7 +185,7 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@38"
+                "$ref": "#/rules@49"
               },
               "arguments": []
             }
@@ -206,7 +213,7 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@37"
+                "$ref": "#/rules@48"
               },
               "arguments": []
             }
@@ -222,7 +229,7 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@37"
+                "$ref": "#/rules@48"
               },
               "arguments": []
             }
@@ -288,7 +295,7 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
                 "terminal": {
                   "$type": "RuleCall",
                   "rule": {
-                    "$ref": "#/rules@37"
+                    "$ref": "#/rules@48"
                   },
                   "arguments": []
                 }
@@ -372,7 +379,7 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@37"
+                "$ref": "#/rules@48"
               },
               "arguments": []
             }
@@ -400,7 +407,7 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@38"
+                "$ref": "#/rules@49"
               },
               "arguments": []
             }
@@ -428,7 +435,7 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@28"
+                "$ref": "#/rules@39"
               },
               "arguments": []
             }
@@ -456,7 +463,7 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@27"
+                "$ref": "#/rules@38"
               },
               "arguments": []
             }
@@ -468,7 +475,7 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@38"
+                "$ref": "#/rules@49"
               },
               "arguments": []
             }
@@ -496,7 +503,7 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@27"
+                "$ref": "#/rules@38"
               },
               "arguments": []
             }
@@ -508,7 +515,7 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
           {
             "$type": "RuleCall",
             "rule": {
-              "$ref": "#/rules@29"
+              "$ref": "#/rules@40"
             },
             "arguments": []
           },
@@ -528,7 +535,7 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
           {
             "$type": "RuleCall",
             "rule": {
-              "$ref": "#/rules@30"
+              "$ref": "#/rules@41"
             },
             "arguments": []
           }
@@ -561,7 +568,14 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
           {
             "$type": "RuleCall",
             "rule": {
-              "$ref": "#/rules@17"
+              "$ref": "#/rules@20"
+            },
+            "arguments": []
+          },
+          {
+            "$type": "RuleCall",
+            "rule": {
+              "$ref": "#/rules@18"
             },
             "arguments": []
           },
@@ -595,7 +609,7 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@37"
+                "$ref": "#/rules@48"
               },
               "arguments": []
             }
@@ -607,7 +621,7 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
           {
             "$type": "RuleCall",
             "rule": {
-              "$ref": "#/rules@29"
+              "$ref": "#/rules@40"
             },
             "arguments": []
           },
@@ -618,7 +632,7 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@17"
+                "$ref": "#/rules@16"
               },
               "arguments": []
             },
@@ -627,7 +641,33 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
           {
             "$type": "RuleCall",
             "rule": {
-              "$ref": "#/rules@30"
+              "$ref": "#/rules@41"
+            },
+            "arguments": []
+          }
+        ]
+      },
+      "entry": false,
+      "fragment": false,
+      "parameters": []
+    },
+    {
+      "$type": "ParserRule",
+      "name": "BarCommand",
+      "definition": {
+        "$type": "Alternatives",
+        "elements": [
+          {
+            "$type": "RuleCall",
+            "rule": {
+              "$ref": "#/rules@20"
+            },
+            "arguments": []
+          },
+          {
+            "$type": "RuleCall",
+            "rule": {
+              "$ref": "#/rules@18"
             },
             "arguments": []
           }
@@ -655,7 +695,7 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
               "terminal": {
                 "$type": "RuleCall",
                 "rule": {
-                  "$ref": "#/rules@27"
+                  "$ref": "#/rules@38"
                 },
                 "arguments": []
               },
@@ -695,7 +735,7 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
               "terminal": {
                 "$type": "RuleCall",
                 "rule": {
-                  "$ref": "#/rules@27"
+                  "$ref": "#/rules@38"
                 },
                 "arguments": []
               },
@@ -714,7 +754,7 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@18"
+                "$ref": "#/rules@19"
               },
               "arguments": []
             }
@@ -734,17 +774,64 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
           {
             "$type": "RuleCall",
             "rule": {
-              "$ref": "#/rules@19"
+              "$ref": "#/rules@30"
             },
             "arguments": []
           },
           {
             "$type": "RuleCall",
             "rule": {
-              "$ref": "#/rules@20"
+              "$ref": "#/rules@31"
             },
             "arguments": []
           },
+          {
+            "$type": "RuleCall",
+            "rule": {
+              "$ref": "#/rules@32"
+            },
+            "arguments": []
+          },
+          {
+            "$type": "RuleCall",
+            "rule": {
+              "$ref": "#/rules@33"
+            },
+            "arguments": []
+          },
+          {
+            "$type": "RuleCall",
+            "rule": {
+              "$ref": "#/rules@34"
+            },
+            "arguments": []
+          },
+          {
+            "$type": "RuleCall",
+            "rule": {
+              "$ref": "#/rules@35"
+            },
+            "arguments": []
+          },
+          {
+            "$type": "RuleCall",
+            "rule": {
+              "$ref": "#/rules@36"
+            },
+            "arguments": []
+          }
+        ]
+      },
+      "entry": false,
+      "fragment": false,
+      "parameters": []
+    },
+    {
+      "$type": "ParserRule",
+      "name": "ReservedStatement",
+      "definition": {
+        "$type": "Alternatives",
+        "elements": [
           {
             "$type": "RuleCall",
             "rule": {
@@ -758,27 +845,355 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
               "$ref": "#/rules@22"
             },
             "arguments": []
+          }
+        ]
+      },
+      "entry": false,
+      "fragment": false,
+      "parameters": []
+    },
+    {
+      "$type": "ParserRule",
+      "name": "ReservedGlobalStatement",
+      "definition": {
+        "$type": "Assignment",
+        "feature": "command",
+        "operator": "=",
+        "terminal": {
+          "$type": "RuleCall",
+          "rule": {
+            "$ref": "#/rules@23"
+          },
+          "arguments": []
+        }
+      },
+      "entry": false,
+      "fragment": false,
+      "parameters": []
+    },
+    {
+      "$type": "ParserRule",
+      "name": "ReservedTrackStatement",
+      "definition": {
+        "$type": "Group",
+        "elements": [
+          {
+            "$type": "Assignment",
+            "feature": "track",
+            "operator": "=",
+            "terminal": {
+              "$type": "CrossReference",
+              "type": {
+                "$ref": "#/rules@12"
+              },
+              "terminal": {
+                "$type": "RuleCall",
+                "rule": {
+                  "$ref": "#/rules@38"
+                },
+                "arguments": []
+              },
+              "deprecatedSyntax": false,
+              "isMulti": false
+            }
           },
           {
-            "$type": "RuleCall",
-            "rule": {
-              "$ref": "#/rules@23"
-            },
-            "arguments": []
+            "$type": "Keyword",
+            "value": "."
           },
           {
-            "$type": "RuleCall",
-            "rule": {
-              "$ref": "#/rules@24"
-            },
-            "arguments": []
-          },
+            "$type": "Assignment",
+            "feature": "command",
+            "operator": "=",
+            "terminal": {
+              "$type": "RuleCall",
+              "rule": {
+                "$ref": "#/rules@24"
+              },
+              "arguments": []
+            }
+          }
+        ]
+      },
+      "entry": false,
+      "fragment": false,
+      "parameters": []
+    },
+    {
+      "$type": "ParserRule",
+      "name": "ReservedGlobalCommand",
+      "definition": {
+        "$type": "Alternatives",
+        "elements": [
           {
             "$type": "RuleCall",
             "rule": {
               "$ref": "#/rules@25"
             },
             "arguments": []
+          },
+          {
+            "$type": "RuleCall",
+            "rule": {
+              "$ref": "#/rules@26"
+            },
+            "arguments": []
+          },
+          {
+            "$type": "RuleCall",
+            "rule": {
+              "$ref": "#/rules@27"
+            },
+            "arguments": []
+          },
+          {
+            "$type": "RuleCall",
+            "rule": {
+              "$ref": "#/rules@28"
+            },
+            "arguments": []
+          },
+          {
+            "$type": "RuleCall",
+            "rule": {
+              "$ref": "#/rules@29"
+            },
+            "arguments": []
+          }
+        ]
+      },
+      "entry": false,
+      "fragment": false,
+      "parameters": []
+    },
+    {
+      "$type": "ParserRule",
+      "name": "ReservedTrackCommand",
+      "definition": {
+        "$type": "Alternatives",
+        "elements": [
+          {
+            "$type": "RuleCall",
+            "rule": {
+              "$ref": "#/rules@25"
+            },
+            "arguments": []
+          },
+          {
+            "$type": "RuleCall",
+            "rule": {
+              "$ref": "#/rules@26"
+            },
+            "arguments": []
+          },
+          {
+            "$type": "RuleCall",
+            "rule": {
+              "$ref": "#/rules@27"
+            },
+            "arguments": []
+          },
+          {
+            "$type": "RuleCall",
+            "rule": {
+              "$ref": "#/rules@28"
+            },
+            "arguments": []
+          },
+          {
+            "$type": "RuleCall",
+            "rule": {
+              "$ref": "#/rules@29"
+            },
+            "arguments": []
+          }
+        ]
+      },
+      "entry": false,
+      "fragment": false,
+      "parameters": []
+    },
+    {
+      "$type": "ParserRule",
+      "name": "LyricsReservedCommand",
+      "definition": {
+        "$type": "Group",
+        "elements": [
+          {
+            "$type": "Action",
+            "inferredType": {
+              "$type": "InferredType",
+              "name": "LyricsReservedCommand"
+            }
+          },
+          {
+            "$type": "Keyword",
+            "value": "lyrics"
+          },
+          {
+            "$type": "Assignment",
+            "feature": "value",
+            "operator": "=",
+            "terminal": {
+              "$type": "RuleCall",
+              "rule": {
+                "$ref": "#/rules@49"
+              },
+              "arguments": []
+            },
+            "cardinality": "?"
+          }
+        ]
+      },
+      "entry": false,
+      "fragment": false,
+      "parameters": []
+    },
+    {
+      "$type": "ParserRule",
+      "name": "LyricsThemeReservedCommand",
+      "definition": {
+        "$type": "Group",
+        "elements": [
+          {
+            "$type": "Action",
+            "inferredType": {
+              "$type": "InferredType",
+              "name": "LyricsThemeReservedCommand"
+            }
+          },
+          {
+            "$type": "Keyword",
+            "value": "lyrics"
+          },
+          {
+            "$type": "Keyword",
+            "value": "."
+          },
+          {
+            "$type": "Keyword",
+            "value": "theme"
+          },
+          {
+            "$type": "Assignment",
+            "feature": "value",
+            "operator": "=",
+            "terminal": {
+              "$type": "RuleCall",
+              "rule": {
+                "$ref": "#/rules@49"
+              },
+              "arguments": []
+            },
+            "cardinality": "?"
+          }
+        ]
+      },
+      "entry": false,
+      "fragment": false,
+      "parameters": []
+    },
+    {
+      "$type": "ParserRule",
+      "name": "EffectReservedCommand",
+      "definition": {
+        "$type": "Group",
+        "elements": [
+          {
+            "$type": "Action",
+            "inferredType": {
+              "$type": "InferredType",
+              "name": "EffectReservedCommand"
+            }
+          },
+          {
+            "$type": "Keyword",
+            "value": "effect"
+          },
+          {
+            "$type": "Assignment",
+            "feature": "value",
+            "operator": "=",
+            "terminal": {
+              "$type": "RuleCall",
+              "rule": {
+                "$ref": "#/rules@49"
+              },
+              "arguments": []
+            },
+            "cardinality": "?"
+          }
+        ]
+      },
+      "entry": false,
+      "fragment": false,
+      "parameters": []
+    },
+    {
+      "$type": "ParserRule",
+      "name": "ExtendReservedCommand",
+      "definition": {
+        "$type": "Group",
+        "elements": [
+          {
+            "$type": "Action",
+            "inferredType": {
+              "$type": "InferredType",
+              "name": "ExtendReservedCommand"
+            }
+          },
+          {
+            "$type": "Keyword",
+            "value": "extend"
+          },
+          {
+            "$type": "Assignment",
+            "feature": "value",
+            "operator": "=",
+            "terminal": {
+              "$type": "RuleCall",
+              "rule": {
+                "$ref": "#/rules@49"
+              },
+              "arguments": []
+            },
+            "cardinality": "?"
+          }
+        ]
+      },
+      "entry": false,
+      "fragment": false,
+      "parameters": []
+    },
+    {
+      "$type": "ParserRule",
+      "name": "PromptReservedCommand",
+      "definition": {
+        "$type": "Group",
+        "elements": [
+          {
+            "$type": "Action",
+            "inferredType": {
+              "$type": "InferredType",
+              "name": "PromptReservedCommand"
+            }
+          },
+          {
+            "$type": "Keyword",
+            "value": "prompt"
+          },
+          {
+            "$type": "Assignment",
+            "feature": "value",
+            "operator": "=",
+            "terminal": {
+              "$type": "RuleCall",
+              "rule": {
+                "$ref": "#/rules@49"
+              },
+              "arguments": []
+            },
+            "cardinality": "?"
           }
         ]
       },
@@ -856,7 +1271,7 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@38"
+                "$ref": "#/rules@49"
               },
               "arguments": []
             }
@@ -891,7 +1306,7 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@38"
+                "$ref": "#/rules@49"
               },
               "arguments": []
             }
@@ -926,7 +1341,7 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@28"
+                "$ref": "#/rules@39"
               },
               "arguments": []
             }
@@ -961,7 +1376,7 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@26"
+                "$ref": "#/rules@37"
               },
               "arguments": []
             }
@@ -996,7 +1411,7 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@26"
+                "$ref": "#/rules@37"
               },
               "arguments": []
             }
@@ -1027,7 +1442,7 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
             "terminal": {
               "$type": "RuleCall",
               "rule": {
-                "$ref": "#/rules@31"
+                "$ref": "#/rules@42"
               },
               "arguments": []
             }
@@ -1048,7 +1463,7 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
           {
             "$type": "RuleCall",
             "rule": {
-              "$ref": "#/rules@36"
+              "$ref": "#/rules@47"
             },
             "arguments": []
           },
@@ -1156,14 +1571,14 @@ export const GasGrammar = (): Grammar => loadedGasGrammar ?? (loadedGasGrammar =
           {
             "$type": "RuleCall",
             "rule": {
-              "$ref": "#/rules@35"
+              "$ref": "#/rules@46"
             },
             "arguments": []
           },
           {
             "$type": "RuleCall",
             "rule": {
-              "$ref": "#/rules@37"
+              "$ref": "#/rules@48"
             },
             "arguments": []
           }

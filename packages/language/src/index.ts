@@ -2,27 +2,52 @@
 
 import { EmptyFileSystem } from 'langium';
 import { createGasServices } from './gas-module.js';
+import { isModel, type Model } from './generated/ast.js';
+import type { GasDocument } from './semantic/ast.js';
+import { buildDocument } from './semantic/build.js';
+import type { GasDiagnostic, GasDiagnosticSeverity } from './semantic/diagnostics.js';
+import { validate } from './semantic/validate.js';
+
+export type {
+  AldaSnippet,
+  Bar,
+  FlavorCommand,
+  FlavorGlobal,
+  GasDocument,
+  GasNode,
+  GasSourcePosition,
+  GasSourceRange,
+  Global,
+  GlobalLength,
+  Globals,
+  KeyGlobal,
+  LevelCommand,
+  LevelGlobal,
+  MotifCommand,
+  NotesCommand,
+  PlayCommand,
+  Section,
+  SectionLength,
+  SectionPlay,
+  StopCommand,
+  StringValue,
+  TempoGlobal,
+  TimeSignatureGlobal,
+  TimbreCommand,
+  Track,
+  TrackCommand,
+  TrackCommandBase
+} from './semantic/ast.js';
+export type {
+  GasDiagnostic,
+  GasDiagnosticCategory,
+  GasDiagnosticSeverity
+} from './semantic/diagnostics.js';
 
 export const packageName = '@luna-estelar/gas-language';
 export const version = '0.1.0';
 
-export type GasDiagnosticSeverity = 'error' | 'warning' | 'info';
-
-export interface GasSourcePosition {
-  readonly line: number;
-  readonly column: number;
-}
-
-export interface GasSourceRange {
-  readonly start: GasSourcePosition;
-  readonly end?: GasSourcePosition;
-}
-
-export interface GasParseDiagnostic {
-  readonly severity: GasDiagnosticSeverity;
-  readonly message: string;
-  readonly range?: GasSourceRange;
-}
+export type GasParseDiagnostic = GasDiagnostic;
 
 export interface GasParseSuccess {
   readonly ok: true;
@@ -44,14 +69,63 @@ export function parseGasDocument(
   source: string,
   _options: ParseGasDocumentOptions = {}
 ): GasParseResult {
+  const { diagnostics } = parseSyntax(source);
+  return diagnostics.some((diagnostic) => diagnostic.severity === 'error')
+    ? { ok: false, diagnostics }
+    : { ok: true, diagnostics };
+}
+
+export interface AnalyzeGasDocumentOptions extends ParseGasDocumentOptions {}
+
+export interface GasAnalyzeSuccess {
+  readonly ok: true;
+  readonly document: GasDocument;
+  readonly diagnostics: readonly GasDiagnostic[];
+}
+
+export interface GasAnalyzeFailure {
+  readonly ok: false;
+  readonly document?: GasDocument;
+  readonly diagnostics: readonly GasDiagnostic[];
+}
+
+export type GasAnalyzeResult = GasAnalyzeSuccess | GasAnalyzeFailure;
+
+export function analyzeGasDocument(
+  source: string,
+  _options: AnalyzeGasDocumentOptions = {}
+): GasAnalyzeResult {
+  const parsed = parseSyntax(source);
+  if (
+    parsed.diagnostics.some((diagnostic) => diagnostic.severity === 'error') ||
+    parsed.model === undefined
+  ) {
+    return { ok: false, diagnostics: parsed.diagnostics };
+  }
+
+  const built = buildDocument(parsed.model);
+  const diagnostics = [...parsed.diagnostics, ...built.diagnostics, ...validate(built.document)];
+  return diagnostics.some((diagnostic) => diagnostic.severity === 'error')
+    ? { ok: false, document: built.document, diagnostics }
+    : { ok: true, document: built.document, diagnostics };
+}
+
+function parseSyntax(source: string): {
+  readonly model?: Model;
+  readonly diagnostics: readonly GasDiagnostic[];
+} {
   const result = getParser().parse(source);
   const diagnostics = [
     ...result.lexerErrors.map((error) => ({
+      code: 'syntax-lexer-error',
+      category: 'syntax' as const,
       severity: 'error' as const,
       message: error.message,
       range: rangeFromOffset(source, error.offset, error.length ?? 1, error.line, error.column)
     })),
     ...(result.lexerReport?.diagnostics ?? []).map((diagnostic) => ({
+      code: 'syntax-lexer-diagnostic',
+      category: 'syntax' as const,
       severity: toPublicSeverity(diagnostic.severity ?? 'error'),
       message: diagnostic.message,
       range: rangeFromOffset(
@@ -63,14 +137,15 @@ export function parseGasDocument(
       )
     })),
     ...result.parserErrors.map((error) => ({
+      code: 'syntax-parser-error',
+      category: 'syntax' as const,
       severity: 'error' as const,
       message: error.message,
       range: rangeFromToken(error.token)
     }))
   ];
-  return diagnostics.some((diagnostic) => diagnostic.severity === 'error')
-    ? { ok: false, diagnostics }
-    : { ok: true, diagnostics };
+
+  return { model: isModel(result.value) ? result.value : undefined, diagnostics };
 }
 
 function getParser() {
@@ -98,16 +173,17 @@ function rangeFromToken(token: {
   startColumn?: number;
   endLine?: number;
   endColumn?: number;
-}): GasSourceRange | undefined {
+}): GasDiagnostic['range'] | undefined {
   if (token.startLine === undefined || token.startColumn === undefined) {
     return undefined;
   }
+  const start = { line: token.startLine - 1, character: token.startColumn - 1 };
   return {
-    start: { line: token.startLine, column: token.startColumn },
+    start,
     end:
       token.endLine === undefined || token.endColumn === undefined
-        ? undefined
-        : { line: token.endLine, column: token.endColumn }
+        ? start
+        : { line: token.endLine - 1, character: token.endColumn }
   };
 }
 
@@ -117,29 +193,29 @@ function rangeFromOffset(
   length: number,
   fallbackLine?: number,
   fallbackColumn?: number
-): GasSourceRange {
+): NonNullable<GasDiagnostic['range']> {
   const start =
     fallbackLine === undefined || fallbackColumn === undefined
       ? positionAt(source, offset)
-      : { line: fallbackLine, column: fallbackColumn };
+      : { line: fallbackLine - 1, character: fallbackColumn - 1 };
   return {
     start,
     end: positionAt(source, offset + Math.max(length, 0))
   };
 }
 
-function positionAt(source: string, offset: number): GasSourcePosition {
+function positionAt(source: string, offset: number): NonNullable<GasDiagnostic['range']>['start'] {
   const clamped = Math.max(0, Math.min(offset, source.length));
-  let line = 1;
-  let column = 1;
+  let line = 0;
+  let character = 0;
   for (let index = 0; index < clamped; index++) {
     const char = source.charAt(index);
     if (char === '\n') {
       line++;
-      column = 1;
+      character = 0;
     } else {
-      column++;
+      character++;
     }
   }
-  return { line, column };
+  return { line, character };
 }

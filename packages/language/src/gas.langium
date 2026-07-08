@@ -4,7 +4,7 @@ entry Model:
     elements+=TopLevelElement*;
 
 TopLevelElement:
-    GlobalDeclaration | TrackDeclaration | TrackStatement | SectionDeclaration | SectionCall;
+    GlobalDeclaration | ReservedStatement | TrackDeclaration | TrackStatement | SectionDeclaration | SectionCall;
 
 GlobalDeclaration:
     TempoDeclaration | KeyDeclaration | TimeSignatureDeclaration | GlobalLengthDeclaration | FlavorDeclaration | LevelDeclaration;
@@ -44,10 +44,13 @@ SectionDeclaration:
     'section' name=Name ':' INDENT items+=SectionItem+ DEDENT;
 
 SectionItem:
-    SectionLengthDeclaration | FlavorDeclaration | TrackStatement | BarBlock;
+    SectionLengthDeclaration | FlavorDeclaration | ReservedStatement | TrackStatement | BarBlock;
 
 BarBlock:
-    'bar' number=INT ':' INDENT commands+=TrackStatement+ DEDENT;
+    'bar' number=INT ':' INDENT commands+=BarCommand+ DEDENT;
+
+BarCommand:
+    ReservedStatement | TrackStatement;
 
 SectionCall:
     section=[SectionDeclaration:Name] '(' ')';
@@ -57,6 +60,38 @@ TrackStatement:
 
 TrackCommand:
     PlayCommand | StopCommand | FlavorCommand | TimbreCommand | LevelCommand | NotesCommand | MotifCommand;
+
+ReservedStatement:
+    ReservedGlobalStatement | ReservedTrackStatement;
+
+ReservedGlobalStatement:
+    command=ReservedGlobalCommand;
+
+ReservedTrackStatement:
+    track=[TrackDeclaration:Name] '.' command=ReservedTrackCommand;
+
+ReservedGlobalCommand:
+    LyricsReservedCommand | LyricsThemeReservedCommand | EffectReservedCommand | ExtendReservedCommand |
+    PromptReservedCommand;
+
+ReservedTrackCommand:
+    LyricsReservedCommand | LyricsThemeReservedCommand | EffectReservedCommand | ExtendReservedCommand |
+    PromptReservedCommand;
+
+LyricsReservedCommand:
+    {infer LyricsReservedCommand} 'lyrics' value=STRING?;
+
+LyricsThemeReservedCommand:
+    {infer LyricsThemeReservedCommand} 'lyrics' '.' 'theme' value=STRING?;
+
+EffectReservedCommand:
+    {infer EffectReservedCommand} 'effect' value=STRING?;
+
+ExtendReservedCommand:
+    {infer ExtendReservedCommand} 'extend' value=STRING?;
+
+PromptReservedCommand:
+    {infer PromptReservedCommand} 'prompt' value=STRING?;
 
 PlayCommand:
     {infer PlayCommand} 'play';
