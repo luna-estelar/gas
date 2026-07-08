@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gas.luna-estelar.com/protocol/1.0/common.schema.json",
+  "title": "GAS Protocol Common Types 1.0",
+  "$defs": {
+    "FormatVersion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["major", "minor"],
+      "properties": {
+        "major": { "const": 1 },
+        "minor": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "Sha256Digest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "value"],
+      "properties": {
+        "algorithm": { "const": "sha-256" },
+        "value": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "TimelineId": {
+      "$ref": "#/$defs/OpaqueId"
+    },
+    "LocalId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
+      "maxLength": 128
+    },
+    "OpaqueId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "SourcePosition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["line", "character"],
+      "properties": {
+        "line": { "type": "integer", "minimum": 0 },
+        "character": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "SourceRange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": { "$ref": "#/$defs/SourcePosition" },
+        "end": { "$ref": "#/$defs/SourcePosition" }
+      }
+    },
+    "SourceIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mediaType": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+$"
+        },
+        "byteLength": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "Provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sourceRange": { "$ref": "#/$defs/SourceRange" },
+        "sectionName": { "type": "string", "minLength": 1 },
+        "sectionInstanceId": { "$ref": "#/$defs/LocalId" },
+        "callIndex": { "type": "integer", "minimum": 0 },
+        "sectionPosition": { "$ref": "#/$defs/MusicalPosition" }
+      }
+    },
+    "BeatOffset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["numerator", "denominator"],
+      "properties": {
+        "numerator": { "type": "integer", "minimum": 0 },
+        "denominator": { "type": "integer", "minimum": 1 }
+      },
+      "description": "Semantic validation additionally requires numerator < denominator and a reduced fraction."
+    },
+    "BeatPosition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index"],
+      "properties": {
+        "index": { "type": "integer", "minimum": 1 },
+        "offset": { "$ref": "#/$defs/BeatOffset" }
+      }
+    },
+    "MusicalPosition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bar"],
+      "properties": {
+        "bar": { "type": "integer", "minimum": 1 },
+        "beat": { "$ref": "#/$defs/BeatPosition" }
+      }
+    },
+    "Extensions": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$"
+      },
+      "additionalProperties": true
+    },
+    "TimelineEntityReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["timelineId", "localId"],
+      "properties": {
+        "timelineId": { "$ref": "#/$defs/TimelineId" },
+        "localId": { "$ref": "#/$defs/LocalId" }
+      }
+    }
+  }
+}

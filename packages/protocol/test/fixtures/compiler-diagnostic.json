@@ -1,0 +1,11 @@
+{
+  "formatVersion": { "major": 1, "minor": 0 },
+  "code": "unresolved-track",
+  "severity": "error",
+  "message": "Could not resolve track 'bass'.",
+  "component": "language",
+  "sourceRange": {
+    "start": { "line": 12, "character": 8 },
+    "end": { "line": 12, "character": 17 }
+  }
+}

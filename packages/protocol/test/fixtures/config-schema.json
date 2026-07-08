@@ -1,0 +1,17 @@
+{
+  "formatVersion": { "major": 1, "minor": 0 },
+  "configId": "renderer-config",
+  "revision": "schema-1",
+  "schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "promptWeight": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      }
+    }
+  }
+}

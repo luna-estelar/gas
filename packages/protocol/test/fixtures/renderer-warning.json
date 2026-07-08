@@ -1,0 +1,18 @@
+{
+  "formatVersion": { "major": 1, "minor": 0 },
+  "warningId": "warning-1",
+  "code": "unsupported-intent",
+  "severity": "warning",
+  "message": "Literal notes are not supported by this model and were dropped.",
+  "component": "core",
+  "policy": "dropped",
+  "affected": {
+    "type": "track",
+    "targetId": "track.guitar",
+    "action": "notes",
+    "entity": {
+      "timelineId": "timeline.chorus.0",
+      "localId": "event.0002"
+    }
+  }
+}

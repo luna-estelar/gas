@@ -1,0 +1,12 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/protocol" },
+    { "path": "packages/language" },
+    { "path": "packages/api" },
+    { "path": "packages/core" },
+    { "path": "packages/renderer" },
+    { "path": "packages/connector-lyria" },
+    { "path": "packages/cli" }
+  ]
+}

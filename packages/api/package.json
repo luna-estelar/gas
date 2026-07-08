@@ -1,0 +1,31 @@
+{
+  "name": "@luna-estelar/gas-api",
+  "version": "0.1.0",
+  "description": "Application-facing JavaScript control surface for GAS source and programmatic commands.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "main": "./out/index.js",
+  "module": "./out/index.js",
+  "types": "./out/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./out/index.d.ts",
+      "default": "./out/index.js"
+    }
+  },
+  "files": [
+    "out",
+    "src"
+  ],
+  "scripts": {
+    "clean": "tsc -b --clean"
+  },
+  "dependencies": {
+    "@luna-estelar/gas-protocol": "workspace:*",
+    "@luna-estelar/gas-language": "workspace:*",
+    "@luna-estelar/gas-core": "workspace:*"
+  }
+}

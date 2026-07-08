@@ -1,0 +1,12 @@
+{
+  "formatVersion": { "major": 1, "minor": 0 },
+  "runId": "run-1",
+  "streamId": "stream-1",
+  "chunkId": "chunk-1",
+  "sequence": 0,
+  "startFrame": 0,
+  "frameCount": 96000,
+  "byteLength": 768000,
+  "final": false,
+  "bytes": "AAAAAA=="
+}

@@ -1,0 +1,15 @@
+{
+  "formatVersion": { "major": 1, "minor": 0 },
+  "rendererId": "renderer.reference",
+  "connectorId": "connector.example",
+  "revision": "capabilities.1",
+  "actions": {
+    "play": "approximated",
+    "stop": "approximated",
+    "flavor": "native",
+    "timbre": "native",
+    "notes": "dropped",
+    "motif": "dropped",
+    "level": "approximated"
+  }
+}

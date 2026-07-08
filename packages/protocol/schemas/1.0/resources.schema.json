@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gas.luna-estelar.com/protocol/1.0/resources.schema.json",
+  "title": "GAS Resources 1.0",
+  "$defs": {
+    "TextValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "text"],
+      "properties": {
+        "kind": { "const": "text" },
+        "text": { "type": "string" }
+      }
+    },
+    "AldaValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "source"],
+      "properties": {
+        "kind": { "const": "alda" },
+        "source": { "type": "string" }
+      }
+    },
+    "ResourceValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "resourceId"],
+      "properties": {
+        "kind": { "const": "resource" },
+        "resourceId": {
+          "$ref": "common.schema.json#/$defs/LocalId"
+        }
+      }
+    },
+    "LevelValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": { "const": "level" },
+        "value": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "IntentValue": {
+      "oneOf": [
+        { "$ref": "#/$defs/TextValue" },
+        { "$ref": "#/$defs/AldaValue" },
+        { "$ref": "#/$defs/ResourceValue" },
+        { "$ref": "#/$defs/LevelValue" }
+      ]
+    },
+    "TimbreValue": {
+      "oneOf": [{ "$ref": "#/$defs/TextValue" }, { "$ref": "#/$defs/ResourceValue" }]
+    },
+    "NotationValue": {
+      "oneOf": [{ "$ref": "#/$defs/AldaValue" }, { "$ref": "#/$defs/ResourceValue" }]
+    },
+    "Resource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resourceId", "kind", "uri", "mediaType"],
+      "properties": {
+        "resourceId": {
+          "$ref": "common.schema.json#/$defs/LocalId"
+        },
+        "kind": {
+          "enum": ["audio", "midi", "musicxml", "text", "other"]
+        },
+        "uri": {
+          "type": "string",
+          "format": "uri-reference"
+        },
+        "mediaType": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+$"
+        },
+        "digest": {
+          "$ref": "common.schema.json#/$defs/Sha256Digest"
+        },
+        "provenance": {
+          "$ref": "common.schema.json#/$defs/Provenance"
+        },
+        "extensions": {
+          "$ref": "common.schema.json#/$defs/Extensions"
+        }
+      }
+    },
+    "ResourceManifest": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Resource" }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "projectName": "Gas",
+  "languages": [
+    {
+      "id": "gas",
+      "grammar": "src/gas.langium",
+      "fileExtensions": ["gas"],
+      "textMate": {
+        "out": "syntaxes/gas.tmLanguage.json"
+      }
+    }
+  ],
+  "out": "src/generated"
+}

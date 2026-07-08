@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gas.luna-estelar.com/protocol/1.0/audio.schema.json",
+  "title": "GAS Audio Payloads 1.0",
+  "$defs": {
+    "AudioStreamDescriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["formatVersion", "streamId", "codec", "sampleRate", "channels"],
+      "properties": {
+        "formatVersion": { "$ref": "common.schema.json#/$defs/FormatVersion" },
+        "streamId": { "$ref": "common.schema.json#/$defs/OpaqueId" },
+        "timelineId": { "$ref": "common.schema.json#/$defs/TimelineId" },
+        "codec": { "type": "string", "minLength": 1 },
+        "container": { "type": "string", "minLength": 1 },
+        "sampleFormat": { "type": "string", "minLength": 1 },
+        "sampleRate": { "type": "integer", "minimum": 1 },
+        "channels": { "type": "integer", "minimum": 1 },
+        "channelLayout": { "type": "string", "minLength": 1 },
+        "extensions": { "$ref": "common.schema.json#/$defs/Extensions" }
+      }
+    },
+    "AudioChunk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "formatVersion",
+        "runId",
+        "streamId",
+        "chunkId",
+        "sequence",
+        "startFrame",
+        "frameCount",
+        "byteLength",
+        "final",
+        "bytes"
+      ],
+      "properties": {
+        "formatVersion": { "$ref": "common.schema.json#/$defs/FormatVersion" },
+        "runId": { "$ref": "common.schema.json#/$defs/OpaqueId" },
+        "streamId": { "$ref": "common.schema.json#/$defs/OpaqueId" },
+        "chunkId": { "$ref": "common.schema.json#/$defs/OpaqueId" },
+        "sequence": { "type": "integer", "minimum": 0 },
+        "startFrame": { "type": "integer", "minimum": 0 },
+        "frameCount": { "type": "integer", "minimum": 0 },
+        "byteLength": { "type": "integer", "minimum": 0 },
+        "final": { "type": "boolean" },
+        "bytes": {
+          "type": "string",
+          "contentEncoding": "base64",
+          "description": "Base64 in JSON examples; JS/TS in-process payloads carry Uint8Array bytes."
+        },
+        "extensions": { "$ref": "common.schema.json#/$defs/Extensions" }
+      }
+    }
+  }
+}

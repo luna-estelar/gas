@@ -1,0 +1,30 @@
+{
+  "name": "@luna-estelar/gas-renderer",
+  "version": "0.1.0",
+  "description": "Audio generation and playback: clock, scheduling, musical-to-clock conversion, and session state derived through gas-core.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "main": "./out/index.js",
+  "module": "./out/index.js",
+  "types": "./out/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./out/index.d.ts",
+      "default": "./out/index.js"
+    }
+  },
+  "files": [
+    "out",
+    "src"
+  ],
+  "scripts": {
+    "clean": "tsc -b --clean"
+  },
+  "dependencies": {
+    "@luna-estelar/gas-protocol": "workspace:*",
+    "@luna-estelar/gas-core": "workspace:*"
+  }
+}

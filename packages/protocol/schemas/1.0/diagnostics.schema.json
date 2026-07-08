@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gas.luna-estelar.com/protocol/1.0/diagnostics.schema.json",
+  "title": "GAS Diagnostics 1.0",
+  "$defs": {
+    "Component": {
+      "enum": ["language", "api", "core", "renderer", "connector", "host"]
+    },
+    "AffectedIntent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": { "enum": ["track", "section", "global"] },
+        "targetId": { "$ref": "common.schema.json#/$defs/LocalId" },
+        "action": {
+          "enum": [
+            "play",
+            "stop",
+            "flavor",
+            "timbre",
+            "notes",
+            "motif",
+            "level",
+            "tempo",
+            "time-signature",
+            "key"
+          ]
+        },
+        "entity": {
+          "$ref": "common.schema.json#/$defs/TimelineEntityReference"
+        }
+      }
+    },
+    "CompilerDiagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["formatVersion", "code", "severity", "message", "component"],
+      "properties": {
+        "formatVersion": { "$ref": "common.schema.json#/$defs/FormatVersion" },
+        "code": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+        "severity": { "enum": ["error", "warning", "info"] },
+        "message": { "type": "string", "minLength": 1 },
+        "component": { "const": "language" },
+        "sourceRange": { "$ref": "common.schema.json#/$defs/SourceRange" },
+        "jsonPointer": { "type": "string", "pattern": "^(?:/(?:[^~/]|~[01])*)*$" },
+        "extensions": { "$ref": "common.schema.json#/$defs/Extensions" }
+      }
+    },
+    "RendererWarning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "formatVersion",
+        "warningId",
+        "code",
+        "severity",
+        "message",
+        "component",
+        "policy"
+      ],
+      "properties": {
+        "formatVersion": { "$ref": "common.schema.json#/$defs/FormatVersion" },
+        "warningId": { "$ref": "common.schema.json#/$defs/OpaqueId" },
+        "code": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+        "severity": { "const": "warning" },
+        "message": { "type": "string", "minLength": 1 },
+        "component": { "$ref": "#/$defs/Component" },
+        "policy": { "enum": ["dropped", "approximated", "ignored"] },
+        "affected": { "$ref": "#/$defs/AffectedIntent" },
+        "extensions": { "$ref": "common.schema.json#/$defs/Extensions" }
+      }
+    },
+    "FailureCause": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "component"],
+      "properties": {
+        "code": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+        "message": { "type": "string", "minLength": 1 },
+        "component": { "$ref": "#/$defs/Component" }
+      }
+    },
+    "RendererFailure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "formatVersion",
+        "failureId",
+        "code",
+        "severity",
+        "message",
+        "component",
+        "retryable",
+        "recoverability"
+      ],
+      "properties": {
+        "formatVersion": { "$ref": "common.schema.json#/$defs/FormatVersion" },
+        "failureId": { "$ref": "common.schema.json#/$defs/OpaqueId" },
+        "code": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+        "severity": { "const": "error" },
+        "message": { "type": "string", "minLength": 1 },
+        "component": { "$ref": "#/$defs/Component" },
+        "retryable": { "type": "boolean" },
+        "recoverability": {
+          "enum": ["operation", "session", "renderer", "fatal"]
+        },
+        "cause": { "$ref": "#/$defs/FailureCause" },
+        "affected": { "$ref": "#/$defs/AffectedIntent" },
+        "extensions": { "$ref": "common.schema.json#/$defs/Extensions" }
+      }
+    }
+  }
+}

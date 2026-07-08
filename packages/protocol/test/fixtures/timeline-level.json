@@ -1,0 +1,67 @@
+{
+  "formatVersion": { "major": 1, "minor": 0 },
+  "timelineId": "timeline.level.0",
+  "languageVersion": "1.0.0",
+  "compilerVersion": "1.0.0",
+  "source": {
+    "name": "examples/pad.gas",
+    "mediaType": "text/vnd.gas"
+  },
+  "playback": { "mode": "finite", "declaredBars": 4 },
+  "arrangedBars": 4,
+  "musicalContext": {
+    "tempo": 120,
+    "timeSignature": { "beatsPerBar": 4, "beatUnit": 4 }
+  },
+  "globals": {
+    "flavor": { "kind": "text", "text": "ambient, warm" },
+    "level": { "kind": "level", "value": 0.8 }
+  },
+  "tracks": [
+    {
+      "trackId": "track.pad",
+      "name": "pad",
+      "description": "A warm analog pad",
+      "defaults": [
+        {
+          "defaultId": "default.pad.timbre",
+          "action": "timbre",
+          "value": { "kind": "text", "text": "warm analog poly" }
+        }
+      ]
+    }
+  ],
+  "arrangement": [
+    {
+      "sectionInstanceId": "section.intro.0",
+      "sectionName": "intro",
+      "callIndex": 0,
+      "start": { "bar": 1 },
+      "end": { "bar": 5 }
+    }
+  ],
+  "resources": [],
+  "events": [
+    {
+      "eventId": "event.0000",
+      "type": "track",
+      "targetId": "track.pad",
+      "action": "play",
+      "position": { "bar": 1 },
+      "sequence": 0,
+      "scope": "timed",
+      "sectionInstanceId": "section.intro.0"
+    },
+    {
+      "eventId": "event.0001",
+      "type": "track",
+      "targetId": "track.pad",
+      "action": "level",
+      "position": { "bar": 3 },
+      "sequence": 1,
+      "scope": "timed",
+      "sectionInstanceId": "section.intro.0",
+      "value": { "kind": "level", "value": 0.4 }
+    }
+  ]
+}

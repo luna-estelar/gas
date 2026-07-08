@@ -1,0 +1,11 @@
+{
+  "formatVersion": { "major": 1, "minor": 0 },
+  "streamId": "stream-1",
+  "timelineId": "timeline.chorus.0",
+  "codec": "pcm",
+  "container": "raw",
+  "sampleFormat": "f32le",
+  "sampleRate": 48000,
+  "channels": 2,
+  "channelLayout": "stereo"
+}

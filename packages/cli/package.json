@@ -1,0 +1,35 @@
+{
+  "name": "@luna-estelar/gas-cli",
+  "version": "0.1.0",
+  "description": "Command-line entrypoint for GAS.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "main": "./out/index.js",
+  "module": "./out/index.js",
+  "types": "./out/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./out/index.d.ts",
+      "default": "./out/index.js"
+    }
+  },
+  "bin": {
+    "gas": "./bin/gas.js"
+  },
+  "files": [
+    "bin",
+    "out",
+    "src"
+  ],
+  "scripts": {
+    "clean": "tsc -b --clean"
+  },
+  "dependencies": {
+    "@luna-estelar/gas-protocol": "workspace:*",
+    "@luna-estelar/gas-language": "workspace:*",
+    "@luna-estelar/gas-core": "workspace:*"
+  }
+}

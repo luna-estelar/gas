@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gas.luna-estelar.com/protocol/1.0/capabilities.schema.json",
+  "title": "GAS Renderer Capabilities 1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["formatVersion", "rendererId", "revision", "actions"],
+  "properties": {
+    "formatVersion": { "$ref": "common.schema.json#/$defs/FormatVersion" },
+    "rendererId": { "$ref": "common.schema.json#/$defs/OpaqueId" },
+    "connectorId": { "$ref": "common.schema.json#/$defs/OpaqueId" },
+    "revision": { "$ref": "common.schema.json#/$defs/OpaqueId" },
+    "actions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["play", "stop", "flavor", "timbre", "notes", "motif", "level"],
+      "properties": {
+        "play": { "$ref": "#/$defs/ActionSupport" },
+        "stop": { "$ref": "#/$defs/ActionSupport" },
+        "flavor": { "$ref": "#/$defs/ActionSupport" },
+        "timbre": { "$ref": "#/$defs/ActionSupport" },
+        "notes": { "$ref": "#/$defs/ActionSupport" },
+        "motif": { "$ref": "#/$defs/ActionSupport" },
+        "level": { "$ref": "#/$defs/ActionSupport" }
+      }
+    },
+    "extensions": { "$ref": "common.schema.json#/$defs/Extensions" }
+  },
+  "$defs": {
+    "ActionSupport": {
+      "enum": ["native", "approximated", "dropped"]
+    }
+  }
+}

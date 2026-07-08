@@ -1,0 +1,29 @@
+{
+  "name": "@luna-estelar/gas-connector-lyria",
+  "version": "0.1.0",
+  "description": "Model-specific Lyria boundary: prompt translation, transport, and config interpretation.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "main": "./out/index.js",
+  "module": "./out/index.js",
+  "types": "./out/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./out/index.d.ts",
+      "default": "./out/index.js"
+    }
+  },
+  "files": [
+    "out",
+    "src"
+  ],
+  "scripts": {
+    "clean": "tsc -b --clean"
+  },
+  "dependencies": {
+    "@luna-estelar/gas-protocol": "workspace:*"
+  }
+}

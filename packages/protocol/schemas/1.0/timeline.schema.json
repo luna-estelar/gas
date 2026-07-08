@@ -1,0 +1,381 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gas.luna-estelar.com/protocol/1.0/timeline.schema.json",
+  "title": "GAS Timeline 1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "formatVersion",
+    "timelineId",
+    "languageVersion",
+    "compilerVersion",
+    "source",
+    "playback",
+    "arrangedBars",
+    "globals",
+    "tracks",
+    "arrangement",
+    "resources",
+    "events"
+  ],
+  "properties": {
+    "formatVersion": {
+      "$ref": "common.schema.json#/$defs/FormatVersion"
+    },
+    "timelineId": {
+      "$ref": "common.schema.json#/$defs/TimelineId"
+    },
+    "languageVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "compilerVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "$ref": "common.schema.json#/$defs/SourceIdentity"
+    },
+    "playback": {
+      "$ref": "#/$defs/Playback"
+    },
+    "arrangedBars": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "musicalContext": {
+      "$ref": "#/$defs/MusicalContext"
+    },
+    "globals": {
+      "$ref": "#/$defs/GlobalDefaults"
+    },
+    "tracks": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/TrackDeclaration" }
+    },
+    "arrangement": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ArrangementInstance" }
+    },
+    "resources": {
+      "$ref": "resources.schema.json#/$defs/ResourceManifest"
+    },
+    "events": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/TimelineEvent" }
+    },
+    "extensions": {
+      "$ref": "common.schema.json#/$defs/Extensions"
+    }
+  },
+  "$defs": {
+    "Playback": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "declaredBars"],
+          "properties": {
+            "mode": { "const": "finite" },
+            "declaredBars": { "type": "integer", "minimum": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "declaredBars"],
+          "properties": {
+            "mode": { "const": "loop" },
+            "declaredBars": { "type": "integer", "minimum": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode"],
+          "properties": {
+            "mode": { "const": "infinite" }
+          }
+        }
+      ]
+    },
+    "MusicalContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tempo": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "timeSignature": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["beatsPerBar", "beatUnit"],
+          "properties": {
+            "beatsPerBar": { "type": "integer", "minimum": 1 },
+            "beatUnit": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "key": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "GlobalDefaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "flavor": {
+          "$ref": "resources.schema.json#/$defs/TextValue"
+        },
+        "level": {
+          "$ref": "resources.schema.json#/$defs/LevelValue"
+        }
+      }
+    },
+    "TrackDefault": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["defaultId", "action", "value"],
+      "properties": {
+        "defaultId": {
+          "$ref": "common.schema.json#/$defs/LocalId"
+        },
+        "action": {
+          "enum": ["flavor", "timbre", "notes", "motif", "level"]
+        },
+        "value": {
+          "$ref": "resources.schema.json#/$defs/IntentValue"
+        },
+        "provenance": {
+          "$ref": "common.schema.json#/$defs/Provenance"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["action"],
+            "properties": { "action": { "const": "flavor" } }
+          },
+          "then": {
+            "properties": {
+              "value": { "$ref": "resources.schema.json#/$defs/TextValue" }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["action"],
+            "properties": { "action": { "const": "timbre" } }
+          },
+          "then": {
+            "properties": {
+              "value": { "$ref": "resources.schema.json#/$defs/TimbreValue" }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["action"],
+            "properties": { "action": { "enum": ["notes", "motif"] } }
+          },
+          "then": {
+            "properties": {
+              "value": { "$ref": "resources.schema.json#/$defs/NotationValue" }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["action"],
+            "properties": { "action": { "const": "level" } }
+          },
+          "then": {
+            "properties": {
+              "value": { "$ref": "resources.schema.json#/$defs/LevelValue" }
+            }
+          }
+        }
+      ]
+    },
+    "TrackDeclaration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["trackId", "name", "description", "defaults"],
+      "properties": {
+        "trackId": {
+          "$ref": "common.schema.json#/$defs/LocalId"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "defaults": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TrackDefault" }
+        },
+        "provenance": {
+          "$ref": "common.schema.json#/$defs/Provenance"
+        }
+      }
+    },
+    "ArrangementInstance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sectionInstanceId", "sectionName", "callIndex", "start", "end"],
+      "properties": {
+        "sectionInstanceId": {
+          "$ref": "common.schema.json#/$defs/LocalId"
+        },
+        "sectionName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "callIndex": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "start": {
+          "$ref": "common.schema.json#/$defs/MusicalPosition"
+        },
+        "end": {
+          "$ref": "common.schema.json#/$defs/MusicalPosition"
+        },
+        "provenance": {
+          "$ref": "common.schema.json#/$defs/Provenance"
+        }
+      }
+    },
+    "TimelineEvent": {
+      "oneOf": [
+        { "$ref": "#/$defs/PlayStopEvent" },
+        { "$ref": "#/$defs/ValuedTrackEvent" },
+        { "$ref": "#/$defs/SectionFlavorEvent" }
+      ]
+    },
+    "PlayStopEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["eventId", "type", "targetId", "action", "position", "sequence", "scope"],
+      "properties": {
+        "eventId": { "$ref": "common.schema.json#/$defs/LocalId" },
+        "type": { "const": "track" },
+        "targetId": { "$ref": "common.schema.json#/$defs/LocalId" },
+        "action": { "enum": ["play", "stop"] },
+        "position": { "$ref": "common.schema.json#/$defs/MusicalPosition" },
+        "sequence": { "type": "integer", "minimum": 0 },
+        "scope": { "const": "timed" },
+        "sectionInstanceId": { "$ref": "common.schema.json#/$defs/LocalId" },
+        "provenance": { "$ref": "common.schema.json#/$defs/Provenance" },
+        "extensions": { "$ref": "common.schema.json#/$defs/Extensions" }
+      }
+    },
+    "ValuedTrackEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eventId",
+        "type",
+        "targetId",
+        "action",
+        "position",
+        "sequence",
+        "scope",
+        "value"
+      ],
+      "properties": {
+        "eventId": { "$ref": "common.schema.json#/$defs/LocalId" },
+        "type": { "const": "track" },
+        "targetId": { "$ref": "common.schema.json#/$defs/LocalId" },
+        "action": {
+          "enum": ["flavor", "timbre", "notes", "motif", "level"]
+        },
+        "position": { "$ref": "common.schema.json#/$defs/MusicalPosition" },
+        "sequence": { "type": "integer", "minimum": 0 },
+        "scope": { "enum": ["timed", "section"] },
+        "sectionInstanceId": { "$ref": "common.schema.json#/$defs/LocalId" },
+        "value": { "$ref": "resources.schema.json#/$defs/IntentValue" },
+        "provenance": { "$ref": "common.schema.json#/$defs/Provenance" },
+        "extensions": { "$ref": "common.schema.json#/$defs/Extensions" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["action"],
+            "properties": { "action": { "const": "flavor" } }
+          },
+          "then": {
+            "properties": {
+              "value": { "$ref": "resources.schema.json#/$defs/TextValue" }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["action"],
+            "properties": { "action": { "const": "timbre" } }
+          },
+          "then": {
+            "properties": {
+              "value": { "$ref": "resources.schema.json#/$defs/TimbreValue" }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["action"],
+            "properties": { "action": { "enum": ["notes", "motif"] } }
+          },
+          "then": {
+            "properties": {
+              "value": { "$ref": "resources.schema.json#/$defs/NotationValue" }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["action"],
+            "properties": { "action": { "const": "level" } }
+          },
+          "then": {
+            "properties": {
+              "value": { "$ref": "resources.schema.json#/$defs/LevelValue" }
+            }
+          }
+        }
+      ]
+    },
+    "SectionFlavorEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eventId",
+        "type",
+        "targetId",
+        "action",
+        "position",
+        "sequence",
+        "scope",
+        "sectionInstanceId",
+        "value"
+      ],
+      "properties": {
+        "eventId": { "$ref": "common.schema.json#/$defs/LocalId" },
+        "type": { "const": "section" },
+        "targetId": { "$ref": "common.schema.json#/$defs/LocalId" },
+        "action": { "const": "flavor" },
+        "position": { "$ref": "common.schema.json#/$defs/MusicalPosition" },
+        "sequence": { "type": "integer", "minimum": 0 },
+        "scope": { "const": "section" },
+        "sectionInstanceId": { "$ref": "common.schema.json#/$defs/LocalId" },
+        "value": { "$ref": "resources.schema.json#/$defs/TextValue" },
+        "provenance": { "$ref": "common.schema.json#/$defs/Provenance" },
+        "extensions": { "$ref": "common.schema.json#/$defs/Extensions" }
+      }
+    }
+  }
+}
