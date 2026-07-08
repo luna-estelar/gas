@@ -1,34 +1,23 @@
-import type { AstNode } from 'langium';
 import * as ast from '../generated/ast.js';
 import type {
-  AldaSnippet,
   Bar,
-  FlavorCommand,
   FlavorGlobal,
   GasDocument,
-  GasNode,
-  GasSourceRange,
   Global,
   GlobalLength,
   Globals,
   KeyGlobal,
-  LevelCommand,
   LevelGlobal,
-  MotifCommand,
-  NotesCommand,
-  PlayCommand,
   Section,
   SectionLength,
   SectionPlay,
-  StopCommand,
-  StringValue,
   TempoGlobal,
   TimeSignatureGlobal,
-  TimbreCommand,
   Track,
   TrackCommand
 } from './ast.js';
-import { deferredDiagnostic, semanticDiagnostic, type GasDiagnostic } from './diagnostics.js';
+import { semanticDiagnostic, type GasDiagnostic } from './diagnostics.js';
+import { NodeLowering, reservedDiagnostic, unquoteString } from './lower.js';
 
 export interface BuildResult {
   readonly document: GasDocument;
@@ -40,18 +29,13 @@ interface TrackRecord {
   readonly defaults: TrackCommand[];
 }
 
-const fallbackRange: GasSourceRange = {
-  start: { line: 0, character: 0 },
-  end: { line: 0, character: 0 }
-};
-
 export function buildDocument(model: ast.Model): BuildResult {
   return new SemanticBuilder().build(model);
 }
 
 class SemanticBuilder {
   private readonly diagnostics: GasDiagnostic[] = [];
-  private sourceOrder = 0;
+  private readonly lowering = new NodeLowering();
 
   build(model: ast.Model): BuildResult {
     const globals = this.createGlobals();
@@ -67,11 +51,11 @@ class SemanticBuilder {
       if (ast.isGlobalDeclaration(element)) {
         this.appendGlobal(globals, element);
       } else if (ast.isReservedStatement(element)) {
-        this.appendReservedDiagnostic(element);
+        this.diagnostics.push(reservedDiagnostic(element));
       } else if (ast.isTrackDeclaration(element)) {
         const defaults: TrackCommand[] = [];
         const track: Track = {
-          ...this.base(element),
+          ...this.lowering.base(element),
           kind: 'Track',
           name: element.name,
           description: unquoteString(element.description),
@@ -115,7 +99,7 @@ class SemanticBuilder {
 
     for (const element of model.elements) {
       if (ast.isTrackStatement(element)) {
-        const command = this.buildTrackCommand(element);
+        const command = this.lowering.trackCommand(element);
         const record = trackRecords.get(command.trackName);
         if (record !== undefined) {
           record.defaults.push(command);
@@ -125,7 +109,7 @@ class SemanticBuilder {
         }
       } else if (ast.isSectionCall(element)) {
         const call: SectionPlay = {
-          ...this.base(element),
+          ...this.lowering.base(element),
           kind: 'SectionPlay',
           sectionName: element.section.$refText
         };
@@ -145,7 +129,7 @@ class SemanticBuilder {
 
     return {
       document: {
-        ...this.base(model),
+        ...this.lowering.base(model),
         kind: 'Document',
         globals,
         tracks,
@@ -184,14 +168,18 @@ class SemanticBuilder {
 
   private buildGlobal(declaration: ast.GlobalDeclaration): Global {
     if (ast.isTempoDeclaration(declaration)) {
-      return { ...this.base(declaration), kind: 'Tempo', bpm: declaration.bpm };
+      return { ...this.lowering.base(declaration), kind: 'Tempo', bpm: declaration.bpm };
     }
     if (ast.isKeyDeclaration(declaration)) {
-      return { ...this.base(declaration), kind: 'Key', value: unquoteString(declaration.value) };
+      return {
+        ...this.lowering.base(declaration),
+        kind: 'Key',
+        value: unquoteString(declaration.value)
+      };
     }
     if (ast.isTimeSignatureDeclaration(declaration)) {
       return {
-        ...this.base(declaration),
+        ...this.lowering.base(declaration),
         kind: 'TimeSignature',
         numerator: declaration.numerator,
         denominator: declaration.denominator
@@ -201,18 +189,22 @@ class SemanticBuilder {
       return this.buildGlobalLength(declaration);
     }
     if (ast.isLevelDeclaration(declaration)) {
-      return { ...this.base(declaration), kind: 'Level', value: declaration.value };
+      return { ...this.lowering.base(declaration), kind: 'Level', value: declaration.value };
     }
-    return { ...this.base(declaration), kind: 'Flavor', value: unquoteString(declaration.value) };
+    return {
+      ...this.lowering.base(declaration),
+      kind: 'Flavor',
+      value: unquoteString(declaration.value)
+    };
   }
 
   private buildGlobalLength(declaration: ast.GlobalLengthDeclaration): GlobalLength {
     const length = declaration.length;
     if (ast.isInfiniteLength(length)) {
-      return { ...this.base(declaration), kind: 'Length', mode: 'infinite' };
+      return { ...this.lowering.base(declaration), kind: 'Length', mode: 'infinite' };
     }
     return {
-      ...this.base(declaration),
+      ...this.lowering.base(declaration),
       kind: 'Length',
       mode: length.loop ? 'loop' : 'finite',
       bars: length.bars
@@ -232,16 +224,20 @@ class SemanticBuilder {
     for (const item of declaration.items) {
       if (ast.isSectionLengthDeclaration(item)) {
         length = {
-          ...this.base(item),
+          ...this.lowering.base(item),
           kind: 'SectionLength',
           bars: item.length.bars
         };
       } else if (ast.isFlavorDeclaration(item)) {
-        flavors.push({ ...this.base(item), kind: 'Flavor', value: unquoteString(item.value) });
+        flavors.push({
+          ...this.lowering.base(item),
+          kind: 'Flavor',
+          value: unquoteString(item.value)
+        });
       } else if (ast.isReservedStatement(item)) {
-        this.appendReservedDiagnostic(item);
+        this.diagnostics.push(reservedDiagnostic(item));
       } else if (ast.isTrackStatement(item)) {
-        const command = this.buildTrackCommand(item);
+        const command = this.lowering.trackCommand(item);
         setup.push(command);
         if (!tracksByName.has(command.trackName)) {
           orphanCommands.push(command);
@@ -253,7 +249,7 @@ class SemanticBuilder {
     }
 
     return {
-      ...this.base(declaration),
+      ...this.lowering.base(declaration),
       kind: 'Section',
       name: declaration.name,
       length,
@@ -271,10 +267,10 @@ class SemanticBuilder {
     const commands: TrackCommand[] = [];
     for (const statement of block.commands) {
       if (ast.isReservedStatement(statement)) {
-        this.appendReservedDiagnostic(statement);
+        this.diagnostics.push(reservedDiagnostic(statement));
         continue;
       }
-      const command = this.buildTrackCommand(statement);
+      const command = this.lowering.trackCommand(statement);
       commands.push(command);
       if (!tracksByName.has(command.trackName)) {
         orphanCommands.push(command);
@@ -282,92 +278,10 @@ class SemanticBuilder {
       }
     }
     return {
-      ...this.base(block),
+      ...this.lowering.base(block),
       kind: 'Bar',
       number: block.number,
       commands
-    };
-  }
-
-  private buildTrackCommand(statement: ast.TrackStatement): TrackCommand {
-    const command = statement.command;
-    const base = {
-      ...this.base(statement),
-      trackName: statement.track.$refText
-    };
-
-    if (ast.isPlayCommand(command)) {
-      return { ...base, kind: 'Play' } satisfies PlayCommand;
-    }
-    if (ast.isStopCommand(command)) {
-      return { ...base, kind: 'Stop' } satisfies StopCommand;
-    }
-    if (ast.isFlavorCommand(command)) {
-      return {
-        ...base,
-        kind: 'Flavor',
-        value: unquoteString(command.value ?? '')
-      } satisfies FlavorCommand;
-    }
-    if (ast.isTimbreCommand(command)) {
-      return {
-        ...base,
-        kind: 'Timbre',
-        value: this.stringValue(command.value ?? '', command)
-      } satisfies TimbreCommand;
-    }
-    if (ast.isLevelCommand(command)) {
-      return { ...base, kind: 'Level', value: command.value ?? Number.NaN } satisfies LevelCommand;
-    }
-    if (ast.isNotesCommand(command)) {
-      return {
-        ...base,
-        kind: 'Notes',
-        value: this.aldaSnippet(command.value)
-      } satisfies NotesCommand;
-    }
-    return {
-      ...base,
-      kind: 'Motif',
-      value: this.aldaSnippet(command.value)
-    } satisfies MotifCommand;
-  }
-
-  private appendReservedDiagnostic(statement: ast.ReservedStatement): void {
-    const command = ast.isReservedGlobalStatement(statement)
-      ? statement.command
-      : statement.command;
-    const feature = reservedFeature(command);
-    this.diagnostics.push(
-      deferredDiagnostic(
-        `reserved-${feature.replace('.', '-')}`,
-        reservedMessage(feature),
-        rangeOf(statement)
-      )
-    );
-  }
-
-  private stringValue(value: string, node: AstNode): StringValue {
-    return {
-      ...this.base(node),
-      kind: 'String',
-      value: unquoteString(value)
-    };
-  }
-
-  private aldaSnippet(value: ast.AldaValue | undefined): AldaSnippet {
-    return {
-      ...this.base(value),
-      kind: 'Alda',
-      raw: stripAldaWrapper(value?.raw ?? '')
-    };
-  }
-
-  private base(node: AstNode | undefined): GasNode {
-    return {
-      kind: 'Node',
-      range: rangeOf(node),
-      sourceOrder: this.sourceOrder++
     };
   }
 }
@@ -379,84 +293,4 @@ function unresolvedTrackDiagnostic(command: TrackCommand): GasDiagnostic {
     `I cannot find a track named '${command.trackName}' for this command.`,
     command.range
   );
-}
-
-function reservedFeature(command: ast.ReservedGlobalCommand | ast.ReservedTrackCommand): string {
-  if (ast.isLyricsThemeReservedCommand(command)) {
-    return 'lyrics.theme';
-  }
-  if (ast.isLyricsReservedCommand(command)) {
-    return 'lyrics';
-  }
-  if (ast.isEffectReservedCommand(command)) {
-    return 'effect';
-  }
-  if (ast.isExtendReservedCommand(command)) {
-    return 'extend';
-  }
-  return 'prompt';
-}
-
-function reservedMessage(feature: string): string {
-  if (feature === 'lyrics' || feature === 'lyrics.theme') {
-    return 'Lyrics are reserved for after v1; Lyria realtime v1 does not render lyrics yet.';
-  }
-  if (feature === 'effect') {
-    return 'Effects are reserved for after v1; describe the sound with flavor for now.';
-  }
-  if (feature === 'extend') {
-    return 'Renderer extension syntax is reserved for after v1.';
-  }
-  return 'Direct model prompts are reserved for after v1; use GAS intent like flavor and timbre instead.';
-}
-
-function stripAldaWrapper(raw: string): string {
-  return raw.startsWith('alda(') && raw.endsWith(')') ? raw.slice(5, -1) : raw;
-}
-
-function unquoteString(raw: string): string {
-  if (raw.length < 2) {
-    return raw;
-  }
-  const quote = raw[0];
-  if ((quote !== '"' && quote !== "'") || raw[raw.length - 1] !== quote) {
-    return raw;
-  }
-
-  const chunks: string[] = [];
-  for (let index = 1; index < raw.length - 1; index++) {
-    const char = raw[index];
-    if (char !== '\\') {
-      chunks.push(char);
-      continue;
-    }
-
-    index++;
-    if (index >= raw.length - 1) {
-      chunks.push('\\');
-      break;
-    }
-
-    const escaped = raw[index];
-    if (escaped === 'n') {
-      chunks.push('\n');
-    } else if (escaped === 'r') {
-      chunks.push('\r');
-    } else if (escaped === 't') {
-      chunks.push('\t');
-    } else if (escaped === 'b') {
-      chunks.push('\b');
-    } else if (escaped === 'f') {
-      chunks.push('\f');
-    } else if (escaped === 'v') {
-      chunks.push('\v');
-    } else {
-      chunks.push(escaped);
-    }
-  }
-  return chunks.join('');
-}
-
-function rangeOf(node: AstNode | undefined): GasSourceRange {
-  return node?.$cstNode?.range ?? fallbackRange;
 }

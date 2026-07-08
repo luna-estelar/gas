@@ -7,6 +7,7 @@ import { isModel, type Model } from './generated/ast.js';
 import type { GasDocument } from './semantic/ast.js';
 import { buildDocument } from './semantic/build.js';
 import type { GasDiagnostic, GasDiagnosticSeverity } from './semantic/diagnostics.js';
+import { buildLiveCommands, type LiveStatement } from './semantic/live.js';
 import type { Timeline } from './compiler/timeline.js';
 import { validate } from './semantic/validate.js';
 
@@ -45,6 +46,7 @@ export type {
   GasDiagnosticCategory,
   GasDiagnosticSeverity
 } from './semantic/diagnostics.js';
+export type { LiveStatement, LiveTempoCommand, LiveTrackDeclaration } from './semantic/live.js';
 export type {
   ArrangementInstance,
   AldaValue,
@@ -145,6 +147,48 @@ export function analyzeGasDocument(
   return diagnostics.some((diagnostic) => diagnostic.severity === 'error')
     ? { ok: false, document: built.document, diagnostics }
     : { ok: true, document: built.document, diagnostics };
+}
+
+export interface ParseLiveCommandsOptions extends ParseGasDocumentOptions {}
+
+export interface LiveCommandSuccess {
+  readonly ok: true;
+  readonly statements: readonly LiveStatement[];
+  readonly diagnostics: readonly GasDiagnostic[];
+}
+
+export interface LiveCommandFailure {
+  readonly ok: false;
+  readonly statements?: undefined;
+  readonly diagnostics: readonly GasDiagnostic[];
+}
+
+export type LiveCommandResult = LiveCommandSuccess | LiveCommandFailure;
+
+/**
+ * Parses a live GAS fragment (track declarations, track commands, `tempo N`) into an
+ * ordered statement list. Any structural syntax error, or any live-only exclusion
+ * (sections, arrangement calls, non-tempo globals, reserved keywords), fails the whole
+ * parse — there is no partial statement list on failure. Track names are not resolved
+ * here; Core resolves live statements against the running session's namespace.
+ */
+export function parseLiveCommands(
+  source: string,
+  _options: ParseLiveCommandsOptions = {}
+): LiveCommandResult {
+  const parsed = parseSyntax(source);
+  if (
+    parsed.diagnostics.some((diagnostic) => diagnostic.severity === 'error') ||
+    parsed.model === undefined
+  ) {
+    return { ok: false, diagnostics: parsed.diagnostics };
+  }
+
+  const built = buildLiveCommands(parsed.model);
+  const diagnostics = [...parsed.diagnostics, ...built.diagnostics];
+  return diagnostics.some((diagnostic) => diagnostic.severity === 'error')
+    ? { ok: false, diagnostics }
+    : { ok: true, statements: built.statements, diagnostics };
 }
 
 export interface CompileSourceOptions extends ParseGasDocumentOptions {
