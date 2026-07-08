@@ -2,10 +2,12 @@
 
 import { EmptyFileSystem } from 'langium';
 import { createGasServices } from './gas-module.js';
+import { compileDocument } from './compiler/compile.js';
 import { isModel, type Model } from './generated/ast.js';
 import type { GasDocument } from './semantic/ast.js';
 import { buildDocument } from './semantic/build.js';
 import type { GasDiagnostic, GasDiagnosticSeverity } from './semantic/diagnostics.js';
+import type { Timeline } from './compiler/timeline.js';
 import { validate } from './semantic/validate.js';
 
 export type {
@@ -43,6 +45,41 @@ export type {
   GasDiagnosticCategory,
   GasDiagnosticSeverity
 } from './semantic/diagnostics.js';
+export type {
+  ArrangementInstance,
+  AldaValue,
+  BeatOffset,
+  BeatPosition,
+  FinitePlayback,
+  FormatVersion,
+  GlobalDefaults,
+  InfinitePlayback,
+  IntentValue,
+  LevelValue,
+  LoopPlayback,
+  MusicalContext,
+  MusicalPosition,
+  Playback,
+  PlayStopEvent,
+  Provenance,
+  Resource,
+  ResourceManifest,
+  ResourceValue,
+  SectionFlavorEvent,
+  Sha256Digest,
+  SourceIdentity,
+  SourcePosition,
+  SourceRange,
+  TextValue,
+  Timeline,
+  TimelineEvent,
+  TimeSignature,
+  TrackDeclaration,
+  TrackDefault,
+  TrackDefaultAction,
+  ValuedTrackAction,
+  ValuedTrackEvent
+} from './compiler/timeline.js';
 
 export const packageName = '@luna-estelar/gas-language';
 export const version = '0.1.0';
@@ -108,6 +145,59 @@ export function analyzeGasDocument(
   return diagnostics.some((diagnostic) => diagnostic.severity === 'error')
     ? { ok: false, document: built.document, diagnostics }
     : { ok: true, document: built.document, diagnostics };
+}
+
+export interface CompileSourceOptions extends ParseGasDocumentOptions {
+  /** Source identity label recorded on the timeline (e.g. a file path). */
+  readonly name?: string;
+  /** Override the generated timeline id (defaults to a stable constant). */
+  readonly timelineId?: string;
+}
+
+export interface GasCompileSuccess {
+  readonly ok: true;
+  readonly timeline: Timeline;
+  readonly diagnostics: readonly GasDiagnostic[];
+}
+
+export interface GasCompileFailure {
+  readonly ok: false;
+  readonly timeline?: undefined;
+  readonly diagnostics: readonly GasDiagnostic[];
+}
+
+export type GasCompileResult = GasCompileSuccess | GasCompileFailure;
+
+export function compileSource(
+  source: string,
+  options: CompileSourceOptions = {}
+): GasCompileResult {
+  const parsed = parseSyntax(source);
+  if (
+    parsed.diagnostics.some((diagnostic) => diagnostic.severity === 'error') ||
+    parsed.model === undefined
+  ) {
+    return { ok: false, diagnostics: parsed.diagnostics };
+  }
+
+  const built = buildDocument(parsed.model);
+  const analysis = [...parsed.diagnostics, ...built.diagnostics, ...validate(built.document)];
+  if (analysis.some((diagnostic) => diagnostic.severity === 'error')) {
+    return { ok: false, diagnostics: analysis };
+  }
+
+  const compiled = compileDocument(built.document, source, {
+    name: options.name,
+    timelineId: options.timelineId
+  });
+  const diagnostics = [...analysis, ...compiled.diagnostics];
+  if (
+    compiled.timeline === undefined ||
+    diagnostics.some((diagnostic) => diagnostic.severity === 'error')
+  ) {
+    return { ok: false, diagnostics };
+  }
+  return { ok: true, timeline: compiled.timeline, diagnostics };
 }
 
 function parseSyntax(source: string): {
