@@ -1,6 +1,6 @@
 import { effectiveLengthBars, resolveSection } from './ast.js';
 import type { GasDocument, GasNode, Global, TrackCommand } from './ast.js';
-import { informationalDiagnostic, semanticDiagnostic, type GasDiagnostic } from './diagnostics.js';
+import { semanticDiagnostic, type GasDiagnostic } from './diagnostics.js';
 
 const GLOBAL_KEYWORDS: Record<Global['kind'], string> = {
   Tempo: 'tempo',
@@ -32,7 +32,6 @@ export function validate(document: GasDocument): readonly GasDiagnostic[] {
   checkSectionFlavors(document, diagnostics);
   checkRegionOrder(document, diagnostics);
   checkArrangementLength(document, diagnostics);
-  checkLyriaHints(document, diagnostics);
   return diagnostics;
 }
 
@@ -320,20 +319,6 @@ function checkArrangementLength(document: GasDocument, diagnostics: GasDiagnosti
         declared.range
       )
     );
-  }
-}
-
-function checkLyriaHints(document: GasDocument, diagnostics: GasDiagnostic[]): void {
-  for (const command of allCommands(document)) {
-    if (command.kind === 'Notes' || command.kind === 'Motif') {
-      diagnostics.push(
-        informationalDiagnostic(
-          'lyria-unsupported-intent',
-          `GAS accepts ${command.trackName}.${COMMAND_KEYWORDS[command.kind]}, but Lyria realtime v1 will warn and drop it.`,
-          command.range
-        )
-      );
-    }
   }
 }
 

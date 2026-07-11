@@ -1,6 +1,6 @@
 import * as ast from '../generated/ast.js';
 import type { GasNode, TrackCommand } from './ast.js';
-import { informationalDiagnostic, semanticDiagnostic, type GasDiagnostic } from './diagnostics.js';
+import { semanticDiagnostic, type GasDiagnostic } from './diagnostics.js';
 import { NodeLowering, rangeOf, reservedDiagnostic, unquoteString } from './lower.js';
 
 export interface LiveTrackDeclaration extends GasNode {
@@ -77,16 +77,6 @@ export function buildLiveCommands(model: ast.Model): LiveBuildResult {
             'invalid-level',
             'error',
             `Level must be between 0 and 1, got ${command.value}.`,
-            command.range
-          )
-        );
-      }
-      if (command.kind === 'Notes' || command.kind === 'Motif') {
-        const keyword = command.kind === 'Notes' ? 'notes' : 'motif';
-        diagnostics.push(
-          informationalDiagnostic(
-            'lyria-unsupported-intent',
-            `GAS accepts ${command.trackName}.${keyword}, but Lyria realtime v1 will warn and drop it.`,
             command.range
           )
         );

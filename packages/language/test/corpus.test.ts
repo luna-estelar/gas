@@ -60,14 +60,11 @@ describe('GAS corpus', () => {
       const actualAlda = collectAldaSources(result.timeline);
       expect(actualAlda).toEqual(expectedAlda);
 
-      const hintCount = result.diagnostics.filter(
-        (diagnostic) => diagnostic.code === 'lyria-unsupported-intent'
-      ).length;
-      if (expectedAlda.length > 0) {
-        expect(hintCount).toBeGreaterThanOrEqual(1);
-      } else {
-        expect(hintCount).toBe(0);
-      }
+      // The language is model-neutral: no diagnostic may mention a specific model.
+      const modelMentions = result.diagnostics.filter((diagnostic) =>
+        `${diagnostic.code} ${diagnostic.message}`.toLowerCase().includes('lyria')
+      );
+      expect(modelMentions).toEqual([]);
     }
   );
 });

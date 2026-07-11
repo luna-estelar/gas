@@ -54,14 +54,13 @@ describe('parseLiveCommands acceptance', () => {
     ]);
   });
 
-  test('accepts notes and motif with an informational Lyria hint', () => {
+  test('accepts notes and motif with no model-specific diagnostics', () => {
     const result = parseLiveCommands('lead.notes alda(o4 c d e)');
     expect(result.ok).toBe(true);
     expect(expectStatements(result)).toEqual([
       expect.objectContaining({ kind: 'Notes', trackName: 'lead' })
     ]);
-    expect(codes(result)).toEqual(['lyria-unsupported-intent']);
-    expect(categories(result)).toEqual(['informational']);
+    expect(codes(result)).toEqual([]);
   });
 
   test('accepts tempo', () => {

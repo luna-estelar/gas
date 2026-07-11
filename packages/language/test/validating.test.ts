@@ -215,7 +215,7 @@ drums.flavor "late"
     expect(codes(result.diagnostics)).toContain('region-order');
   });
 
-  test('emits informational Lyria hints for notes and motif', () => {
+  test('notes and motif compile cleanly with no model-specific diagnostics', () => {
     const result = analyzeGasDocument(`
 length bars 4
 track keys "Juno keys"
@@ -230,12 +230,15 @@ section intro:
 intro()
 `);
 
-    const hints = result.diagnostics.filter(
-      (diagnostic) => diagnostic.code === 'lyria-unsupported-intent'
-    );
-    expect(hints).toHaveLength(2);
-    expect(hints.every((diagnostic) => diagnostic.category === 'informational')).toBe(true);
-    expect(hints.every((diagnostic) => diagnostic.severity === 'info')).toBe(true);
+    expect(result.ok).toBe(true);
+    expect(
+      result.diagnostics.filter((diagnostic) => diagnostic.category === 'informational')
+    ).toEqual([]);
+    expect(
+      result.diagnostics.filter((diagnostic) =>
+        `${diagnostic.code} ${diagnostic.message}`.toLowerCase().includes('lyria')
+      )
+    ).toEqual([]);
   });
 
   test('emits deferred diagnostics for each reserved keyword', () => {

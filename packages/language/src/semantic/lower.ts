@@ -167,7 +167,7 @@ function reservedFeature(command: ast.ReservedGlobalCommand | ast.ReservedTrackC
 
 function reservedMessage(feature: string): string {
   if (feature === 'lyrics' || feature === 'lyrics.theme') {
-    return 'Lyrics are reserved for after v1; Lyria realtime v1 does not render lyrics yet.';
+    return 'Lyrics are reserved for after v1.';
   }
   if (feature === 'effect') {
     return 'Effects are reserved for after v1; describe the sound with flavor for now.';
