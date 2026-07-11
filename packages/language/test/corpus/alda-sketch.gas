@@ -1,0 +1,27 @@
+# inline musical notation: alda(...) is captured raw, converted to MIDI downstream
+tempo 72
+key "D minor"
+time_signature 3/4
+length bars 6
+
+track piano "Warm grand piano"
+track bass "Round upright bass"
+
+section phrase:
+    length bars 6
+    # motif: directional: model takes inspiration from this passage
+    piano.motif alda(
+        o4
+        d4 f a > d2.
+    )
+    # notes: literal: model should reproduce this bass line exactly
+    bass.notes alda(
+        o2
+        d2. a2. c2.
+    )
+
+    bar 1:
+        piano.play
+        bass.play
+
+phrase()

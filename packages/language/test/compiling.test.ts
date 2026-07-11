@@ -380,7 +380,7 @@ intro()
     if (motif?.value.kind !== 'alda') {
       throw new Error('Expected an alda value.');
     }
-    expect(motif.value.source).toContain('o3 g a b');
+    expect(motif.value.source).toBe('\n    o3 g a b\n');
     expect(motif.value.source).not.toContain('alda(');
   });
 

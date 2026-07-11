@@ -1,0 +1,41 @@
+# global config
+tempo 104
+key "C minor"
+time_signature 4/4
+length bars 16
+flavor "lofi, intimate, late night"
+
+# tracks
+track guitar "A bright, clean stratocaster playing muted chords"
+track drums "Lofi breakbeat, muffled snare"
+track keys "Juno keys, saw wave, detuned, expressive"
+
+# sections
+section chorus:
+    length bars 8
+    guitar.motif alda(
+        o4
+        c8 d e g a4 g8 e
+    )
+
+    bar 1:
+        drums.play
+        guitar.play
+
+    bar 5:
+        drums.flavor "buildup"
+
+section verse:
+    length bars 8
+    guitar.flavor "sustained notes, open voicings"
+    keys.motif alda(
+        o3
+        g8 a b > c d e f+ g
+    )
+
+    bar 1:
+        guitar.play
+
+# arrangement
+chorus()
+verse()

@@ -1,0 +1,29 @@
+{
+  "name": "@luna-estelar/gas-notation",
+  "version": "0.1.0",
+  "description": "Pure GAS notation helpers for parsing minimal Alda and encoding standard MIDI files.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "main": "./out/index.js",
+  "module": "./out/index.js",
+  "types": "./out/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./out/index.d.ts",
+      "default": "./out/index.js"
+    }
+  },
+  "files": [
+    "out",
+    "src"
+  ],
+  "scripts": {
+    "clean": "tsc -b --clean"
+  },
+  "dependencies": {
+    "@luna-estelar/gas-protocol": "workspace:*"
+  }
+}

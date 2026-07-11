@@ -1,0 +1,49 @@
+# multi-section arrangement: tracks enter, build, and recede
+tempo 100
+key "A minor"
+time_signature 4/4
+length bars 24
+flavor "cinematic, building tension"
+
+track strings "Lush orchestral strings, warm vibrato"
+track piano "Solo grand piano, dry and close"
+track bass "Double bass, arco"
+track drums "Brushed jazz kit"
+
+section intro:
+    length bars 8
+    strings.timbre "string section, warm vibrato"
+    strings.flavor "sparse, held notes"
+
+    bar 1:
+        piano.play
+
+    bar 5:
+        strings.play
+
+section peak:
+    length bars 8
+    flavor "full, urgent"
+
+    bar 1:
+        bass.play
+        drums.play
+
+    bar 5:
+        strings.flavor "intense, full bow pressure"
+
+section outro:
+    length bars 8
+    strings.flavor "thinning, single line"
+
+    bar 1:
+        piano.play
+        strings.play
+
+    bar 7:
+        piano.stop
+        strings.stop
+
+intro()
+peak()
+outro()

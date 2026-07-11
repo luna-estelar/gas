@@ -7,9 +7,10 @@ import { fileURLToPath } from 'node:url';
 export const ALLOW_MAP = {
   protocol: [],
   language: ['protocol'],
+  notation: ['protocol'],
   api: ['protocol', 'language', 'core'],
   core: ['protocol'],
-  renderer: ['protocol', 'core'],
+  renderer: ['protocol', 'core', 'notation'],
   'connector-lyria': ['protocol'],
   cli: ['protocol', 'language', 'core']
 };

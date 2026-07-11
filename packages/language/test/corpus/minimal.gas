@@ -1,0 +1,15 @@
+# smallest complete GAS document
+tempo 88
+key "C major"
+time_signature 4/4
+length bars 4
+
+track piano "Soft felt piano"
+
+section intro:
+    length bars 4
+
+    bar 1:
+        piano.play
+
+intro()

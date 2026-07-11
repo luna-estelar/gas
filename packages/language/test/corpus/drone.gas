@@ -1,0 +1,17 @@
+# infinite playback holds the final effective state after the arranged section.
+tempo 60
+key "C major"
+time_signature 4/4
+length infinite
+flavor "quiet sustained drone"
+
+track pad "Low warm synth pad"
+
+section sustain:
+    length bars 4
+    pad.flavor "barely moving, soft edges"
+
+    bar 1:
+        pad.play
+
+sustain()

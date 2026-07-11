@@ -1,0 +1,21 @@
+# compact beat sketch
+tempo 96
+key "A minor"
+time_signature 4/4
+length bars 8 loop
+flavor "dusty tape loop"
+
+track drums "Dry kick, brushed snare, closed hat"
+
+section loop:
+    length bars 8
+    drums.timbre "muted, close mic, light saturation"
+    drums.flavor "steady backbeat"
+
+    bar 1:
+        drums.play
+
+    bar 7:
+        drums.flavor "tiny fill into the repeat"
+
+loop()

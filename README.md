@@ -10,6 +10,7 @@ The workspace contains the library implementation and its tests.
 - `@luna-estelar/gas-connector-lyria`: Model-specific Lyria boundary: prompt translation, transport, and config interpretation.
 - `@luna-estelar/gas-core`: Pure GAS semantics: the session input state, command validation, and the effective-state cascade. Owns no clock, no I/O, and no instance state.
 - `@luna-estelar/gas-language`: Parses, validates, and compiles GAS documents and live fragments into musical-time timelines.
+- `@luna-estelar/gas-notation`: Pure GAS notation helpers for parsing minimal Alda and encoding standard MIDI files.
 - `@luna-estelar/gas-protocol`: Shared, transport-neutral payload schemas and types used across the GAS packages.
 - `@luna-estelar/gas-renderer`: Audio generation and playback: clock, scheduling, musical-to-clock conversion, and session state derived through gas-core.
 

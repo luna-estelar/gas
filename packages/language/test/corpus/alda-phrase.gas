@@ -1,0 +1,27 @@
+# Opaque Alda notation and unsupported intent handling.
+tempo 104
+key "D dorian"
+time_signature 4/4
+length bars 8
+flavor "minimal electronic folk, airy, patient"
+
+track lead "A clean plucked synth lead carrying a simple modal phrase"
+
+section alda_phrase:
+    length bars 8
+    lead.timbre "glass pluck synth, short decay, soft stereo delay"
+    lead.motif alda(
+        o4
+        d8 e f g a4 g8 f
+    )
+
+    bar 1:
+        lead.play
+
+    bar 5:
+        lead.notes alda(
+            o4
+            a8 g f e d2
+        )
+
+alda_phrase()

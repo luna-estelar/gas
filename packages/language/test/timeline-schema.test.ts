@@ -1,31 +1,14 @@
-import { readFileSync, readdirSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, expect, test } from 'vitest';
-import Ajv2020 from 'ajv/dist/2020.js';
-import addFormats from 'ajv-formats';
 import { compileSource } from '../src/index.js';
+import { loadTimelineValidator } from './support/schema.js';
 
 // Proves compiled timelines validate against the canonical protocol timeline
 // schema, mirroring the Ajv setup in scripts/validate-schemas.mjs.
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const schemaRoot = path.resolve(here, '../../protocol/schemas/1.0');
-const TIMELINE_SCHEMA_ID = 'https://gas.luna-estelar.com/protocol/1.0/timeline.schema.json';
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let validate: any;
+let validate: ReturnType<typeof loadTimelineValidator>;
 
 beforeAll(() => {
-  const ajv = new Ajv2020({ allErrors: true, strict: false });
-  addFormats(ajv);
-  for (const file of readdirSync(schemaRoot).filter((entry) => entry.endsWith('.schema.json'))) {
-    ajv.addSchema(JSON.parse(readFileSync(path.join(schemaRoot, file), 'utf8')));
-  }
-  validate = ajv.getSchema(TIMELINE_SCHEMA_ID);
-  if (validate === undefined) {
-    throw new Error(`Timeline schema not registered: ${TIMELINE_SCHEMA_ID}`);
-  }
+  validate = loadTimelineValidator();
 });
 
 const RICH_DOCUMENT = `
