@@ -5,6 +5,7 @@
 // derived through the cascade, never stored.
 
 import type { Timeline } from '@luna-estelar/gas-protocol';
+import type { OverrideCommand } from './commands.js';
 
 // A host-defined track. Shares the authored track namespace (`Timeline.tracks`),
 // so its `id` must be unique across both. Host tracks begin inactive; whether a
@@ -16,8 +17,12 @@ export interface HostTrack {
   readonly description?: string;
 }
 
-// Override placeholder for session input state before command application is implemented.
-export type Override = never;
+// An accepted override — a canonical command applied during a run, stored
+// verbatim in application order (the cascade reads staged as layer 3 and live as
+// layer 5). `defineTrack` is deliberately not an override: host tracks live in
+// `hostTracks`. The import from the commands module is type-only, so its value
+// imports from this file create no runtime cycle.
+export type Override = OverrideCommand;
 
 export interface InputState {
   readonly timeline: Timeline;

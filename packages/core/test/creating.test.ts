@@ -96,4 +96,33 @@ describe('defineTrack namespace rules', () => {
     expect(Object.isFrozen(result.state)).toBe(true);
     expect(Object.isFrozen(result.state.hostTracks)).toBe(true);
   });
+
+  it('rejects an empty id', () => {
+    const state = createInputState(validTimeline());
+    const result = defineTrack(state, { kind: 'defineTrack', id: '' });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure.code).toBe('invalid-value');
+    expect(result.failure.message.length).toBeGreaterThan(0);
+  });
+
+  it('rejects a non-string id', () => {
+    const state = createInputState(validTimeline());
+    const result = defineTrack(state, { kind: 'defineTrack', id: 42 as unknown as string });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure.code).toBe('invalid-value');
+  });
+
+  it('rejects a non-string name', () => {
+    const state = createInputState(validTimeline());
+    const result = defineTrack(state, {
+      kind: 'defineTrack',
+      id: 'host.a',
+      name: 7 as unknown as string
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure.code).toBe('invalid-value');
+  });
 });
