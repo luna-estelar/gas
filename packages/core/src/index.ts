@@ -36,5 +36,13 @@ export { applyCommand, defineTrack } from './commands.js';
 export type { TimelineProblem, TimelineProblemCode, ValidateTimelineResult } from './validate.js';
 export { validateTimeline } from './validate.js';
 
+export type {
+  EffectiveGlobals,
+  EffectiveState,
+  EffectiveStateOptions,
+  EffectiveTrack
+} from './cascade.js';
+export { effectiveStateAt, sectionInstanceAt } from './cascade.js';
+
 export const packageName = '@luna-estelar/gas-core';
 export const version = '0.1.0';
