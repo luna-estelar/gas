@@ -44,5 +44,9 @@ export type {
 } from './cascade.js';
 export { effectiveStateAt, sectionInstanceAt } from './cascade.js';
 
+export { authoredEventSchedule } from './schedule.js';
+
+export { applyStop, applyCompletion, applyLoopBoundary, applyRetry } from './transitions.js';
+
 export const packageName = '@luna-estelar/gas-core';
 export const version = '0.1.0';
