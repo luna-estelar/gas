@@ -83,6 +83,14 @@ export type {
   ValuedTrackEvent
 } from './compiler/timeline.js';
 
+export { highlightSource } from './highlight.js';
+export type {
+  HighlightKind,
+  HighlightResult,
+  HighlightToken,
+  SymbolOccurrence
+} from './highlight.js';
+
 export const packageName = '@luna-estelar/gas-language';
 export const version = '0.1.0';
 
