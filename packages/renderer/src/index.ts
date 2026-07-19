@@ -18,6 +18,10 @@ export {
   secondsPerBeat,
   timeToBar
 } from './musical-time.js';
+export type { RendererErrorCode } from './errors.js';
+export { RendererError } from './errors.js';
+export type { CreateRendererOptions } from './renderer.js';
+export { createRenderer } from './renderer.js';
 
 export const packageName = '@luna-estelar/gas-renderer';
 export const version = '0.1.0';
