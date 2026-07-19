@@ -20,6 +20,9 @@
 import type {
   ArrangementInstance,
   AldaValue,
+  EffectiveGlobals,
+  EffectiveState,
+  EffectiveTrack,
   IntentValue,
   LevelValue,
   MusicalPosition,
@@ -32,34 +35,7 @@ import type {
 import type { InputState, Override } from './state.js';
 import { comparePositions } from './positions.js';
 
-export interface EffectiveGlobals {
-  readonly flavor?: IntentValue;
-  readonly level?: IntentValue;
-  readonly tempo?: number;
-  readonly key?: string;
-  readonly timeSignature?: TimeSignature;
-}
-
-// One entry exists for every authored and host track, always — consumers never
-// have to guess whether a track is simply absent. Value slots hold protocol
-// intent values; `active` is derived from play/stop, never stored.
-export interface EffectiveTrack {
-  readonly trackId: string;
-  readonly name: string;
-  readonly description?: string;
-  readonly active: boolean;
-  readonly flavor?: IntentValue;
-  readonly timbre?: IntentValue;
-  readonly level?: IntentValue;
-  readonly notes?: IntentValue;
-  readonly motif?: IntentValue;
-}
-
-// Frozen effective-state snapshot at a musical position.
-export interface EffectiveState {
-  readonly globals: EffectiveGlobals;
-  readonly tracks: readonly EffectiveTrack[];
-}
+export type { EffectiveGlobals, EffectiveState, EffectiveTrack } from '@luna-estelar/gas-protocol';
 
 // Renderer-derived position context. Section events require an active instance;
 // loopIteration is reserved and currently does not affect state derivation.

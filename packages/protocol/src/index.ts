@@ -42,5 +42,64 @@ export type {
 
 export type { CapabilitiesTable, IntentKeyword, IntentSupport } from './capabilities.js';
 
+export type {
+  ClearGlobalFlavorCommand,
+  ClearGlobalLevelCommand,
+  ClearTempoCommand,
+  ClearTrackFlavorCommand,
+  ClearTrackLevelCommand,
+  ClearTrackTimbreCommand,
+  Command,
+  DefineTrackCommand,
+  OverrideCommand,
+  PlayTrackCommand,
+  SetGlobalFlavorCommand,
+  SetGlobalLevelCommand,
+  SetTempoCommand,
+  SetTrackFlavorCommand,
+  SetTrackLevelCommand,
+  SetTrackMotifCommand,
+  SetTrackNotesCommand,
+  SetTrackTimbreCommand,
+  StopTrackCommand
+} from './commands.js';
+
+export type { HostTrack, InputState, Override } from './input-state.js';
+export type { EffectiveGlobals, EffectiveState, EffectiveTrack } from './effective-state.js';
+
+export type {
+  AudioChunk,
+  AudioFormat,
+  AudioSink,
+  ClockTimer,
+  Connector,
+  ConnectorAudioChunk,
+  ConnectorConfig,
+  ConnectorConfigSchema,
+  ConnectorDescription,
+  ConnectorFailureReason,
+  ConnectorNotation,
+  ConnectorSettings,
+  ConnectorStreamStatus,
+  ConnectorTiming,
+  ConnectorUpdate,
+  JsonObject,
+  JsonPrimitive,
+  JsonValue,
+  ModelInfo,
+  MonotonicClock,
+  PlaybackStatus,
+  Renderer,
+  RendererDefaults,
+  RendererEventMap,
+  RendererFailure,
+  RendererLifecycle,
+  RendererPositionEvent,
+  RendererStatusEvent,
+  RendererUpdateResult,
+  RendererWarning,
+  SampleFormat
+} from './renderer.js';
+
 export const packageName = '@luna-estelar/gas-protocol';
 export const version = '0.1.0';

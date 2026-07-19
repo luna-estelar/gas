@@ -5,130 +5,41 @@
 // `applyCommand` never throws and never stores an unchecked value. A failure
 // rejects the single command and leaves the state untouched.
 
-import type { CapabilitiesTable, IntentKeyword, IntentSupport } from '@luna-estelar/gas-protocol';
+import type {
+  CapabilitiesTable,
+  Command,
+  DefineTrackCommand,
+  IntentKeyword,
+  IntentSupport,
+  OverrideCommand
+} from '@luna-estelar/gas-protocol';
 import type { InputState, HostTrack } from './state.js';
 import { freezeInputState } from './state.js';
 
+export type {
+  ClearGlobalFlavorCommand,
+  ClearGlobalLevelCommand,
+  ClearTempoCommand,
+  ClearTrackFlavorCommand,
+  ClearTrackLevelCommand,
+  ClearTrackTimbreCommand,
+  Command,
+  DefineTrackCommand,
+  OverrideCommand,
+  PlayTrackCommand,
+  SetGlobalFlavorCommand,
+  SetGlobalLevelCommand,
+  SetTempoCommand,
+  SetTrackFlavorCommand,
+  SetTrackLevelCommand,
+  SetTrackMotifCommand,
+  SetTrackNotesCommand,
+  SetTrackTimbreCommand,
+  StopTrackCommand
+} from '@luna-estelar/gas-protocol';
+
 // Define a host track. Phase-independent: host tracks are not overrides, so this
 // applies the same whether the session is stopped or active.
-export interface DefineTrackCommand {
-  readonly kind: 'defineTrack';
-  readonly id: string;
-  readonly name?: string;
-  readonly description?: string;
-}
-
-export interface PlayTrackCommand {
-  readonly kind: 'playTrack';
-  readonly trackId: string;
-}
-
-export interface StopTrackCommand {
-  readonly kind: 'stopTrack';
-  readonly trackId: string;
-}
-
-export interface SetGlobalFlavorCommand {
-  readonly kind: 'setGlobalFlavor';
-  readonly value: string;
-}
-
-export interface ClearGlobalFlavorCommand {
-  readonly kind: 'clearGlobalFlavor';
-}
-
-export interface SetGlobalLevelCommand {
-  readonly kind: 'setGlobalLevel';
-  readonly value: number;
-}
-
-export interface ClearGlobalLevelCommand {
-  readonly kind: 'clearGlobalLevel';
-}
-
-export interface SetTrackFlavorCommand {
-  readonly kind: 'setTrackFlavor';
-  readonly trackId: string;
-  readonly value: string;
-}
-
-export interface ClearTrackFlavorCommand {
-  readonly kind: 'clearTrackFlavor';
-  readonly trackId: string;
-}
-
-export interface SetTrackTimbreCommand {
-  readonly kind: 'setTrackTimbre';
-  readonly trackId: string;
-  readonly value: string;
-}
-
-export interface ClearTrackTimbreCommand {
-  readonly kind: 'clearTrackTimbre';
-  readonly trackId: string;
-}
-
-export interface SetTrackLevelCommand {
-  readonly kind: 'setTrackLevel';
-  readonly trackId: string;
-  readonly value: number;
-}
-
-export interface ClearTrackLevelCommand {
-  readonly kind: 'clearTrackLevel';
-  readonly trackId: string;
-}
-
-// `notes`/`motif` set is a live-only entry point: live GAS statements carry it,
-// but there is no programmatic API method and no clear — authored documents are
-// the other source of notation intent, through cascade layer 4.
-export interface SetTrackNotesCommand {
-  readonly kind: 'setTrackNotes';
-  readonly trackId: string;
-  readonly alda: string;
-}
-
-export interface SetTrackMotifCommand {
-  readonly kind: 'setTrackMotif';
-  readonly trackId: string;
-  readonly alda: string;
-}
-
-// `tempo` is global-only. The command stores intent; the Renderer owns every
-// clock consequence.
-export interface SetTempoCommand {
-  readonly kind: 'setTempo';
-  readonly bpm: number;
-}
-
-export interface ClearTempoCommand {
-  readonly kind: 'clearTempo';
-}
-
-// Every command that becomes an override when accepted. `defineTrack` is
-// deliberately absent: host tracks live in `hostTracks`, not in the override
-// arrays. Clears are overrides too — a clear layered later wins over an earlier
-// set when the cascade reads the arrays in application order.
-export type OverrideCommand =
-  | PlayTrackCommand
-  | StopTrackCommand
-  | SetGlobalFlavorCommand
-  | ClearGlobalFlavorCommand
-  | SetGlobalLevelCommand
-  | ClearGlobalLevelCommand
-  | SetTrackFlavorCommand
-  | ClearTrackFlavorCommand
-  | SetTrackTimbreCommand
-  | ClearTrackTimbreCommand
-  | SetTrackLevelCommand
-  | ClearTrackLevelCommand
-  | SetTrackNotesCommand
-  | SetTrackMotifCommand
-  | SetTempoCommand
-  | ClearTempoCommand;
-
-export type Command = DefineTrackCommand | OverrideCommand;
-
 // Caller-supplied playback phase: commands applied while stopped create staged
 // overrides; commands applied while starting, playing, or holding create live
 // overrides. Core owns no clock, so it never knows the phase on its own.
