@@ -22,6 +22,8 @@ export type { RendererErrorCode } from './errors.js';
 export { RendererError } from './errors.js';
 export type { CreateRendererOptions } from './renderer.js';
 export { createRenderer } from './renderer.js';
+export type { AudioAccounting } from './audio.js';
+export { applyS16leGain, BufferLedger } from './audio.js';
 export {
   BUFFER_HARD_LIMIT_SECONDS,
   BUFFER_WARNING_SECONDS,

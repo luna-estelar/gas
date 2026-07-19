@@ -5,14 +5,18 @@ import {
   validateTimeline
 } from '@luna-estelar/gas-core';
 import type {
+  AudioChunk,
   AudioSink,
   CapabilitiesTable,
   ClockTimer,
   Connector,
+  ConnectorAudioChunk,
   ConnectorConfig,
   ConnectorConfigSchema,
   ConnectorDescription,
   ConnectorSettings,
+  ConnectorStreamStatus,
+  EffectiveState,
   InputState,
   JsonObject,
   JsonValue,
@@ -26,10 +30,15 @@ import type {
   RendererLifecycle,
   RendererStatusEvent,
   RendererUpdateResult,
-  RendererWarning,
   Timeline
 } from '@luna-estelar/gas-protocol';
-import { LOOKAHEAD_CHUNKS, MAX_LOOKAHEAD_SECONDS } from './constants.js';
+import { applyS16leGain, BufferLedger } from './audio.js';
+import {
+  BUFFER_HARD_LIMIT_SECONDS,
+  BUFFER_WARNING_SECONDS,
+  LOOKAHEAD_CHUNKS,
+  MAX_LOOKAHEAD_SECONDS
+} from './constants.js';
 import { RendererError } from './errors.js';
 import {
   barToTime,
@@ -63,11 +72,24 @@ interface ActiveRun {
   readonly id: string;
   readonly startTime: number;
   readonly timers: Set<ClockTimer>;
-  readonly loopIteration: number;
+  loopIteration: number;
   connectorStartAttempted: boolean;
   connectorStopAttempted: boolean;
+  readonly ledger: BufferLedger;
+  readonly heldAudio: BufferedAudio[];
+  audioCursor: number;
+  audioSequence: number;
+  gain: number;
+  warnedForBuffer: boolean;
+  throttled: boolean;
+  stream: ConnectorStreamStatus | undefined;
   ended: boolean;
   chain: Promise<void>;
+}
+
+interface BufferedAudio {
+  readonly chunk: ConnectorAudioChunk;
+  readonly startTime: number;
 }
 
 let fallbackRunSequence = 0;
@@ -166,6 +188,14 @@ class RendererSession implements Renderer {
       loopIteration: 1,
       connectorStartAttempted: false,
       connectorStopAttempted: false,
+      ledger: new BufferLedger(),
+      heldAudio: [],
+      audioCursor: this.options.clock.now(),
+      audioSequence: 0,
+      gain: 1,
+      warnedForBuffer: false,
+      throttled: false,
+      stream: undefined,
       ended: false,
       chain: Promise.resolve()
     };
@@ -177,10 +207,11 @@ class RendererSession implements Renderer {
     try {
       const initialPosition = { bar: 1 } as const;
       const initialState = this.deriveAt(loaded, initialPosition, run.loopIteration);
+      run.gain = globalGain(initialState);
       await this.options.connector.prepare(initialState, this.connectorConfig);
       run.connectorStartAttempted = true;
       await this.options.connector.start(
-        this.createAudioSink(),
+        this.createAudioSink(run),
         {
           tempo: loaded.timing.tempo,
           timeSignature: loaded.timing.timeSignature,
@@ -198,6 +229,7 @@ class RendererSession implements Renderer {
     } catch {
       run.ended = true;
       this.cancelTimers(run);
+      this.rejectHeldAudio(run, 'Buffered audio was rejected because renderer startup failed.');
       if (run.connectorStartAttempted) await this.stopConnector(run, true);
       this.lifecycle = 'failed';
       this.playback = 'failed';
@@ -227,6 +259,7 @@ class RendererSession implements Renderer {
     this.emitStatus();
     run.ended = true;
     this.cancelTimers(run);
+    this.rejectHeldAudio(run, 'Buffered audio was rejected because playback stopped.');
     await run.chain;
     try {
       await this.stopConnector(run, false);
@@ -348,7 +381,13 @@ class RendererSession implements Renderer {
     const status: RendererStatusEvent = Object.freeze({
       lifecycle: this.lifecycle,
       playback: this.playback,
-      ...(this.run !== undefined ? { runId: this.run.id } : {})
+      ...(this.run !== undefined
+        ? {
+            runId: this.run.id,
+            ...(this.run.stream !== undefined ? { stream: this.run.stream } : {}),
+            ...(this.run.throttled || this.run.stream === 'throttled' ? { throttled: true } : {})
+          }
+        : {})
     });
     this.emit('status', status);
   }
@@ -401,6 +440,7 @@ class RendererSession implements Renderer {
       this.schedule(run, Math.max(run.startTime, boundaryTime - lookahead), () => {
         this.enqueue(run, async () => {
           const state = this.deriveAt(loaded, position, run.loopIteration);
+          run.gain = globalGain(state);
           await this.options.connector.update({ state }, position);
         });
       });
@@ -437,6 +477,7 @@ class RendererSession implements Renderer {
     this.playback = 'stopping';
     this.emitStatus();
     this.cancelTimers(run);
+    this.rejectHeldAudio(run, 'Buffered audio was rejected when the finite run completed.');
     await this.stopConnector(run, false);
     run.ended = true;
     if (this.run === run) this.run = undefined;
@@ -444,16 +485,21 @@ class RendererSession implements Renderer {
     this.emitStatus();
   }
 
-  private async failRun(run: ActiveRun): Promise<void> {
+  private async failRun(
+    run: ActiveRun,
+    code = 'generation-failed',
+    message = 'Audio generation failed during playback.'
+  ): Promise<void> {
     if (run.ended) return;
     run.ended = true;
     this.cancelTimers(run);
+    this.rejectHeldAudio(run, 'Buffered audio was rejected after renderer failure.');
     await this.stopConnector(run, true);
     this.lifecycle = 'failed';
     this.playback = 'failed';
     const failure = Object.freeze({
-      code: 'generation-failed',
-      message: 'Audio generation failed during playback.',
+      code,
+      message,
       reason: 'internal' as const,
       runId: run.id,
       retryable: true
@@ -497,20 +543,13 @@ class RendererSession implements Renderer {
     return uuid ?? `renderer-run-${++fallbackRunSequence}`;
   }
 
-  private createAudioSink(): AudioSink {
+  private createAudioSink(run: ActiveRun): AudioSink {
     return {
-      push: (chunk) => {
-        if (chunk.runId !== this.run?.id) return;
-        const warning: RendererWarning = {
-          code: 'audio-delivery-pending',
-          message: 'Audio delivery is not enabled in this renderer slice.',
-          runId: chunk.runId
-        };
-        this.emit('warning', Object.freeze(warning));
-      },
+      push: (chunk) => this.receiveAudio(run, chunk),
       status: (status, runId) => {
-        if (runId !== this.run?.id) return;
-        if (status === 'throttled') this.emitStatus();
+        if (run.ended || runId !== run.id || this.run !== run) return;
+        run.stream = status;
+        this.emitStatus();
       },
       warning: (warning) => this.emit('warning', Object.freeze({ ...warning })),
       failure: (failure) => {
@@ -518,6 +557,117 @@ class RendererSession implements Renderer {
         this.emit('failure', Object.freeze({ ...failure }));
       }
     };
+  }
+
+  private receiveAudio(run: ActiveRun, chunk: ConnectorAudioChunk): void {
+    run.ledger.receive(chunk.durationSeconds);
+    if (run.ended || chunk.runId !== run.id || this.run !== run) {
+      run.ledger.reject(chunk.durationSeconds);
+      this.emit(
+        'warning',
+        Object.freeze({
+          code: 'stale-audio-rejected',
+          message: 'Audio from an ended renderer run was rejected.',
+          runId: chunk.runId
+        })
+      );
+      return;
+    }
+
+    const buffered: BufferedAudio = { chunk, startTime: run.audioCursor };
+    run.audioCursor += chunk.durationSeconds;
+    run.heldAudio.push(buffered);
+    const releaseDeadline = buffered.startTime - this.lookaheadSeconds();
+    if (releaseDeadline <= this.options.clock.now()) this.deliverAudio(run, buffered);
+    else this.schedule(run, releaseDeadline, () => this.deliverAudio(run, buffered));
+    this.checkBackpressure(run);
+  }
+
+  private deliverAudio(run: ActiveRun, buffered: BufferedAudio): void {
+    const index = run.heldAudio.indexOf(buffered);
+    if (index < 0 || run.ended) return;
+    run.heldAudio.splice(index, 1);
+    const { chunk } = buffered;
+    let bytes: Uint8Array = new Uint8Array(chunk.bytes);
+    if (run.gain !== 1) {
+      if (chunk.sampleFormat === 's16le') bytes = applyS16leGain(bytes, run.gain);
+      else {
+        this.emit(
+          'warning',
+          Object.freeze({
+            code: 'unsupported-gain-format',
+            message: `Global gain could not be applied to ${chunk.sampleFormat} audio.`,
+            runId: run.id
+          })
+        );
+      }
+    }
+    run.ledger.deliver(chunk.durationSeconds);
+    const emitted: AudioChunk = Object.freeze({
+      ...chunk,
+      bytes,
+      sequence: run.audioSequence++
+    });
+    this.emit('audio', emitted);
+    this.maybeResumeGeneration(run);
+  }
+
+  private checkBackpressure(run: ActiveRun): void {
+    const held = run.ledger.snapshot().heldSeconds;
+    if (held >= BUFFER_WARNING_SECONDS && !run.warnedForBuffer) {
+      run.warnedForBuffer = true;
+      this.emit(
+        'warning',
+        Object.freeze({
+          code: 'audio-buffer-high',
+          message: 'Generated audio is waiting for delivery.',
+          runId: run.id
+        })
+      );
+    }
+    if (held < BUFFER_HARD_LIMIT_SECONDS) return;
+    const description = this.requireDescription();
+    if (
+      description.supportsFlowControl &&
+      this.options.connector.setGenerationPaused !== undefined &&
+      !run.throttled
+    ) {
+      run.throttled = true;
+      this.emitStatus();
+      this.enqueue(run, () => this.options.connector.setGenerationPaused!(true));
+      return;
+    }
+    this.enqueue(run, () =>
+      this.failRun(
+        run,
+        'audio-backpressure-overflow',
+        'Generated audio exceeded the renderer buffer limit.'
+      )
+    );
+  }
+
+  private maybeResumeGeneration(run: ActiveRun): void {
+    if (!run.throttled || run.ledger.snapshot().heldSeconds >= BUFFER_WARNING_SECONDS) return;
+    run.throttled = false;
+    this.emitStatus();
+    this.enqueue(run, () => this.options.connector.setGenerationPaused!(false));
+  }
+
+  private rejectHeldAudio(run: ActiveRun, message: string): void {
+    if (run.heldAudio.length === 0) return;
+    for (const buffered of run.heldAudio) run.ledger.reject(buffered.chunk.durationSeconds);
+    run.heldAudio.length = 0;
+    this.emit(
+      'warning',
+      Object.freeze({ code: 'buffered-audio-rejected', message, runId: run.id })
+    );
+  }
+
+  private lookaheadSeconds(): number {
+    return Math.min(
+      this.requireDescription().model.chunkDurationSeconds * LOOKAHEAD_CHUNKS,
+      MAX_LOOKAHEAD_SECONDS
+    );
   }
 
   private async closeConnectorBestEffort(): Promise<void> {
@@ -565,4 +715,9 @@ function freezeJsonValue(value: JsonValue): JsonValue {
     );
   }
   return value;
+}
+
+function globalGain(state: EffectiveState): number {
+  const level = state.globals.level;
+  return level?.kind === 'level' ? level.value : 1;
 }
