@@ -46,9 +46,8 @@ export class BufferLedger {
 }
 
 export function applyS16leGain(bytes: Uint8Array, gain: number): Uint8Array {
-  if (!Number.isFinite(gain) || gain < 0 || gain > 1) {
-    throw new RangeError('Global gain must be between 0 and 1.');
-  }
+  if (!Number.isFinite(gain)) throw new RangeError('Global gain must be finite.');
+  const attenuation = Math.max(0, Math.min(1, gain));
   if (bytes.byteLength % 2 !== 0) {
     throw new RangeError('Signed 16-bit PCM needs an even byte length.');
   }
@@ -57,7 +56,7 @@ export function applyS16leGain(bytes: Uint8Array, gain: number): Uint8Array {
   const target = new DataView(output.buffer);
   for (let offset = 0; offset < bytes.byteLength; offset += 2) {
     const sample = source.getInt16(offset, true);
-    const scaled = Math.max(-32_768, Math.min(32_767, Math.round(sample * gain)));
+    const scaled = Math.max(-32_768, Math.min(32_767, Math.round(sample * attenuation)));
     target.setInt16(offset, scaled, true);
   }
   return output;

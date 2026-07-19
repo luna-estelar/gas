@@ -5,5 +5,5 @@
     "outDir": "out"
   },
   "include": ["src/**/*.ts"],
-  "references": [{ "path": "../protocol" }, { "path": "../core" }]
+  "references": [{ "path": "../protocol" }, { "path": "../core" }, { "path": "../notation" }]
 }

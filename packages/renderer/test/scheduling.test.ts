@@ -25,6 +25,25 @@ describe('renderer scheduling and derivation', () => {
     expect(connector.updates[0]?.update.state.tracks[0]?.active).toBe(false);
   });
 
+  it('executes overdue same-position events immediately as one stable boundary', async () => {
+    const base = timelineWithBarThreeStop();
+    const timeline = {
+      ...base,
+      events: base.events.map((event) =>
+        event.position.bar === 3 ? { ...event, position: { bar: 2 } } : event
+      )
+    };
+    const { connector } = await runningRenderer(timeline);
+    await flushAsync();
+
+    expect(connector.updates).toHaveLength(1);
+    expect(connector.updates[0]?.requested).toEqual({ bar: 2 });
+    expect(connector.updates[0]?.update.state.tracks[0]).toMatchObject({
+      active: false,
+      flavor: { kind: 'text', text: 'distant' }
+    });
+  });
+
   it('emits position at the actual boundary rather than the lookahead deadline', async () => {
     const timeline = timelineWithBarThreeStop();
     const clock = new VirtualClock();

@@ -1,9 +1,11 @@
 import {
+  applyLoopBoundary,
   authoredEventSchedule,
   effectiveStateAt,
   sectionInstanceAt,
   validateTimeline
 } from '@luna-estelar/gas-core';
+import { AldaParseError, parseAlda, toMidi } from '@luna-estelar/gas-notation';
 import type {
   AudioChunk,
   AudioSink,
@@ -14,8 +16,11 @@ import type {
   ConnectorConfig,
   ConnectorConfigSchema,
   ConnectorDescription,
+  ConnectorFailureReason,
+  ConnectorNotation,
   ConnectorSettings,
   ConnectorStreamStatus,
+  ConnectorUpdate,
   EffectiveState,
   InputState,
   JsonObject,
@@ -43,7 +48,9 @@ import { RendererError } from './errors.js';
 import {
   barToTime,
   createTempoSegmentMap,
+  reanchorTempo,
   resolveTiming,
+  timeToBar,
   type ResolvedTiming,
   type TempoSegmentMap
 } from './musical-time.js';
@@ -56,6 +63,8 @@ export interface CreateRendererOptions {
   readonly connectorConfig?: ConnectorConfig;
   readonly runIdFactory?: () => string;
 }
+
+type RendererRuntimeOptions = Omit<CreateRendererOptions, 'settings'>;
 
 type ListenerMap = {
   [K in keyof RendererEventMap]: Set<(payload: RendererEventMap[K]) => void>;
@@ -72,6 +81,7 @@ interface ActiveRun {
   readonly id: string;
   readonly startTime: number;
   readonly timers: Set<ClockTimer>;
+  readonly audioTimers: Set<ClockTimer>;
   loopIteration: number;
   connectorStartAttempted: boolean;
   connectorStopAttempted: boolean;
@@ -80,6 +90,7 @@ interface ActiveRun {
   audioCursor: number;
   audioSequence: number;
   gain: number;
+  tempo: number;
   warnedForBuffer: boolean;
   throttled: boolean;
   stream: ConnectorStreamStatus | undefined;
@@ -95,8 +106,9 @@ interface BufferedAudio {
 let fallbackRunSequence = 0;
 
 export async function createRenderer(options: CreateRendererOptions): Promise<Renderer> {
-  const session = new RendererSession(options);
-  await session.initialize();
+  const { settings, ...runtimeOptions } = options;
+  const session = new RendererSession(runtimeOptions);
+  await session.initialize(settings ?? {});
   return session;
 }
 
@@ -116,15 +128,15 @@ class RendererSession implements Renderer {
     failure: new Set()
   };
 
-  constructor(private readonly options: CreateRendererOptions) {
+  constructor(private readonly options: RendererRuntimeOptions) {
     this.defaults = normalizeDefaults(options.defaults ?? {});
     this.connectorConfig = freezeJson(options.connectorConfig ?? {});
   }
 
-  async initialize(): Promise<void> {
+  async initialize(settings: ConnectorSettings): Promise<void> {
     try {
       const description = await this.options.connector.describe();
-      await this.options.connector.open(this.options.settings ?? {});
+      await this.options.connector.open(settings);
       this.description = description;
       this.lifecycle = 'ready';
       this.emitStatus();
@@ -165,15 +177,54 @@ class RendererSession implements Renderer {
 
   async updateState(inputState: InputState): Promise<RendererUpdateResult> {
     this.assertReady();
-    this.assertStopped('replace renderer state');
-    if (this.loaded === undefined || inputState.timeline !== this.loaded.timeline) {
+    const loaded = this.requireLoaded();
+    if (inputState.timeline !== loaded.timeline) {
       throw new RendererError(
         'invalid-timeline',
         'The renderer input state must belong to the loaded timeline.'
       );
     }
-    this.loaded.inputState = inputState;
-    return {};
+    if (this.playback === 'stopped') {
+      loaded.inputState = inputState;
+      return {};
+    }
+    if (this.playback !== 'running' && this.playback !== 'holding') {
+      throw new RendererError(
+        'renderer-state-conflict',
+        'Renderer state can change only while stopped, running, or holding.'
+      );
+    }
+    const run = this.run!;
+    try {
+      return await this.serialize(run, async () => {
+        const currentPosition = this.currentPosition(loaded);
+        loaded.inputState = inputState;
+        const state = this.deriveAt(loaded, currentPosition, run.loopIteration);
+        run.gain = globalGain(state);
+        this.applyDerivedTempo(loaded, run, state, currentPosition.bar);
+        const requestedPosition =
+          this.playback === 'holding'
+            ? currentPosition
+            : {
+                bar: timeToBar(loaded.tempoMap, this.options.clock.now() + this.lookaheadSeconds())
+              };
+        const appliedPosition = await this.options.connector.update(
+          this.buildConnectorUpdate(state, run),
+          requestedPosition
+        );
+        return { requestedPosition, appliedPosition };
+      });
+    } catch (error) {
+      if (error instanceof RendererError) throw error;
+      const failure = Object.freeze({
+        code: 'generation-failed',
+        message: 'The connector could not apply the renderer state update.',
+        reason: 'internal' as const,
+        runId: run.id,
+        retryable: true
+      });
+      throw new RendererError('connector-unavailable', failure.message, { failure });
+    }
   }
 
   async start(): Promise<string> {
@@ -185,6 +236,7 @@ class RendererSession implements Renderer {
       id: runId,
       startTime: this.options.clock.now(),
       timers: new Set(),
+      audioTimers: new Set(),
       loopIteration: 1,
       connectorStartAttempted: false,
       connectorStopAttempted: false,
@@ -193,6 +245,7 @@ class RendererSession implements Renderer {
       audioCursor: this.options.clock.now(),
       audioSequence: 0,
       gain: 1,
+      tempo: loaded.timing.tempo,
       warnedForBuffer: false,
       throttled: false,
       stream: undefined,
@@ -208,18 +261,27 @@ class RendererSession implements Renderer {
       const initialPosition = { bar: 1 } as const;
       const initialState = this.deriveAt(loaded, initialPosition, run.loopIteration);
       run.gain = globalGain(initialState);
+      run.tempo = initialState.globals.tempo ?? loaded.timing.tempo;
+      loaded.tempoMap = createTempoSegmentMap(
+        { ...loaded.timing, tempo: run.tempo },
+        run.startTime
+      );
       await this.options.connector.prepare(initialState, this.connectorConfig);
       run.connectorStartAttempted = true;
       await this.options.connector.start(
         this.createAudioSink(run),
         {
-          tempo: loaded.timing.tempo,
+          tempo: run.tempo,
           timeSignature: loaded.timing.timeSignature,
           ...(loaded.timing.key !== undefined ? { key: loaded.timing.key } : {}),
-          secondsPerBar: (60 / loaded.timing.tempo) * loaded.timing.timeSignature.beatsPerBar
+          secondsPerBar: (60 / run.tempo) * loaded.timing.timeSignature.beatsPerBar
         },
         runId
       );
+      const initialUpdate = this.buildConnectorUpdate(initialState, run);
+      if (initialUpdate.notation !== undefined) {
+        await this.options.connector.update(initialUpdate, initialPosition);
+      }
       if (run.ended) return runId;
       this.playback = 'running';
       this.emitStatus();
@@ -429,19 +491,25 @@ class RendererSession implements Renderer {
     });
   }
 
-  private scheduleRun(loaded: LoadedDocument, run: ActiveRun): void {
+  private scheduleRun(loaded: LoadedDocument, run: ActiveRun, afterBar = 1): void {
     const lookahead = Math.min(
       this.requireDescription().model.chunkDurationSeconds * LOOKAHEAD_CHUNKS,
       MAX_LOOKAHEAD_SECONDS
     );
     for (const position of authoredEventSchedule(loaded.timeline)) {
-      if (position.bar <= 1) continue;
+      if (position.bar <= afterBar) continue;
       const boundaryTime = barToTime(loaded.tempoMap, position.bar);
       this.schedule(run, Math.max(run.startTime, boundaryTime - lookahead), () => {
         this.enqueue(run, async () => {
           const state = this.deriveAt(loaded, position, run.loopIteration);
           run.gain = globalGain(state);
-          await this.options.connector.update({ state }, position);
+          const tempoChanged = this.applyDerivedTempo(loaded, run, state, position.bar);
+          if (tempoChanged) {
+            this.schedule(run, barToTime(loaded.tempoMap, position.bar), () =>
+              this.emitPosition(position, run)
+            );
+          }
+          await this.options.connector.update(this.buildConnectorUpdate(state, run), position);
         });
       });
       this.schedule(run, boundaryTime, () => this.emitPosition(position, run));
@@ -449,27 +517,65 @@ class RendererSession implements Renderer {
 
     if (loaded.timeline.playback.mode === 'finite') {
       const completion = { bar: loaded.timeline.playback.declaredBars + 1 };
-      this.schedule(run, barToTime(loaded.tempoMap, completion.bar), () => {
-        this.enqueue(run, () => this.completeFiniteRun(run));
-      });
+      if (completion.bar > afterBar) {
+        this.schedule(run, barToTime(loaded.tempoMap, completion.bar), () => {
+          this.enqueue(run, () => this.completeFiniteRun(run));
+        });
+      }
+    } else if (loaded.timeline.playback.mode === 'loop') {
+      const boundary = { bar: loaded.timeline.playback.declaredBars + 1 };
+      if (boundary.bar > afterBar) {
+        this.schedule(run, barToTime(loaded.tempoMap, boundary.bar), () => {
+          this.enqueue(run, () => this.applyLoop(loaded, run));
+        });
+      }
+    } else {
+      const holding = { bar: Math.max(1, loaded.timeline.arrangedBars + 1) };
+      if (loaded.timeline.arrangedBars === 0) {
+        this.enqueue(run, () => this.enterHolding(loaded, run, holding));
+      } else if (holding.bar > afterBar) {
+        this.schedule(run, barToTime(loaded.tempoMap, holding.bar), () => {
+          this.enqueue(run, () => this.enterHolding(loaded, run, holding));
+        });
+      }
     }
   }
 
-  private schedule(run: ActiveRun, deadline: number, callback: () => void): void {
+  private schedule(
+    run: ActiveRun,
+    deadline: number,
+    callback: () => void,
+    kind: 'boundary' | 'audio' = 'boundary'
+  ): void {
+    if (deadline <= this.options.clock.now()) {
+      if (!run.ended) callback();
+      return;
+    }
+    const timers = kind === 'audio' ? run.audioTimers : run.timers;
     let timer: ClockTimer;
     timer = this.options.clock.schedule(deadline, () => {
-      run.timers.delete(timer);
+      timers.delete(timer);
       if (!run.ended) callback();
     });
-    run.timers.add(timer);
+    timers.add(timer);
   }
 
   private enqueue(run: ActiveRun, task: () => Promise<void>): void {
-    run.chain = run.chain
-      .then(async () => {
-        if (!run.ended) await task();
-      })
-      .catch(() => this.failRun(run));
+    void this.serialize(run, task).catch(() => undefined);
+  }
+
+  private serialize<T>(run: ActiveRun, task: () => Promise<T>): Promise<T> {
+    const result = run.chain.then(async () => {
+      if (run.ended) {
+        throw new RendererError('renderer-state-conflict', 'This renderer run has ended.');
+      }
+      return task();
+    });
+    run.chain = result.then(
+      () => undefined,
+      () => this.failRun(run)
+    );
+    return result;
   }
 
   private async completeFiniteRun(run: ActiveRun): Promise<void> {
@@ -488,7 +594,9 @@ class RendererSession implements Renderer {
   private async failRun(
     run: ActiveRun,
     code = 'generation-failed',
-    message = 'Audio generation failed during playback.'
+    message = 'Audio generation failed during playback.',
+    reason: ConnectorFailureReason = 'internal',
+    retryable = true
   ): Promise<void> {
     if (run.ended) return;
     run.ended = true;
@@ -500,12 +608,118 @@ class RendererSession implements Renderer {
     const failure = Object.freeze({
       code,
       message,
-      reason: 'internal' as const,
+      reason,
       runId: run.id,
-      retryable: true
+      retryable
     });
     this.emit('failure', failure);
     this.emitStatus();
+  }
+
+  private async applyLoop(loaded: LoadedDocument, run: ActiveRun): Promise<void> {
+    if (run.ended) return;
+    loaded.inputState = applyLoopBoundary(loaded.inputState);
+    run.loopIteration += 1;
+    const position = { bar: 1 } as const;
+    const state = this.deriveAt(loaded, position, run.loopIteration);
+    run.gain = globalGain(state);
+    run.tempo = state.globals.tempo ?? loaded.timing.tempo;
+    loaded.tempoMap = createTempoSegmentMap(
+      { ...loaded.timing, tempo: run.tempo },
+      this.options.clock.now()
+    );
+    this.cancelBoundaryTimers(run);
+    await this.options.connector.update(this.buildConnectorUpdate(state, run), position);
+    this.emitPosition(position, run);
+    this.scheduleRun(loaded, run);
+  }
+
+  private async enterHolding(
+    loaded: LoadedDocument,
+    run: ActiveRun,
+    position: MusicalPosition
+  ): Promise<void> {
+    if (run.ended) return;
+    this.cancelBoundaryTimers(run);
+    const state = this.deriveAt(loaded, position, run.loopIteration);
+    run.gain = globalGain(state);
+    run.tempo = state.globals.tempo ?? run.tempo;
+    await this.options.connector.update(this.buildConnectorUpdate(state, run), position);
+    this.playback = 'holding';
+    this.emitStatus();
+    this.emitPosition(position, run);
+  }
+
+  private currentPosition(loaded: LoadedDocument): MusicalPosition {
+    if (this.playback === 'holding') {
+      return { bar: Math.max(1, loaded.timeline.arrangedBars + 1) };
+    }
+    return { bar: Math.max(1, timeToBar(loaded.tempoMap, this.options.clock.now())) };
+  }
+
+  private applyDerivedTempo(
+    loaded: LoadedDocument,
+    run: ActiveRun,
+    state: EffectiveState,
+    anchorBar: number
+  ): boolean {
+    const tempo = state.globals.tempo ?? loaded.timing.tempo;
+    if (tempo === run.tempo) return false;
+    loaded.tempoMap = reanchorTempo(
+      loaded.tempoMap,
+      anchorBar,
+      tempo,
+      loaded.timing.timeSignature.beatsPerBar
+    );
+    run.tempo = tempo;
+    this.cancelBoundaryTimers(run);
+    if (this.playback !== 'holding') this.scheduleRun(loaded, run, anchorBar);
+    return true;
+  }
+
+  private buildConnectorUpdate(state: EffectiveState, run: ActiveRun): ConnectorUpdate {
+    const notation: ConnectorNotation[] = [];
+    for (const track of state.tracks) {
+      this.convertNotationSlot(track.trackId, 'notes', track.notes, run, notation);
+      this.convertNotationSlot(track.trackId, 'motif', track.motif, run, notation);
+    }
+    return Object.freeze({
+      state,
+      ...(notation.length > 0 ? { notation: Object.freeze(notation) } : {})
+    });
+  }
+
+  private convertNotationSlot(
+    trackId: string,
+    intent: 'notes' | 'motif',
+    value: EffectiveState['tracks'][number]['notes'],
+    run: ActiveRun,
+    output: ConnectorNotation[]
+  ): void {
+    if (value?.kind !== 'alda') return;
+    const support = this.getCapabilities().intents[intent];
+    if (support === 'unsupported') return;
+    try {
+      const events = parseAlda(value.source);
+      output.push(
+        Object.freeze({
+          trackId,
+          intent,
+          source: value.source,
+          midi: toMidi(events)
+        })
+      );
+    } catch (error) {
+      if (!(error instanceof AldaParseError)) throw error;
+      this.emit(
+        'warning',
+        Object.freeze({
+          code: 'notation-parse-failed',
+          message: `${intent} notation for track "${trackId}" could not be converted.`,
+          runId: run.id
+        })
+      );
+    }
   }
 
   private emitPosition(position: MusicalPosition, run: ActiveRun): void {
@@ -522,6 +736,13 @@ class RendererSession implements Renderer {
   }
 
   private cancelTimers(run: ActiveRun): void {
+    for (const timer of run.timers) this.options.clock.cancel(timer);
+    run.timers.clear();
+    for (const timer of run.audioTimers) this.options.clock.cancel(timer);
+    run.audioTimers.clear();
+  }
+
+  private cancelBoundaryTimers(run: ActiveRun): void {
     for (const timer of run.timers) this.options.clock.cancel(timer);
     run.timers.clear();
   }
@@ -551,10 +772,28 @@ class RendererSession implements Renderer {
         run.stream = status;
         this.emitStatus();
       },
-      warning: (warning) => this.emit('warning', Object.freeze({ ...warning })),
+      warning: (warning) => {
+        if (warning.runId !== undefined && warning.runId !== this.run?.id) return;
+        this.emit(
+          'warning',
+          Object.freeze({
+            code: warning.code,
+            message: 'The connector reported a renderer warning.',
+            ...(warning.runId !== undefined ? { runId: warning.runId } : {})
+          })
+        );
+      },
       failure: (failure) => {
         if (failure.runId !== undefined && failure.runId !== this.run?.id) return;
-        this.emit('failure', Object.freeze({ ...failure }));
+        this.enqueue(run, () =>
+          this.failRun(
+            run,
+            failure.code,
+            'The connector reported an audio generation failure.',
+            failure.reason,
+            failure.retryable
+          )
+        );
       }
     };
   }
@@ -579,7 +818,7 @@ class RendererSession implements Renderer {
     run.heldAudio.push(buffered);
     const releaseDeadline = buffered.startTime - this.lookaheadSeconds();
     if (releaseDeadline <= this.options.clock.now()) this.deliverAudio(run, buffered);
-    else this.schedule(run, releaseDeadline, () => this.deliverAudio(run, buffered));
+    else this.schedule(run, releaseDeadline, () => this.deliverAudio(run, buffered), 'audio');
     this.checkBackpressure(run);
   }
 

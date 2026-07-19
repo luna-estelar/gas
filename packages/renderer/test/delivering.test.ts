@@ -102,6 +102,19 @@ describe('audio delivery', () => {
     await flushAsync();
     expect(failures).toContain('audio-backpressure-overflow');
   });
+
+  it('fails if generation continues after flow control has throttled the connector', async () => {
+    const { connector, renderer } = await audioRenderer(infiniteTimeline());
+    const failures: string[] = [];
+    renderer.on('failure', (failure) => failures.push(failure.code));
+    pushBurst(connector, 17);
+    await flushAsync();
+    expect(connector.calls).toContain('paused:true');
+
+    connector.sink!.push(chunk('run-audio', [18], 2));
+    await flushAsync();
+    expect(failures).toContain('audio-backpressure-overflow');
+  });
 });
 
 describe('audio accounting and gain primitives', () => {
@@ -127,6 +140,8 @@ describe('audio accounting and gain primitives', () => {
     expect(decodeSamples(applyS16leGain(bytes, 0))).toEqual([0, 0, 0, 0]);
     expect(decodeSamples(applyS16leGain(bytes, 1))).toEqual([32_767, -32_768, 1_001, -1_001]);
     expect(decodeSamples(applyS16leGain(bytes, 0.5))).toEqual([16_384, -16_384, 501, -500]);
+    expect(decodeSamples(applyS16leGain(bytes, 2))).toEqual([32_767, -32_768, 1_001, -1_001]);
+    expect(decodeSamples(applyS16leGain(bytes, -1))).toEqual([0, 0, 0, 0]);
   });
 });
 

@@ -81,6 +81,9 @@ importers:
       "@luna-estelar/gas-core":
         specifier: workspace:*
         version: link:../core
+      "@luna-estelar/gas-notation":
+        specifier: workspace:*
+        version: link:../notation
       "@luna-estelar/gas-protocol":
         specifier: workspace:*
         version: link:../protocol

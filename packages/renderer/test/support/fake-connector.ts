@@ -2,6 +2,7 @@ import type {
   AudioSink,
   CapabilitiesTable,
   Connector,
+  ConnectorAudioChunk,
   ConnectorConfig,
   ConnectorDescription,
   ConnectorSettings,
@@ -26,9 +27,14 @@ const ALL_SUPPORTED: CapabilitiesTable = {
 
 export interface FakeConnectorOptions {
   readonly openFailure?: Error;
+  readonly prepareFailure?: Error;
   readonly startFailure?: Error;
+  readonly startChunks?: readonly ConnectorAudioChunk[];
+  readonly updateFailure?: Error;
   readonly stopFailure?: Error;
   readonly closeFailure?: Error;
+  readonly flowControlFailure?: Error;
+  readonly appliedBoundary?: MusicalPosition;
   readonly description?: Partial<ConnectorDescription>;
 }
 
@@ -79,6 +85,7 @@ export class FakeConnector implements Connector {
   async prepare(initialState: EffectiveState, config: ConnectorConfig): Promise<void> {
     this.calls.push('prepare');
     this.prepared.push({ state: initialState, config });
+    if (this.options.prepareFailure !== undefined) throw this.options.prepareFailure;
   }
 
   async start(sink: AudioSink, timing: ConnectorTiming, runId: string): Promise<void> {
@@ -86,6 +93,7 @@ export class FakeConnector implements Connector {
     this.sink = sink;
     this.timing = timing;
     this.runId = runId;
+    for (const chunk of this.options.startChunks ?? []) sink.push(chunk);
     if (this.options.startFailure !== undefined) throw this.options.startFailure;
   }
 
@@ -95,7 +103,8 @@ export class FakeConnector implements Connector {
   ): Promise<MusicalPosition> {
     this.calls.push('update');
     this.updates.push({ update, requested: requestedBoundary });
-    return requestedBoundary;
+    if (this.options.updateFailure !== undefined) throw this.options.updateFailure;
+    return this.options.appliedBoundary ?? requestedBoundary;
   }
 
   async stop(runId: string): Promise<void> {
@@ -111,5 +120,6 @@ export class FakeConnector implements Connector {
   async setGenerationPaused(paused: boolean): Promise<void> {
     this.calls.push(`paused:${paused}`);
     this.paused = paused;
+    if (this.options.flowControlFailure !== undefined) throw this.options.flowControlFailure;
   }
 }
