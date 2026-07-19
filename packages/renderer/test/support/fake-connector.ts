@@ -26,6 +26,8 @@ const ALL_SUPPORTED: CapabilitiesTable = {
 
 export interface FakeConnectorOptions {
   readonly openFailure?: Error;
+  readonly startFailure?: Error;
+  readonly stopFailure?: Error;
   readonly closeFailure?: Error;
   readonly description?: Partial<ConnectorDescription>;
 }
@@ -84,6 +86,7 @@ export class FakeConnector implements Connector {
     this.sink = sink;
     this.timing = timing;
     this.runId = runId;
+    if (this.options.startFailure !== undefined) throw this.options.startFailure;
   }
 
   async update(
@@ -97,6 +100,7 @@ export class FakeConnector implements Connector {
 
   async stop(runId: string): Promise<void> {
     this.calls.push(`stop:${runId}`);
+    if (this.options.stopFailure !== undefined) throw this.options.stopFailure;
   }
 
   async close(): Promise<void> {

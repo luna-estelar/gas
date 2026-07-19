@@ -1,6 +1,13 @@
-import { validateTimeline } from '@luna-estelar/gas-core';
+import {
+  authoredEventSchedule,
+  effectiveStateAt,
+  sectionInstanceAt,
+  validateTimeline
+} from '@luna-estelar/gas-core';
 import type {
+  AudioSink,
   CapabilitiesTable,
+  ClockTimer,
   Connector,
   ConnectorConfig,
   ConnectorConfigSchema,
@@ -10,6 +17,7 @@ import type {
   JsonObject,
   JsonValue,
   ModelInfo,
+  MusicalPosition,
   MonotonicClock,
   PlaybackStatus,
   Renderer,
@@ -18,10 +26,13 @@ import type {
   RendererLifecycle,
   RendererStatusEvent,
   RendererUpdateResult,
+  RendererWarning,
   Timeline
 } from '@luna-estelar/gas-protocol';
+import { LOOKAHEAD_CHUNKS, MAX_LOOKAHEAD_SECONDS } from './constants.js';
 import { RendererError } from './errors.js';
 import {
+  barToTime,
   createTempoSegmentMap,
   resolveTiming,
   type ResolvedTiming,
@@ -48,6 +59,19 @@ interface LoadedDocument {
   tempoMap: TempoSegmentMap;
 }
 
+interface ActiveRun {
+  readonly id: string;
+  readonly startTime: number;
+  readonly timers: Set<ClockTimer>;
+  readonly loopIteration: number;
+  connectorStartAttempted: boolean;
+  connectorStopAttempted: boolean;
+  ended: boolean;
+  chain: Promise<void>;
+}
+
+let fallbackRunSequence = 0;
+
 export async function createRenderer(options: CreateRendererOptions): Promise<Renderer> {
   const session = new RendererSession(options);
   await session.initialize();
@@ -61,6 +85,7 @@ class RendererSession implements Renderer {
   private defaults: RendererDefaults;
   private connectorConfig: ConnectorConfig;
   private loaded: LoadedDocument | undefined;
+  private run: ActiveRun | undefined;
   private readonly listeners: ListenerMap = {
     status: new Set(),
     position: new Set(),
@@ -131,15 +156,95 @@ class RendererSession implements Renderer {
 
   async start(): Promise<string> {
     this.assertReady();
-    throw new RendererError(
-      'renderer-state-conflict',
-      'Playback scheduling is not available until the next renderer slice.'
-    );
+    this.assertStopped('start playback');
+    const loaded = this.requireLoaded();
+    const runId = this.createRunId();
+    const run: ActiveRun = {
+      id: runId,
+      startTime: this.options.clock.now(),
+      timers: new Set(),
+      loopIteration: 1,
+      connectorStartAttempted: false,
+      connectorStopAttempted: false,
+      ended: false,
+      chain: Promise.resolve()
+    };
+    loaded.tempoMap = createTempoSegmentMap(loaded.timing, run.startTime);
+    this.run = run;
+    this.playback = 'starting';
+    this.emitStatus();
+
+    try {
+      const initialPosition = { bar: 1 } as const;
+      const initialState = this.deriveAt(loaded, initialPosition, run.loopIteration);
+      await this.options.connector.prepare(initialState, this.connectorConfig);
+      run.connectorStartAttempted = true;
+      await this.options.connector.start(
+        this.createAudioSink(),
+        {
+          tempo: loaded.timing.tempo,
+          timeSignature: loaded.timing.timeSignature,
+          ...(loaded.timing.key !== undefined ? { key: loaded.timing.key } : {}),
+          secondsPerBar: (60 / loaded.timing.tempo) * loaded.timing.timeSignature.beatsPerBar
+        },
+        runId
+      );
+      if (run.ended) return runId;
+      this.playback = 'running';
+      this.emitStatus();
+      this.emitPosition(initialPosition, run);
+      this.scheduleRun(loaded, run);
+      return runId;
+    } catch {
+      run.ended = true;
+      this.cancelTimers(run);
+      if (run.connectorStartAttempted) await this.stopConnector(run, true);
+      this.lifecycle = 'failed';
+      this.playback = 'failed';
+      const failure = Object.freeze({
+        code: 'generation-failed',
+        message: 'The connector could not start this renderer run.',
+        reason: 'internal' as const,
+        runId,
+        retryable: true
+      });
+      this.emit('failure', failure);
+      this.emitStatus();
+      throw new RendererError('connector-unavailable', failure.message, { failure });
+    }
   }
 
   async stop(): Promise<void> {
     if (this.lifecycle === 'closed') return;
     this.assertReady();
+    const run = this.run;
+    if (run === undefined || run.ended) {
+      this.playback = 'stopped';
+      this.emitStatus();
+      return;
+    }
+    this.playback = 'stopping';
+    this.emitStatus();
+    run.ended = true;
+    this.cancelTimers(run);
+    await run.chain;
+    try {
+      await this.stopConnector(run, false);
+    } catch {
+      const failure = Object.freeze({
+        code: 'connector-unavailable',
+        message: 'The renderer connector could not stop this run cleanly.',
+        reason: 'internal' as const,
+        runId: run.id,
+        retryable: true
+      });
+      this.lifecycle = 'failed';
+      this.playback = 'failed';
+      this.emit('failure', failure);
+      this.emitStatus();
+      throw new RendererError('connector-unavailable', failure.message, { failure });
+    }
+    if (this.run === run) this.run = undefined;
     this.playback = 'stopped';
     this.emitStatus();
   }
@@ -155,6 +260,7 @@ class RendererSession implements Renderer {
       return;
     }
     this.assertReady();
+    if (this.playback !== 'stopped') await this.stop();
     this.lifecycle = 'closing';
     this.emitStatus();
     try {
@@ -241,7 +347,8 @@ class RendererSession implements Renderer {
   private emitStatus(): void {
     const status: RendererStatusEvent = Object.freeze({
       lifecycle: this.lifecycle,
-      playback: this.playback
+      playback: this.playback,
+      ...(this.run !== undefined ? { runId: this.run.id } : {})
     });
     this.emit('status', status);
   }
@@ -264,6 +371,153 @@ class RendererSession implements Renderer {
   private requireDescription(): ConnectorDescription {
     this.assertReady();
     return this.description!;
+  }
+
+  private requireLoaded(): LoadedDocument {
+    if (this.loaded === undefined) {
+      throw new RendererError(
+        'renderer-state-conflict',
+        'Load a timeline before you start playback.'
+      );
+    }
+    return this.loaded;
+  }
+
+  private deriveAt(loaded: LoadedDocument, position: MusicalPosition, loopIteration: number) {
+    return effectiveStateAt(loaded.inputState, position, {
+      loopIteration,
+      activeSection: sectionInstanceAt(loaded.timeline, position)
+    });
+  }
+
+  private scheduleRun(loaded: LoadedDocument, run: ActiveRun): void {
+    const lookahead = Math.min(
+      this.requireDescription().model.chunkDurationSeconds * LOOKAHEAD_CHUNKS,
+      MAX_LOOKAHEAD_SECONDS
+    );
+    for (const position of authoredEventSchedule(loaded.timeline)) {
+      if (position.bar <= 1) continue;
+      const boundaryTime = barToTime(loaded.tempoMap, position.bar);
+      this.schedule(run, Math.max(run.startTime, boundaryTime - lookahead), () => {
+        this.enqueue(run, async () => {
+          const state = this.deriveAt(loaded, position, run.loopIteration);
+          await this.options.connector.update({ state }, position);
+        });
+      });
+      this.schedule(run, boundaryTime, () => this.emitPosition(position, run));
+    }
+
+    if (loaded.timeline.playback.mode === 'finite') {
+      const completion = { bar: loaded.timeline.playback.declaredBars + 1 };
+      this.schedule(run, barToTime(loaded.tempoMap, completion.bar), () => {
+        this.enqueue(run, () => this.completeFiniteRun(run));
+      });
+    }
+  }
+
+  private schedule(run: ActiveRun, deadline: number, callback: () => void): void {
+    let timer: ClockTimer;
+    timer = this.options.clock.schedule(deadline, () => {
+      run.timers.delete(timer);
+      if (!run.ended) callback();
+    });
+    run.timers.add(timer);
+  }
+
+  private enqueue(run: ActiveRun, task: () => Promise<void>): void {
+    run.chain = run.chain
+      .then(async () => {
+        if (!run.ended) await task();
+      })
+      .catch(() => this.failRun(run));
+  }
+
+  private async completeFiniteRun(run: ActiveRun): Promise<void> {
+    if (run.ended) return;
+    this.playback = 'stopping';
+    this.emitStatus();
+    this.cancelTimers(run);
+    await this.stopConnector(run, false);
+    run.ended = true;
+    if (this.run === run) this.run = undefined;
+    this.playback = 'stopped';
+    this.emitStatus();
+  }
+
+  private async failRun(run: ActiveRun): Promise<void> {
+    if (run.ended) return;
+    run.ended = true;
+    this.cancelTimers(run);
+    await this.stopConnector(run, true);
+    this.lifecycle = 'failed';
+    this.playback = 'failed';
+    const failure = Object.freeze({
+      code: 'generation-failed',
+      message: 'Audio generation failed during playback.',
+      reason: 'internal' as const,
+      runId: run.id,
+      retryable: true
+    });
+    this.emit('failure', failure);
+    this.emitStatus();
+  }
+
+  private emitPosition(position: MusicalPosition, run: ActiveRun): void {
+    if (run.ended || this.run !== run) return;
+    this.emit(
+      'position',
+      Object.freeze({
+        runId: run.id,
+        position: Object.freeze({ ...position }),
+        seconds: Math.max(0, this.options.clock.now() - run.startTime),
+        loopIteration: run.loopIteration
+      })
+    );
+  }
+
+  private cancelTimers(run: ActiveRun): void {
+    for (const timer of run.timers) this.options.clock.cancel(timer);
+    run.timers.clear();
+  }
+
+  private async stopConnector(run: ActiveRun, bestEffort: boolean): Promise<void> {
+    if (run.connectorStopAttempted) return;
+    run.connectorStopAttempted = true;
+    try {
+      await this.options.connector.stop(run.id);
+    } catch (error) {
+      if (!bestEffort) throw error;
+    }
+  }
+
+  private createRunId(): string {
+    const supplied = this.options.runIdFactory?.();
+    if (supplied !== undefined) return supplied;
+    const uuid = globalThis.crypto?.randomUUID?.();
+    return uuid ?? `renderer-run-${++fallbackRunSequence}`;
+  }
+
+  private createAudioSink(): AudioSink {
+    return {
+      push: (chunk) => {
+        if (chunk.runId !== this.run?.id) return;
+        const warning: RendererWarning = {
+          code: 'audio-delivery-pending',
+          message: 'Audio delivery is not enabled in this renderer slice.',
+          runId: chunk.runId
+        };
+        this.emit('warning', Object.freeze(warning));
+      },
+      status: (status, runId) => {
+        if (runId !== this.run?.id) return;
+        if (status === 'throttled') this.emitStatus();
+      },
+      warning: (warning) => this.emit('warning', Object.freeze({ ...warning })),
+      failure: (failure) => {
+        if (failure.runId !== undefined && failure.runId !== this.run?.id) return;
+        this.emit('failure', Object.freeze({ ...failure }));
+      }
+    };
   }
 
   private async closeConnectorBestEffort(): Promise<void> {

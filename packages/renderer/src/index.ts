@@ -22,6 +22,12 @@ export type { RendererErrorCode } from './errors.js';
 export { RendererError } from './errors.js';
 export type { CreateRendererOptions } from './renderer.js';
 export { createRenderer } from './renderer.js';
+export {
+  BUFFER_HARD_LIMIT_SECONDS,
+  BUFFER_WARNING_SECONDS,
+  LOOKAHEAD_CHUNKS,
+  MAX_LOOKAHEAD_SECONDS
+} from './constants.js';
 
 export const packageName = '@luna-estelar/gas-renderer';
 export const version = '0.1.0';
