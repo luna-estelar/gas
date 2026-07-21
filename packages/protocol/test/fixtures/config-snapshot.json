@@ -1,9 +1,0 @@
-{
-  "formatVersion": { "major": 1, "minor": 0 },
-  "configId": "renderer-config",
-  "revision": "value-3",
-  "schemaRevision": "schema-1",
-  "value": {
-    "promptWeight": 0.8
-  }
-}

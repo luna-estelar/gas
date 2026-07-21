@@ -1,15 +1,7 @@
 {
-  "formatVersion": { "major": 1, "minor": 0 },
-  "failureId": "failure-1",
   "code": "renderer-disconnected",
-  "severity": "error",
   "message": "The Renderer connection closed before generation completed.",
-  "component": "renderer",
-  "retryable": true,
-  "recoverability": "renderer",
-  "cause": {
-    "code": "transport-closed",
-    "message": "The transport closed unexpectedly.",
-    "component": "connector"
-  }
+  "reason": "network",
+  "runId": "run.1",
+  "retryable": true
 }

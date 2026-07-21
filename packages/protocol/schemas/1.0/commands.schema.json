@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gas.luna-estelar.com/protocol/1.0/commands.schema.json",
+  "title": "GAS Commands 1.0",
+  "$defs": {
+    "Command": {
+      "oneOf": [{ "$ref": "#/$defs/DefineTrackCommand" }, { "$ref": "#/$defs/OverrideCommand" }]
+    },
+    "OverrideCommand": {
+      "oneOf": [
+        { "$ref": "#/$defs/PlayTrackCommand" },
+        { "$ref": "#/$defs/StopTrackCommand" },
+        { "$ref": "#/$defs/SetGlobalFlavorCommand" },
+        { "$ref": "#/$defs/ClearGlobalFlavorCommand" },
+        { "$ref": "#/$defs/SetGlobalLevelCommand" },
+        { "$ref": "#/$defs/ClearGlobalLevelCommand" },
+        { "$ref": "#/$defs/SetTrackFlavorCommand" },
+        { "$ref": "#/$defs/ClearTrackFlavorCommand" },
+        { "$ref": "#/$defs/SetTrackTimbreCommand" },
+        { "$ref": "#/$defs/ClearTrackTimbreCommand" },
+        { "$ref": "#/$defs/SetTrackLevelCommand" },
+        { "$ref": "#/$defs/ClearTrackLevelCommand" },
+        { "$ref": "#/$defs/SetTrackNotesCommand" },
+        { "$ref": "#/$defs/SetTrackMotifCommand" },
+        { "$ref": "#/$defs/SetTempoCommand" },
+        { "$ref": "#/$defs/ClearTempoCommand" }
+      ]
+    },
+    "DefineTrackCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "const": "defineTrack" },
+        "id": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
+        "name": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "PlayTrackCommand": {
+      "$ref": "#/$defs/TrackCommandWithoutValue",
+      "unevaluatedProperties": false,
+      "properties": { "kind": { "const": "playTrack" } }
+    },
+    "StopTrackCommand": {
+      "$ref": "#/$defs/TrackCommandWithoutValue",
+      "unevaluatedProperties": false,
+      "properties": { "kind": { "const": "stopTrack" } }
+    },
+    "ClearTrackFlavorCommand": {
+      "$ref": "#/$defs/TrackCommandWithoutValue",
+      "unevaluatedProperties": false,
+      "properties": { "kind": { "const": "clearTrackFlavor" } }
+    },
+    "ClearTrackTimbreCommand": {
+      "$ref": "#/$defs/TrackCommandWithoutValue",
+      "unevaluatedProperties": false,
+      "properties": { "kind": { "const": "clearTrackTimbre" } }
+    },
+    "ClearTrackLevelCommand": {
+      "$ref": "#/$defs/TrackCommandWithoutValue",
+      "unevaluatedProperties": false,
+      "properties": { "kind": { "const": "clearTrackLevel" } }
+    },
+    "ClearGlobalFlavorCommand": {
+      "$ref": "#/$defs/GlobalCommandWithoutValue",
+      "unevaluatedProperties": false,
+      "properties": { "kind": { "const": "clearGlobalFlavor" } }
+    },
+    "ClearGlobalLevelCommand": {
+      "$ref": "#/$defs/GlobalCommandWithoutValue",
+      "unevaluatedProperties": false,
+      "properties": { "kind": { "const": "clearGlobalLevel" } }
+    },
+    "ClearTempoCommand": {
+      "$ref": "#/$defs/GlobalCommandWithoutValue",
+      "unevaluatedProperties": false,
+      "properties": { "kind": { "const": "clearTempo" } }
+    },
+    "SetGlobalFlavorCommand": {
+      "$ref": "#/$defs/GlobalTextCommand",
+      "unevaluatedProperties": false,
+      "properties": { "kind": { "const": "setGlobalFlavor" } }
+    },
+    "SetTrackFlavorCommand": {
+      "$ref": "#/$defs/TrackTextCommand",
+      "unevaluatedProperties": false,
+      "properties": { "kind": { "const": "setTrackFlavor" } }
+    },
+    "SetTrackTimbreCommand": {
+      "$ref": "#/$defs/TrackTextCommand",
+      "unevaluatedProperties": false,
+      "properties": { "kind": { "const": "setTrackTimbre" } }
+    },
+    "SetGlobalLevelCommand": {
+      "$ref": "#/$defs/GlobalLevelCommand",
+      "unevaluatedProperties": false,
+      "properties": { "kind": { "const": "setGlobalLevel" } }
+    },
+    "SetTrackLevelCommand": {
+      "$ref": "#/$defs/TrackLevelCommand",
+      "unevaluatedProperties": false,
+      "properties": { "kind": { "const": "setTrackLevel" } }
+    },
+    "SetTrackNotesCommand": {
+      "$ref": "#/$defs/TrackAldaCommand",
+      "unevaluatedProperties": false,
+      "properties": { "kind": { "const": "setTrackNotes" } }
+    },
+    "SetTrackMotifCommand": {
+      "$ref": "#/$defs/TrackAldaCommand",
+      "unevaluatedProperties": false,
+      "properties": { "kind": { "const": "setTrackMotif" } }
+    },
+    "SetTempoCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "bpm"],
+      "properties": {
+        "kind": { "const": "setTempo" },
+        "bpm": { "type": "number", "minimum": 1 }
+      }
+    },
+    "TrackCommandWithoutValue": {
+      "type": "object",
+      "required": ["kind", "trackId"],
+      "properties": {
+        "kind": { "type": "string" },
+        "trackId": { "$ref": "common.schema.json#/$defs/NonEmptyString" }
+      }
+    },
+    "GlobalCommandWithoutValue": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": { "kind": { "type": "string" } }
+    },
+    "GlobalTextCommand": {
+      "type": "object",
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": { "type": "string" },
+        "value": { "type": "string" }
+      }
+    },
+    "TrackTextCommand": {
+      "type": "object",
+      "required": ["kind", "trackId", "value"],
+      "properties": {
+        "kind": { "type": "string" },
+        "trackId": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
+        "value": { "type": "string" }
+      }
+    },
+    "GlobalLevelCommand": {
+      "type": "object",
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": { "type": "string" },
+        "value": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "TrackLevelCommand": {
+      "type": "object",
+      "required": ["kind", "trackId", "value"],
+      "properties": {
+        "kind": { "type": "string" },
+        "trackId": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
+        "value": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "TrackAldaCommand": {
+      "type": "object",
+      "required": ["kind", "trackId", "alda"],
+      "properties": {
+        "kind": { "type": "string" },
+        "trackId": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
+        "alda": { "type": "string" }
+      }
+    }
+  }
+}

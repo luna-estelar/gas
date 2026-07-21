@@ -1,0 +1,14 @@
+{
+  "lifecycle": "ready",
+  "playback": "active",
+  "timelineLoaded": true,
+  "runId": "run.1",
+  "tracks": [
+    {
+      "id": "track.pad",
+      "name": "pad",
+      "description": "A warm analog pad",
+      "source": "authored"
+    }
+  ]
+}

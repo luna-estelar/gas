@@ -1,0 +1,15 @@
+{
+  "globals": {
+    "tempo": 120,
+    "level": { "kind": "level", "value": 0.8 }
+  },
+  "tracks": [
+    {
+      "trackId": "track.pad",
+      "name": "pad",
+      "description": "A warm analog pad",
+      "active": true,
+      "timbre": { "kind": "text", "text": "warm analog" }
+    }
+  ]
+}

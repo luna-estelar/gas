@@ -30,7 +30,7 @@ if (apiKey === undefined || apiKey.trim() === '') {
 const { values } = parseArgs({
   options: {
     fixture: { type: 'string' },
-    strategy: { type: 'string', default: 'per-track' },
+    strategy: { type: 'string', default: 'global-plus-tracks' },
     seed: { type: 'string' },
     duration: { type: 'string', default: '30' },
     out: { type: 'string', default: 'listening' }

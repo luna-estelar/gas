@@ -8,7 +8,7 @@ variable. Never pass a key on the command line or place it in a fixture.
 GEMINI_API_KEY=... \
 pnpm --filter @luna-estelar/gas-connector-lyria manual:listen \
   --fixture /absolute/path/to/example.gas \
-  --strategy per-track \
+  --strategy global-plus-tracks \
   --seed 42 \
   --duration 30 \
   --out /absolute/path/to/ignored-listening
@@ -19,19 +19,24 @@ manifest containing the normalized prompts and safe model configuration. It neve
 key, a proxy URL, raw vendor messages, or a user IP. Keep the output directory ignored and outside
 the repository.
 
-Record both strategies for every row:
+The authorized seed-47 matrix was auditioned on 2026-07-21. The selected captures all contained
+non-zero PCM; two short or empty per-track takes were replaced before review. The human decisions
+were:
 
-| Case | Fixture/change                                | Per-track observations | Global-plus-tracks observations | Decision |
-| ---- | --------------------------------------------- | ---------------------- | ------------------------------- | -------- |
-| 1    | One track with global mood                    | Pending authorized run | Pending authorized run          | Pending  |
-| 2    | Two contrasting tracks with asymmetric levels | Pending authorized run | Pending authorized run          | Pending  |
-| 3    | Live flavor/timbre change                     | Pending authorized run | Pending authorized run          | Pending  |
-| 4    | Activation and deactivation                   | Pending authorized run | Pending authorized run          | Pending  |
-| 5    | Interrupted crossfade                         | Pending authorized run | Pending authorized run          | Pending  |
-| 6    | Native major/minor key and modal key          | Pending authorized run | Pending authorized run          | Pending  |
+| Case | Fixture/change                                | Decision         |
+| ---- | --------------------------------------------- | ---------------- |
+| 1    | One track with global mood                    | Global better    |
+| 2    | Two contrasting tracks with asymmetric levels | Per-track better |
+| 3    | Live flavor/timbre change                     | Global better    |
+| 4    | Activation and deactivation                   | Inconclusive     |
+| 5    | Interrupted crossfade                         | Global better    |
+| 6a   | Native major/minor key                        | Both acceptable  |
+| 6b   | Modal key                                     | Both acceptable  |
 
-The default remains `per-track` unless the recorded comparison clearly favors the alternate
-across this matrix.
+Excluding the inconclusive activation/deactivation case and the two ties, `global-plus-tracks`
+won three comparisons to one. That result selects `global-plus-tracks` as the connector default;
+`per-track` remains available as an explicit configuration. No additional paid rerun was made for
+case 4.
 
 The checked-in fixtures under `manual/fixtures/` map to the numbered rows. Row 6 uses `06a` and
 `06b` so the native scale path and modal prompt-context path can be compared independently.

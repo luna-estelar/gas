@@ -30,9 +30,15 @@ const REJECTIONS: ReadonlyArray<readonly [name: string, brk: Break, code: Timeli
     (t) => (t.formatVersion.major = 2),
     'unsupported-format-version'
   ],
+  [
+    'an unsupported minor format version',
+    (t) => (t.formatVersion.minor = 1),
+    'unsupported-format-version'
+  ],
   ['an empty timeline id', (t) => (t.timelineId = ''), 'invalid-shape'],
   ['a missing track list', (t) => delete t.tracks, 'invalid-shape'],
-  ['an unknown playback mode', (t) => (t.playback = { mode: 'once' }), 'invalid-shape'],
+  ['an unknown playback mode', (t) => (t.playback = { mode: 'once' }), 'invalid-playback'],
+  ['an unknown top-level field', (t) => (t.extra = true), 'invalid-shape'],
   [
     'a finite length below one bar',
     (t) => (t.playback = { mode: 'finite', declaredBars: 0 }),

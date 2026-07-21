@@ -8,10 +8,12 @@
 import type {
   CapabilitiesTable,
   Command,
+  CommandFailure,
+  CommandWarning,
   DefineTrackCommand,
   IntentKeyword,
-  IntentSupport,
-  OverrideCommand
+  OverrideCommand,
+  PlaybackPhase
 } from '@luna-estelar/gas-protocol';
 import type { InputState, HostTrack } from './state.js';
 import { freezeInputState } from './state.js';
@@ -24,6 +26,9 @@ export type {
   ClearTrackLevelCommand,
   ClearTrackTimbreCommand,
   Command,
+  CommandFailure,
+  CommandFailureCode,
+  CommandWarning,
   DefineTrackCommand,
   OverrideCommand,
   PlayTrackCommand,
@@ -35,7 +40,8 @@ export type {
   SetTrackMotifCommand,
   SetTrackNotesCommand,
   SetTrackTimbreCommand,
-  StopTrackCommand
+  StopTrackCommand,
+  PlaybackPhase
 } from '@luna-estelar/gas-protocol';
 
 // Define a host track. Phase-independent: host tracks are not overrides, so this
@@ -43,38 +49,6 @@ export type {
 // Caller-supplied playback phase: commands applied while stopped create staged
 // overrides; commands applied while starting, playing, or holding create live
 // overrides. Core owns no clock, so it never knows the phase on its own.
-export type PlaybackPhase = 'stopped' | 'active';
-
-// Structured command failures, keyed by a stable code with a musician-friendly
-// message. `invalid-value` covers text-shaped payloads, track ids, and commands
-// GAS does not recognize; out-of-range or non-numeric levels and tempos keep
-// their own codes.
-export type CommandFailureCode =
-  | 'duplicate-track'
-  | 'unknown-track'
-  | 'invalid-level'
-  | 'invalid-tempo'
-  | 'invalid-value';
-
-export interface CommandFailure {
-  readonly code: CommandFailureCode;
-  readonly message: string;
-  readonly trackId?: string;
-}
-
-// One warning per command: a command expresses at most one intent keyword, and
-// the capabilities table decides its support. Warnings never block a command and
-// never touch sibling state; `warningId` allocation is the API's job, so Core
-// returns plain objects. The `support` field lets hosts style approximated and
-// unsupported intent differently without parsing copy.
-export interface CommandWarning {
-  readonly code: 'unsupported-intent';
-  readonly intent: IntentKeyword;
-  readonly support: Exclude<IntentSupport, 'supported'>;
-  readonly trackId?: string;
-  readonly message: string;
-}
-
 export interface ApplyCommandOptions {
   readonly phase: PlaybackPhase;
   readonly capabilities: CapabilitiesTable;

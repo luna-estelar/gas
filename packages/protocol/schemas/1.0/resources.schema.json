@@ -79,9 +79,6 @@
         },
         "provenance": {
           "$ref": "common.schema.json#/$defs/Provenance"
-        },
-        "extensions": {
-          "$ref": "common.schema.json#/$defs/Extensions"
         }
       }
     },

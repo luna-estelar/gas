@@ -21,6 +21,16 @@ describe('Lyria connector configuration schema', () => {
     expect(promptSchema.description).toMatch(/normalizes/i);
   });
 
+  it('keeps the advertised strategy default aligned with the runtime default', () => {
+    const prompt = (
+      LYRIA_CONFIG_SCHEMA.properties as Record<
+        string,
+        { properties: Record<string, { default?: unknown }> }
+      >
+    ).prompt;
+    expect(prompt.properties.strategy.default).toBe(DEFAULT_LYRIA_CONFIG.prompt.strategy);
+  });
+
   it('does not name bpm or scale (the transport derives them)', () => {
     const generation = (
       LYRIA_CONFIG_SCHEMA.properties as Record<string, { properties: Record<string, unknown> }>
@@ -41,7 +51,7 @@ describe('Lyria connector configuration schema', () => {
 describe('Lyria connector defaults', () => {
   it('matches the settled prompt defaults', () => {
     expect(DEFAULT_LYRIA_CONFIG.prompt).toEqual({
-      strategy: 'per-track',
+      strategy: 'global-plus-tracks',
       trackWeight: 1,
       globalWeight: 0.8,
       minimumPositiveWeight: 0.05,
@@ -69,6 +79,12 @@ describe('Lyria connector defaults', () => {
 describe('resolveLyriaConfig', () => {
   it('returns the full defaults for an empty configuration', () => {
     expect(resolveLyriaConfig({})).toEqual(DEFAULT_LYRIA_CONFIG);
+  });
+
+  it('preserves an explicit per-track strategy', () => {
+    expect(resolveLyriaConfig({ prompt: { strategy: 'per-track' } }).prompt.strategy).toBe(
+      'per-track'
+    );
   });
 
   it('fills gaps around partial configuration', () => {
@@ -107,7 +123,7 @@ describe('validateAndResolveLyriaConfig', () => {
       prompt: { transitionDurationMs: 0, transitionSteps: 1 },
       generation: { seed: 47, density: 0.4 }
     });
-    expect(result.prompt.strategy).toBe('per-track');
+    expect(result.prompt.strategy).toBe('global-plus-tracks');
     expect(result.generation.seed).toBe(47);
     expect(Object.isFrozen(result)).toBe(true);
     expect(Object.isFrozen(result.generation)).toBe(true);

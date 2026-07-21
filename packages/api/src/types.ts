@@ -3,78 +3,26 @@
 // with what the API owns: a `warningId` (so a host renders one channel) and, for
 // commands applied during playback, the Renderer's requested/applied positions.
 
-import type { CommandFailure, CommandWarning } from '@luna-estelar/gas-core';
-import type { GasDiagnostic } from '@luna-estelar/gas-language';
 import type {
+  CommandFailure,
   ConnectorFailureReason,
-  MusicalPosition,
-  RendererLifecycle
+  GasDiagnostic,
+  SessionWarning
 } from '@luna-estelar/gas-protocol';
 
-export type PlaybackPhase = 'stopped' | 'active';
-
-// A Core warning plus the id it shares between the result it rode in on and the
-// `warning` event that mirrors it. Its `intent` field distinguishes it from a
-// `PlaybackWarning` on the shared warning channel.
-export interface SessionWarning extends CommandWarning {
-  readonly warningId: string;
-}
-
-// A provider or playback warning that originates in the Renderer, not Core. It
-// rides the same `warning` channel (so a host renders one channel) but never
-// appears on a command result — no command produced it.
-export interface PlaybackWarning {
-  readonly warningId: string;
-  readonly code: string;
-  readonly message: string;
-  readonly runId?: string;
-}
-
-// The union carried on the `warning` event channel.
-export type WarningEvent = SessionWarning | PlaybackWarning;
-
-// "Accepted now, audible at bar N": present only for commands applied while the
-// session is active. A stopped command carries neither.
-export interface AppliedPosition {
-  readonly requestedPosition?: MusicalPosition;
-  readonly appliedPosition?: MusicalPosition;
-}
-
-export interface CommandResult extends AppliedPosition {
-  readonly warnings: readonly SessionWarning[];
-}
-
-export interface LiveCommandSuccess extends AppliedPosition {
-  readonly ok: true;
-  readonly applied: number;
-  readonly warnings: readonly SessionWarning[];
-}
-
-// Partial success: earlier statements committed, then one failed. Resolves (does
-// not reject) so the host learns how far the batch got and why it stopped.
-export interface LiveCommandFailureResult {
-  readonly ok: false;
-  readonly applied: number;
-  readonly warnings: readonly SessionWarning[];
-  readonly failure: CommandFailure;
-}
-
-export type LiveCommandResult = LiveCommandSuccess | LiveCommandFailureResult;
-
-export interface TrackView {
-  readonly id: string;
-  readonly name?: string;
-  readonly description?: string;
-  readonly source: 'authored' | 'host';
-}
-
-export interface SessionState {
-  readonly lifecycle: RendererLifecycle;
-  readonly playback: PlaybackPhase;
-  readonly timelineLoaded: boolean;
-  readonly runId?: string;
-  readonly tracks: readonly TrackView[];
-}
+export type {
+  AppliedPosition,
+  CommandResult,
+  LiveCommandFailureResult,
+  LiveCommandResult,
+  LiveCommandSuccess,
+  PlaybackPhase,
+  PlaybackWarning,
+  SessionState,
+  SessionWarning,
+  TrackView,
+  WarningEvent
+} from '@luna-estelar/gas-protocol';
 
 export type OperationErrorKind =
   | 'compile'

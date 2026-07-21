@@ -31,12 +31,11 @@ import type {
   TrackDeclaration,
   TrackDefault,
   ValuedTrackAction
-} from './timeline.js';
+} from '@luna-estelar/gas-protocol';
 
 const FORMAT_VERSION = { major: 1, minor: 0 } as const;
 // The GAS language spec version this compiler targets, and the compiler's own
-// version. Kept as constants (the timeline shape is package-local for now);
-// COMPILER_VERSION mirrors the language package's `version`.
+// version. COMPILER_VERSION mirrors the language package's `version`.
 const LANGUAGE_VERSION = '1.0';
 const COMPILER_VERSION = '0.1.0';
 const SOURCE_MEDIA_TYPE = 'text/vnd.gas';

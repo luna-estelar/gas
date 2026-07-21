@@ -63,9 +63,6 @@
     "events": {
       "type": "array",
       "items": { "$ref": "#/$defs/TimelineEvent" }
-    },
-    "extensions": {
-      "$ref": "common.schema.json#/$defs/Extensions"
     }
   },
   "$defs": {
@@ -108,18 +105,21 @@
           "exclusiveMinimum": 0
         },
         "timeSignature": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["beatsPerBar", "beatUnit"],
-          "properties": {
-            "beatsPerBar": { "type": "integer", "minimum": 1 },
-            "beatUnit": { "type": "integer", "minimum": 1 }
-          }
+          "$ref": "#/$defs/TimeSignature"
         },
         "key": {
           "type": "string",
           "minLength": 1
         }
+      }
+    },
+    "TimeSignature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["beatsPerBar", "beatUnit"],
+      "properties": {
+        "beatsPerBar": { "type": "integer", "minimum": 1 },
+        "beatUnit": { "type": "integer", "minimum": 1 }
       }
     },
     "GlobalDefaults": {
@@ -270,8 +270,7 @@
         "sequence": { "type": "integer", "minimum": 0 },
         "scope": { "const": "timed" },
         "sectionInstanceId": { "$ref": "common.schema.json#/$defs/LocalId" },
-        "provenance": { "$ref": "common.schema.json#/$defs/Provenance" },
-        "extensions": { "$ref": "common.schema.json#/$defs/Extensions" }
+        "provenance": { "$ref": "common.schema.json#/$defs/Provenance" }
       }
     },
     "ValuedTrackEvent": {
@@ -299,8 +298,7 @@
         "scope": { "enum": ["timed", "section"] },
         "sectionInstanceId": { "$ref": "common.schema.json#/$defs/LocalId" },
         "value": { "$ref": "resources.schema.json#/$defs/IntentValue" },
-        "provenance": { "$ref": "common.schema.json#/$defs/Provenance" },
-        "extensions": { "$ref": "common.schema.json#/$defs/Extensions" }
+        "provenance": { "$ref": "common.schema.json#/$defs/Provenance" }
       },
       "allOf": [
         {
@@ -373,8 +371,7 @@
         "scope": { "const": "section" },
         "sectionInstanceId": { "$ref": "common.schema.json#/$defs/LocalId" },
         "value": { "$ref": "resources.schema.json#/$defs/TextValue" },
-        "provenance": { "$ref": "common.schema.json#/$defs/Provenance" },
-        "extensions": { "$ref": "common.schema.json#/$defs/Extensions" }
+        "provenance": { "$ref": "common.schema.json#/$defs/Provenance" }
       }
     }
   }

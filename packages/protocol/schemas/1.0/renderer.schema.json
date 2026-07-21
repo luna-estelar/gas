@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gas.luna-estelar.com/protocol/1.0/renderer.schema.json",
+  "title": "GAS Renderer Values 1.0",
+  "$defs": {
+    "AudioFormat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["codec", "sampleFormat", "sampleRate", "channels"],
+      "properties": {
+        "codec": { "type": "string", "minLength": 1 },
+        "sampleFormat": { "type": "string", "minLength": 1 },
+        "sampleRate": { "type": "number", "exclusiveMinimum": 0 },
+        "channels": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "ModelInfo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "connectorId",
+        "modelId",
+        "displayName",
+        "codec",
+        "sampleFormat",
+        "sampleRate",
+        "channels",
+        "chunkDurationSeconds"
+      ],
+      "properties": {
+        "connectorId": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
+        "modelId": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
+        "displayName": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
+        "codec": { "type": "string", "minLength": 1 },
+        "sampleFormat": { "type": "string", "minLength": 1 },
+        "sampleRate": { "type": "number", "exclusiveMinimum": 0 },
+        "channels": { "type": "number", "exclusiveMinimum": 0 },
+        "chunkDurationSeconds": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "RendererDefaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tempo": { "type": "number", "exclusiveMinimum": 0 },
+        "timeSignature": { "$ref": "timeline.schema.json#/$defs/TimeSignature" },
+        "key": { "type": "string", "minLength": 1 }
+      }
+    },
+    "ConnectorDescription": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "displayName",
+        "capabilities",
+        "model",
+        "configSchema",
+        "defaultConfig",
+        "supportsFlowControl"
+      ],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
+        "displayName": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
+        "capabilities": { "$ref": "capabilities.schema.json" },
+        "model": { "$ref": "#/$defs/ModelInfo" },
+        "configSchema": { "$ref": "config.schema.json#/$defs/ConnectorConfigSchema" },
+        "defaultConfig": { "$ref": "config.schema.json#/$defs/ConnectorConfig" },
+        "supportsFlowControl": { "type": "boolean" }
+      }
+    },
+    "ConnectorTiming": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tempo", "timeSignature", "secondsPerBar"],
+      "properties": {
+        "tempo": { "type": "number", "exclusiveMinimum": 0 },
+        "timeSignature": { "$ref": "timeline.schema.json#/$defs/TimeSignature" },
+        "key": { "type": "string", "minLength": 1 },
+        "secondsPerBar": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "RendererStatusEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lifecycle", "playback"],
+      "properties": {
+        "lifecycle": { "enum": ["initializing", "ready", "closing", "closed", "failed"] },
+        "playback": { "enum": ["stopped", "starting", "running", "holding", "stopping", "failed"] },
+        "runId": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
+        "stream": { "enum": ["streaming", "ended", "throttled"] },
+        "throttled": { "type": "boolean" }
+      }
+    },
+    "RendererPositionEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runId", "position", "seconds", "loopIteration"],
+      "properties": {
+        "runId": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
+        "position": { "$ref": "common.schema.json#/$defs/MusicalPosition" },
+        "seconds": { "type": "number", "minimum": 0 },
+        "loopIteration": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "RendererUpdateResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requestedPosition": { "$ref": "common.schema.json#/$defs/MusicalPosition" },
+        "appliedPosition": { "$ref": "common.schema.json#/$defs/MusicalPosition" }
+      }
+    }
+  }
+}

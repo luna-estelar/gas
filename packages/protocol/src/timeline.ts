@@ -1,8 +1,13 @@
-// Timeline types shared with Core; the language package currently keeps a compatible local copy.
+// Canonical TypeScript types describing the compiled GAS timeline. These mirror
+// the protocol timeline schema (schemas/1.0/timeline.schema.json) one-to-one.
+// The timeline is the shared contract between the compiler that produces it and
+// the Core semantics that read it. Nothing here depends on Langium; the timeline
+// is plain, model-independent, musical-time data (absolute 1-based bars only —
+// no seconds, timestamps, or durations).
 
 export interface FormatVersion {
   readonly major: 1;
-  readonly minor: number;
+  readonly minor: 0;
 }
 
 export interface SourcePosition {

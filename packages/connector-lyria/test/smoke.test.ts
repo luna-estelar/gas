@@ -26,6 +26,6 @@ describe('@luna-estelar/gas-connector-lyria', () => {
     expect(typeof createLyriaConnector).toBe('function');
     expect(LYRIA_SCALES).toHaveLength(12);
     expect(LYRIA_CONFIG_SCHEMA.type).toBe('object');
-    expect(DEFAULT_LYRIA_CONFIG.prompt.strategy).toBe('per-track');
+    expect(DEFAULT_LYRIA_CONFIG.prompt.strategy).toBe('global-plus-tracks');
   });
 });
