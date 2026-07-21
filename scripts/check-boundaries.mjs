@@ -15,6 +15,7 @@ export const ALLOW_MAP = {
   cli: ['protocol', 'language', 'core']
 };
 
+// Optional dependency rules for consuming applications.
 export const APP_ALLOW_MAP = {};
 
 const SPEC_PREFIX = '@luna-estelar/gas-';
@@ -37,11 +38,11 @@ export function extractSpecifiers(content) {
 }
 
 /**
- * @param files Array of { package, path, content }.
- * @param allowMap Per-package allowed short names (defaults to ALLOW_MAP).
+ * @param files Array of { package, path, content, scope? }.
+ * @param allowMap Per-package allowed short names (defaults to ALLOW_MAP + APP_ALLOW_MAP).
  * @returns Array of violations.
  */
-export function findViolations(files, allowMap = ALLOW_MAP) {
+export function findViolations(files, allowMap = { ...ALLOW_MAP, ...APP_ALLOW_MAP }) {
   const violations = [];
   for (const file of files) {
     const allowed = allowMap[file.package] ?? [];
@@ -49,6 +50,20 @@ export function findViolations(files, allowMap = ALLOW_MAP) {
       if (!specifier.startsWith(SPEC_PREFIX)) continue;
       const importedShort = specifier.slice(SPEC_PREFIX.length).split('/')[0];
       if (importedShort === file.package) continue; // self-import is fine
+      const isApp =
+        file.scope === 'app' ||
+        file.path.includes(`${path.sep}apps${path.sep}`) ||
+        file.path.startsWith('apps/');
+      const isConcreteRuntime = importedShort === 'renderer' || importedShort === 'connector-lyria';
+      if (isApp && isConcreteRuntime && path.basename(file.path) !== 'wiring.ts') {
+        violations.push({
+          package: file.package,
+          path: file.path,
+          importedPackage: `${SPEC_PREFIX}${importedShort}`,
+          specifier
+        });
+        continue;
+      }
       if (!allowed.includes(importedShort)) {
         violations.push({
           package: file.package,
@@ -62,7 +77,7 @@ export function findViolations(files, allowMap = ALLOW_MAP) {
   return violations;
 }
 
-async function walkTs(dir) {
+async function walkSource(dir) {
   const found = [];
   let entries;
   try {
@@ -73,8 +88,8 @@ async function walkTs(dir) {
   for (const entry of entries) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      found.push(...(await walkTs(full)));
-    } else if (entry.isFile() && entry.name.endsWith('.ts')) {
+      found.push(...(await walkSource(full)));
+    } else if (entry.isFile() && (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx'))) {
       found.push(full);
     }
   }
@@ -88,7 +103,7 @@ async function collectWorkspaceFiles(packagesRoot) {
     .map((entry) => entry.name);
   for (const pkg of packages) {
     for (const sub of ['src', 'test']) {
-      for (const filePath of await walkTs(path.join(packagesRoot, pkg, sub))) {
+      for (const filePath of await walkSource(path.join(packagesRoot, pkg, sub))) {
         files.push({ package: pkg, path: filePath, content: await readFile(filePath, 'utf8') });
       }
     }
@@ -96,12 +111,21 @@ async function collectWorkspaceFiles(packagesRoot) {
   return files;
 }
 
-async function collectProjectFiles(projectRoot, projectName) {
+async function collectApplicationFiles(appsRoot) {
   const files = [];
-  for (const sub of ['src', 'test']) {
-    for (const filePath of await walkTs(path.join(projectRoot, sub))) {
+  let apps = [];
+  try {
+    apps = (await readdir(appsRoot, { withFileTypes: true }))
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+  } catch {
+    return files;
+  }
+  for (const app of apps) {
+    for (const filePath of await walkSource(path.join(appsRoot, app, 'src'))) {
       files.push({
-        package: projectName,
+        package: app,
+        scope: 'app',
         path: filePath,
         content: await readFile(filePath, 'utf8')
       });
@@ -112,9 +136,8 @@ async function collectProjectFiles(projectRoot, projectName) {
 
 async function main() {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-  const packageFiles = await collectWorkspaceFiles(path.join(root, 'packages'));
-  const files = packageFiles;
-  const violations = findViolations(files, { ...ALLOW_MAP, ...APP_ALLOW_MAP });
+  const files = [...(await collectWorkspaceFiles(path.join(root, 'packages')))];
+  const violations = findViolations(files);
   if (violations.length > 0) {
     console.error('Import-boundary violations found:');
     for (const v of violations) {

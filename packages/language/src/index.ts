@@ -82,6 +82,14 @@ export type {
   ValuedTrackEvent
 } from '@luna-estelar/gas-protocol';
 
+export { highlightSource } from './highlight.js';
+export type {
+  HighlightKind,
+  HighlightResult,
+  HighlightToken,
+  SymbolOccurrence
+} from './highlight.js';
+
 // Deterministic name slug, shared with hosts (the GAS API) so live-declared
 // tracks get ids consistent with the compiler's authored `track.<slug>`
 // scheme. A pure string helper; it adds no dependency. Uniqueness across the
