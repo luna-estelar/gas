@@ -23,8 +23,6 @@ import type {
   ConnectorUpdate,
   EffectiveState,
   InputState,
-  JsonObject,
-  JsonValue,
   ModelInfo,
   MusicalPosition,
   MonotonicClock,
@@ -32,6 +30,7 @@ import type {
   Renderer,
   RendererDefaults,
   RendererEventMap,
+  RendererFailure,
   RendererLifecycle,
   RendererStatusEvent,
   RendererUpdateResult,
@@ -44,7 +43,16 @@ import {
   LOOKAHEAD_CHUNKS,
   MAX_LOOKAHEAD_SECONDS
 } from './constants.js';
-import { RendererError } from './errors.js';
+import {
+  applyMergePatch,
+  cloneJsonObject,
+  compileConfigSchema,
+  freezeJson,
+  isPlainJsonObject,
+  NonJsonValueError,
+  type ConfigValidator
+} from './connector-config.js';
+import { classifyConnectorFailure, RendererError } from './errors.js';
 import {
   barToTime,
   createTempoSegmentMap,
@@ -117,7 +125,8 @@ class RendererSession implements Renderer {
   private playback: PlaybackStatus = 'stopped';
   private description: ConnectorDescription | undefined;
   private defaults: RendererDefaults;
-  private connectorConfig: ConnectorConfig;
+  private connectorConfig: ConnectorConfig = Object.freeze({});
+  private configValidator: ConfigValidator | undefined;
   private loaded: LoadedDocument | undefined;
   private run: ActiveRun | undefined;
   private readonly listeners: ListenerMap = {
@@ -130,29 +139,92 @@ class RendererSession implements Renderer {
 
   constructor(private readonly options: RendererRuntimeOptions) {
     this.defaults = normalizeDefaults(options.defaults ?? {});
-    this.connectorConfig = freezeJson(options.connectorConfig ?? {});
   }
 
   async initialize(settings: ConnectorSettings): Promise<void> {
+    let description: ConnectorDescription;
     try {
-      const description = await this.options.connector.describe();
-      await this.options.connector.open(settings);
-      this.description = description;
-      this.lifecycle = 'ready';
-      this.emitStatus();
-    } catch {
+      description = await this.options.connector.describe();
+    } catch (error) {
+      throw this.failInitialization(
+        classifyConnectorFailure(error, {
+          code: 'connector-unavailable',
+          message: 'The renderer could not initialize its connector.',
+          reason: 'internal',
+          retryable: true
+        })
+      );
+    }
+
+    let validator: ConfigValidator;
+    let candidate: ConnectorConfig;
+    try {
+      validator = compileConfigSchema(description.configSchema);
+      const defaults = cloneJsonObject(description.defaultConfig);
+      const defaultProblems = validator.validate(defaults);
+      if (defaultProblems.length > 0) {
+        throw new RendererError(
+          'connector-unavailable',
+          'The connector advertised an invalid configuration contract.',
+          { problems: defaultProblems }
+        );
+      }
+      candidate = defaults;
+    } catch (error) {
       const failure = Object.freeze({
         code: 'connector-unavailable',
-        message: 'The renderer could not initialize its connector.',
+        message: 'The connector advertised an invalid configuration contract.',
         reason: 'internal' as const,
-        retryable: true
+        retryable: false
       });
-      this.lifecycle = 'failed';
-      this.playback = 'failed';
-      this.emit('failure', failure);
-      this.emitStatus();
-      throw new RendererError('connector-unavailable', failure.message, { failure });
+      const problems = error instanceof RendererError ? error.problems : undefined;
+      throw this.failInitialization(failure, problems);
     }
+
+    if (this.options.connectorConfig !== undefined) {
+      try {
+        candidate = this.buildConnectorConfig(candidate, this.options.connectorConfig, validator);
+      } catch (error) {
+        this.lifecycle = 'failed';
+        this.playback = 'failed';
+        this.emitStatus();
+        throw error;
+      }
+    }
+
+    this.description = description;
+    this.configValidator = validator;
+    this.connectorConfig = freezeJson(candidate);
+
+    try {
+      await this.options.connector.open(settings);
+    } catch (error) {
+      throw this.failInitialization(
+        classifyConnectorFailure(error, {
+          code: 'connector-unavailable',
+          message: 'The renderer could not initialize its connector.',
+          reason: 'internal',
+          retryable: true
+        })
+      );
+    }
+
+    this.lifecycle = 'ready';
+    this.emitStatus();
+  }
+
+  private failInitialization(
+    failure: RendererFailure,
+    problems?: readonly unknown[]
+  ): RendererError {
+    this.lifecycle = 'failed';
+    this.playback = 'failed';
+    this.emit('failure', failure);
+    this.emitStatus();
+    return new RendererError('connector-unavailable', failure.message, {
+      failure,
+      ...(problems !== undefined ? { problems } : {})
+    });
   }
 
   async load(timeline: Timeline, inputState: InputState): Promise<void> {
@@ -216,10 +288,10 @@ class RendererSession implements Renderer {
       });
     } catch (error) {
       if (error instanceof RendererError) throw error;
-      const failure = Object.freeze({
+      const failure = classifyConnectorFailure(error, {
         code: 'generation-failed',
         message: 'The connector could not apply the renderer state update.',
-        reason: 'internal' as const,
+        reason: 'internal',
         runId: run.id,
         retryable: true
       });
@@ -288,17 +360,17 @@ class RendererSession implements Renderer {
       this.emitPosition(initialPosition, run);
       this.scheduleRun(loaded, run);
       return runId;
-    } catch {
+    } catch (error) {
       run.ended = true;
       this.cancelTimers(run);
       this.rejectHeldAudio(run, 'Buffered audio was rejected because renderer startup failed.');
       if (run.connectorStartAttempted) await this.stopConnector(run, true);
       this.lifecycle = 'failed';
       this.playback = 'failed';
-      const failure = Object.freeze({
+      const failure = classifyConnectorFailure(error, {
         code: 'generation-failed',
         message: 'The connector could not start this renderer run.',
-        reason: 'internal' as const,
+        reason: 'internal',
         runId,
         retryable: true
       });
@@ -325,11 +397,11 @@ class RendererSession implements Renderer {
     await run.chain;
     try {
       await this.stopConnector(run, false);
-    } catch {
-      const failure = Object.freeze({
+    } catch (error) {
+      const failure = classifyConnectorFailure(error, {
         code: 'connector-unavailable',
         message: 'The renderer connector could not stop this run cleanly.',
-        reason: 'internal' as const,
+        reason: 'internal',
         runId: run.id,
         retryable: true
       });
@@ -363,13 +435,13 @@ class RendererSession implements Renderer {
       this.lifecycle = 'closed';
       this.playback = 'stopped';
       this.emitStatus();
-    } catch {
+    } catch (error) {
       this.lifecycle = 'failed';
       this.playback = 'failed';
-      const failure = Object.freeze({
+      const failure = classifyConnectorFailure(error, {
         code: 'connector-unavailable',
         message: 'The renderer connector could not close cleanly.',
-        reason: 'internal' as const,
+        reason: 'internal',
         retryable: false
       });
       this.emit('failure', failure);
@@ -419,8 +491,49 @@ class RendererSession implements Renderer {
   async updateConnectorConfig(patch: ConnectorConfig): Promise<ConnectorConfig> {
     this.assertReady();
     this.assertStopped('update connector configuration');
-    this.connectorConfig = freezeJson({ ...this.connectorConfig, ...patch });
+    const validator = this.configValidator;
+    if (validator === undefined) {
+      throw new RendererError(
+        'renderer-state-conflict',
+        'The renderer connector configuration is not available.'
+      );
+    }
+    const candidate = this.buildConnectorConfig(this.connectorConfig, patch, validator);
+    this.connectorConfig = freezeJson(candidate);
     return this.connectorConfig;
+  }
+
+  private buildConnectorConfig(
+    base: ConnectorConfig,
+    patch: ConnectorConfig,
+    validator: ConfigValidator
+  ): ConnectorConfig {
+    if (!isPlainJsonObject(patch)) {
+      throw new RendererError(
+        'invalid-configuration',
+        'The connector configuration patch must be a plain JSON object.'
+      );
+    }
+    let patchClone: ConnectorConfig;
+    try {
+      patchClone = cloneJsonObject(patch);
+    } catch (error) {
+      if (error instanceof NonJsonValueError) {
+        throw new RendererError(
+          'invalid-configuration',
+          `The connector configuration patch is not plain JSON at "${error.path}".`
+        );
+      }
+      throw error;
+    }
+    const candidate = applyMergePatch(base, patchClone);
+    const problems = validator.validate(candidate);
+    if (problems.length > 0) {
+      throw new RendererError('invalid-configuration', 'The connector configuration is invalid.', {
+        problems
+      });
+    }
+    return candidate;
   }
 
   getConfigSchema(): ConnectorConfigSchema {
@@ -573,9 +686,25 @@ class RendererSession implements Renderer {
     });
     run.chain = result.then(
       () => undefined,
-      () => this.failRun(run)
+      (error) => this.failRunFromThrown(run, error)
     );
     return result;
+  }
+
+  private async failRunFromThrown(run: ActiveRun, error: unknown): Promise<void> {
+    const failure = classifyConnectorFailure(error, {
+      code: 'generation-failed',
+      message: 'Audio generation failed during playback.',
+      reason: 'internal',
+      retryable: true
+    });
+    await this.failRun(
+      run,
+      failure.code,
+      failure.message,
+      failure.reason ?? 'internal',
+      failure.retryable
+    );
   }
 
   private async completeFiniteRun(run: ActiveRun): Promise<void> {
@@ -938,22 +1067,6 @@ function mergeDefined<T extends object>(current: T, patch: Partial<T>): T {
     else merged[key] = value;
   }
   return merged as T;
-}
-
-function freezeJson<T extends JsonObject>(value: T): T {
-  return freezeJsonValue(value) as T;
-}
-
-function freezeJsonValue(value: JsonValue): JsonValue {
-  if (Array.isArray(value)) {
-    return Object.freeze(value.map((entry) => freezeJsonValue(entry)));
-  }
-  if (value !== null && typeof value === 'object') {
-    return Object.freeze(
-      Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, freezeJsonValue(entry)]))
-    );
-  }
-  return value;
 }
 
 function globalGain(state: EffectiveState): number {

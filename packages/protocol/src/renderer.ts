@@ -54,6 +54,7 @@ export interface ConnectorDescription {
   readonly capabilities: CapabilitiesTable;
   readonly model: ModelInfo;
   readonly configSchema: ConnectorConfigSchema;
+  readonly defaultConfig: ConnectorConfig;
   readonly supportsFlowControl: boolean;
 }
 

@@ -1,0 +1,23 @@
+tempo 120
+key "D minor"
+time_signature 4/4
+length bars 8
+flavor "spacious downtempo arrangement"
+
+track pad "Wide atmospheric pad"
+track drums "Dry restrained electronic drums"
+
+section comparison:
+    length bars 8
+    pad.timbre "soft blurred texture"
+    drums.timbre "tight kick, short snare, closed hats"
+    bar 1:
+        pad.play
+    bar 3:
+        drums.play
+    bar 5:
+        pad.stop
+    bar 7:
+        drums.stop
+
+comparison()

@@ -1,0 +1,19 @@
+tempo 120
+key "E minor"
+time_signature 4/4
+length bars 8
+flavor "focused electronic pulse"
+
+track lead "Expressive monophonic synthesizer"
+
+section comparison:
+    length bars 8
+    lead.flavor "calm sparse phrases"
+    lead.timbre "muted triangle wave"
+    bar 1:
+        lead.play
+    bar 3:
+        lead.flavor "urgent rising phrases"
+        lead.timbre "bright resonant saw wave"
+
+comparison()

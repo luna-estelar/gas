@@ -1,0 +1,16 @@
+tempo 90
+key "C major"
+time_signature 4/4
+length bars 8
+flavor "dreamy nocturnal synthwave"
+
+track pad "Warm evolving analog pad"
+
+section comparison:
+    length bars 8
+    pad.flavor "slow harmonic movement"
+    pad.timbre "soft attack, wide stereo image"
+    bar 1:
+        pad.play
+
+comparison()

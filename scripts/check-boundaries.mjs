@@ -15,6 +15,8 @@ export const ALLOW_MAP = {
   cli: ['protocol', 'language', 'core']
 };
 
+export const APP_ALLOW_MAP = {};
+
 const SPEC_PREFIX = '@luna-estelar/gas-';
 
 /** Extract module specifiers from import/export/dynamic-import statements. */
@@ -94,10 +96,25 @@ async function collectWorkspaceFiles(packagesRoot) {
   return files;
 }
 
+async function collectProjectFiles(projectRoot, projectName) {
+  const files = [];
+  for (const sub of ['src', 'test']) {
+    for (const filePath of await walkTs(path.join(projectRoot, sub))) {
+      files.push({
+        package: projectName,
+        path: filePath,
+        content: await readFile(filePath, 'utf8')
+      });
+    }
+  }
+  return files;
+}
+
 async function main() {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-  const files = await collectWorkspaceFiles(path.join(root, 'packages'));
-  const violations = findViolations(files);
+  const packageFiles = await collectWorkspaceFiles(path.join(root, 'packages'));
+  const files = packageFiles;
+  const violations = findViolations(files, { ...ALLOW_MAP, ...APP_ALLOW_MAP });
   if (violations.length > 0) {
     console.error('Import-boundary violations found:');
     for (const v of violations) {
@@ -108,7 +125,7 @@ async function main() {
     process.exitCode = 1;
     return;
   }
-  console.log(`Import boundaries OK: scanned ${files.length} files across the workspace.`);
+  console.log(`Import boundaries OK: scanned ${files.length} files across packages.`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

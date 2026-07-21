@@ -26,6 +26,7 @@ const ALL_SUPPORTED: CapabilitiesTable = {
 };
 
 export interface FakeConnectorOptions {
+  readonly describeFailure?: Error;
   readonly openFailure?: Error;
   readonly prepareFailure?: Error;
   readonly startFailure?: Error;
@@ -66,6 +67,7 @@ export class FakeConnector implements Connector {
         chunkDurationSeconds: 2
       },
       configSchema: { type: 'object' },
+      defaultConfig: {},
       supportsFlowControl: true,
       ...options.description
     };
@@ -73,6 +75,7 @@ export class FakeConnector implements Connector {
 
   async describe(): Promise<ConnectorDescription> {
     this.calls.push('describe');
+    if (this.options.describeFailure !== undefined) throw this.options.describeFailure;
     return this.description;
   }
 

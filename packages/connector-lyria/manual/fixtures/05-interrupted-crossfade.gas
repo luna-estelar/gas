@@ -1,0 +1,21 @@
+tempo 200
+key "G minor"
+time_signature 4/4
+length bars 8
+flavor "fast evolving electronic improvisation"
+
+track lead "Agile synthesizer lead"
+
+section comparison:
+    length bars 8
+    lead.timbre "rounded pulse wave"
+    bar 1:
+        lead.play
+    bar 2:
+        lead.flavor "short playful answers"
+    bar 3:
+        lead.flavor "long tense rising line"
+    bar 4:
+        lead.timbre "metallic FM bell attack"
+
+comparison()
