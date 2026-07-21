@@ -21,9 +21,16 @@
     "src"
   ],
   "scripts": {
-    "clean": "tsc -b --clean"
+    "clean": "tsc -b --clean",
+    "manual:listen": "node manual/listen.mjs",
+    "manual:smoke": "node manual/smoke.mjs"
   },
   "dependencies": {
+    "@google/genai": "2.12.0",
     "@luna-estelar/gas-protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@luna-estelar/gas-core": "workspace:*",
+    "@luna-estelar/gas-language": "workspace:*"
   }
 }

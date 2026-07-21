@@ -1,0 +1,20 @@
+tempo 110
+key "A minor"
+time_signature 4/4
+length bars 8
+flavor "cinematic electronic tension"
+
+track lead "Bright glassy arpeggiated lead"
+track bass "Deep restrained analog bass"
+
+section comparison:
+    length bars 8
+    lead.level 0.8
+    bass.level 0.25
+    lead.timbre "crisp transient, sparkling delay"
+    bass.timbre "rounded sub tone, minimal harmonics"
+    bar 1:
+        lead.play
+        bass.play
+
+comparison()

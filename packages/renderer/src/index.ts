@@ -20,6 +20,7 @@ export {
 } from './musical-time.js';
 export type { RendererErrorCode } from './errors.js';
 export { RendererError } from './errors.js';
+export type { SanitizedSchemaProblem } from './connector-config.js';
 export type { CreateRendererOptions } from './renderer.js';
 export { createRenderer } from './renderer.js';
 export type { AudioAccounting } from './audio.js';

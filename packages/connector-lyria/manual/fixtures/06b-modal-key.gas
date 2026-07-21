@@ -1,0 +1,14 @@
+tempo 100
+key "D Dorian"
+time_signature 4/4
+length bars 8
+flavor "intimate reflective chamber electronics"
+
+track piano "Soft felt piano with subtle tape texture"
+
+section comparison:
+    length bars 8
+    bar 1:
+        piano.play
+
+comparison()

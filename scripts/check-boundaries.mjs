@@ -148,7 +148,7 @@ async function main() {
     process.exitCode = 1;
     return;
   }
-  console.log(`Import boundaries OK: scanned ${files.length} files across the workspace.`);
+  console.log(`Import boundaries OK: scanned ${files.length} files across packages.`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

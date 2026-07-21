@@ -101,5 +101,8 @@ export type {
   SampleFormat
 } from './renderer.js';
 
+export type { ConnectorErrorOptions } from './errors.js';
+export { ConnectorError } from './errors.js';
+
 export const packageName = '@luna-estelar/gas-protocol';
 export const version = '0.1.0';
