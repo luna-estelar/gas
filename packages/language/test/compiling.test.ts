@@ -52,6 +52,11 @@ verse()
 `;
 
 describe('GAS compiling', () => {
+  test('preserves fractional tempo exactly in the timeline', () => {
+    const timeline = expectTimeline(compile('tempo 123.5\nlength bars 4\n'));
+    expect(timeline.musicalContext?.tempo).toBe(123.5);
+  });
+
   test('emits musical-time header, context, globals, and playback', () => {
     const timeline = expectTimeline(compile(FULL_DOCUMENT));
 

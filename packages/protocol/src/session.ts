@@ -13,6 +13,10 @@ export interface SessionWarning extends CommandWarning {
   readonly warningId: string;
 }
 
+export interface LoadResult {
+  readonly warnings: readonly SessionWarning[];
+}
+
 export interface PlaybackWarning {
   readonly warningId: string;
   readonly code: string;

@@ -55,7 +55,12 @@ export class EventHub {
     // the set we are iterating.
     const channel = this.channels[event] as Set<Listener<SessionEventMap[K]>>;
     for (const listener of [...channel]) {
-      listener(payload);
+      try {
+        listener(payload);
+      } catch {
+        // Subscribers are observers. One faulty observer must not interrupt
+        // sibling listeners or change the outcome of a session operation.
+      }
     }
   }
 

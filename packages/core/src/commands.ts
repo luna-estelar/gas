@@ -17,6 +17,7 @@ import type {
 } from '@luna-estelar/gas-protocol';
 import type { InputState, HostTrack } from './state.js';
 import { freezeInputState } from './state.js';
+import { warningForIntent } from './warnings.js';
 
 export type {
   ClearGlobalFlavorCommand,
@@ -283,17 +284,15 @@ function accept(override: OverrideCommand): BuildResult {
 
 // Which intent keyword each command expresses, driving capabilities warnings.
 // Play, stop, and defineTrack carry no renderable intent — track activity and
-// track identity are structural — so they never warn. Clears warn exactly like
-// sets: a clear moves effective state back toward authored values, which an
-// unsupported model equally cannot render; softening that signal is the API's
-// presentation concern, not Core's.
+// track identity are structural — so they never warn. Global level is also
+// absent because the Renderer owns post-render gain. Other clears warn exactly
+// like sets: a clear moves effective state back toward authored values, which
+// an unsupported model equally cannot render.
 const COMMAND_INTENTS: Readonly<Partial<Record<OverrideCommand['kind'], IntentKeyword>>> = {
   setGlobalFlavor: 'flavor',
   clearGlobalFlavor: 'flavor',
   setTrackFlavor: 'flavor',
   clearTrackFlavor: 'flavor',
-  setGlobalLevel: 'level',
-  clearGlobalLevel: 'level',
   setTrackLevel: 'level',
   clearTrackLevel: 'level',
   setTrackTimbre: 'timbre',
@@ -304,45 +303,18 @@ const COMMAND_INTENTS: Readonly<Partial<Record<OverrideCommand['kind'], IntentKe
   clearTempo: 'tempo'
 };
 
-// Total over IntentKeyword so the record typechecks; `key` and `time_signature`
-// are authored-only intents no command expresses, so they are unreachable here.
-const INTENT_NOUNS: Readonly<Record<IntentKeyword, string>> = {
-  flavor: 'flavor',
-  key: 'key changes',
-  tempo: 'tempo changes',
-  time_signature: 'time signatures',
-  timbre: 'timbre',
-  level: 'level',
-  notes: 'notes',
-  motif: 'motifs'
-};
-
 function warningsFor(
   override: OverrideCommand,
   capabilities: CapabilitiesTable
 ): readonly CommandWarning[] {
   const intent = COMMAND_INTENTS[override.kind];
-  if (intent === undefined) {
-    return [];
-  }
-  const support = capabilities.intents[intent];
-  if (support === 'supported') {
-    return [];
-  }
-  const noun = INTENT_NOUNS[intent];
-  const message =
-    support === 'unsupported'
-      ? `This model doesn't support ${noun}; the change is kept, but it may not be heard.`
-      : `This model approximates ${noun}; what you hear may not match exactly.`;
-  return [
-    {
-      code: 'unsupported-intent',
-      intent,
-      support,
-      ...('trackId' in override ? { trackId: override.trackId } : {}),
-      message
-    }
-  ];
+  if (intent === undefined) return [];
+  const warning = warningForIntent(
+    intent,
+    capabilities,
+    'trackId' in override ? override.trackId : undefined
+  );
+  return warning === undefined ? [] : [warning];
 }
 
 function invalidValue(message: string, trackId?: string): CommandFailure {

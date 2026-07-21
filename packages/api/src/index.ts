@@ -26,6 +26,7 @@ export { GasOperationError } from './types.js';
 export type {
   AppliedPosition,
   CommandResult,
+  LoadResult,
   LiveCommandFailureResult,
   LiveCommandResult,
   LiveCommandSuccess,

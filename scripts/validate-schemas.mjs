@@ -26,6 +26,7 @@ const fixtureSchemas = new Map([
   ['connector-config.json', `${SCHEMA_BASE}/config.schema.json#/$defs/ConnectorConfig`],
   ['effective-state.json', `${SCHEMA_BASE}/state.schema.json#/$defs/EffectiveState`],
   ['live-command-result.json', `${SCHEMA_BASE}/session.schema.json#/$defs/LiveCommandResult`],
+  ['load-result.json', `${SCHEMA_BASE}/session.schema.json#/$defs/LoadResult`],
   ['renderer-failure.json', `${SCHEMA_BASE}/diagnostics.schema.json#/$defs/RendererFailure`],
   ['renderer-position.json', `${SCHEMA_BASE}/renderer.schema.json#/$defs/RendererPositionEvent`],
   ['renderer-status.json', `${SCHEMA_BASE}/renderer.schema.json#/$defs/RendererStatusEvent`],

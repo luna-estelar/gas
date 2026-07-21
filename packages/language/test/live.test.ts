@@ -68,6 +68,11 @@ describe('parseLiveCommands acceptance', () => {
     expect(statements).toEqual([expect.objectContaining({ kind: 'Tempo', bpm: 132 })]);
   });
 
+  test('accepts fractional tempo without rounding', () => {
+    const statements = expectStatements(parseLiveCommands('tempo 123.5'));
+    expect(statements).toEqual([expect.objectContaining({ kind: 'Tempo', bpm: 123.5 })]);
+  });
+
   test('accepts the spec example as an ordered statement list', () => {
     const statements = expectStatements(
       parseLiveCommands(`
@@ -166,6 +171,12 @@ tempo 132
 
   test('rejects an out-of-range tempo', () => {
     const result = parseLiveCommands('tempo 0');
+    expect(result.ok).toBe(false);
+    expect(codes(result)).toContain('invalid-tempo');
+  });
+
+  test('rejects a fractional tempo below the lower bound', () => {
+    const result = parseLiveCommands('tempo 0.5');
     expect(result.ok).toBe(false);
     expect(codes(result)).toContain('invalid-tempo');
   });

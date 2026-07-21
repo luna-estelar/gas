@@ -1,0 +1,12 @@
+{
+  "warnings": [
+    {
+      "warningId": "warning.1",
+      "code": "unsupported-intent",
+      "intent": "motif",
+      "support": "unsupported",
+      "trackId": "track.lead",
+      "message": "This model doesn't support motifs; the change is kept, but it may not be heard."
+    }
+  ]
+}

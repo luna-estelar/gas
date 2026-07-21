@@ -254,12 +254,13 @@ function parseSyntax(source: string): {
   readonly diagnostics: readonly GasDiagnostic[];
 } {
   const result = getParser().parse(source);
-  const diagnostics = [
+  const diagnostics: GasDiagnostic[] = [
     ...result.lexerErrors.map((error) => ({
       code: 'syntax-lexer-error',
       category: 'syntax' as const,
       severity: 'error' as const,
-      message: error.message,
+      message:
+        "GAS couldn't read this character. Check for an unfinished string or unsupported character.",
       range: rangeFromOffset(source, error.offset, error.length ?? 1, error.line, error.column)
     })),
     ...(result.lexerReport?.diagnostics ?? []).map((diagnostic) => ({
@@ -279,12 +280,48 @@ function parseSyntax(source: string): {
       code: 'syntax-parser-error',
       category: 'syntax' as const,
       severity: 'error' as const,
-      message: error.message,
+      message: publicParserMessage(error.token, source),
       range: rangeFromToken(error.token)
     }))
   ];
 
-  return { model: isModel(result.value) ? result.value : undefined, diagnostics };
+  return {
+    model: isModel(result.value) ? result.value : undefined,
+    diagnostics: deduplicateDiagnostics(diagnostics)
+  };
+}
+
+function publicParserMessage(
+  token: { image?: string; endOffset?: number; tokenType?: { name?: string } },
+  source: string
+): string {
+  const remainder =
+    token.endOffset === undefined ? undefined : source.slice(token.endOffset + 1).trim();
+  if (
+    token.tokenType?.name === 'EOF' ||
+    token.image === undefined ||
+    token.image.length === 0 ||
+    remainder === ''
+  ) {
+    return 'This statement is incomplete at the end of the document. Check its value and indentation.';
+  }
+  const image = token.image.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  return `Unexpected "${image}" here. Check this statement's spelling, value, and indentation.`;
+}
+
+function deduplicateDiagnostics(diagnostics: readonly GasDiagnostic[]): readonly GasDiagnostic[] {
+  const seen = new Set<string>();
+  return diagnostics.filter((diagnostic) => {
+    const range = diagnostic.range;
+    const key = `${diagnostic.code}\u0000${
+      range === undefined
+        ? ''
+        : `${range.start.line}:${range.start.character}:${range.end.line}:${range.end.character}`
+    }`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function getParser() {

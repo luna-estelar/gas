@@ -528,7 +528,7 @@ export function isStopCommand(item: unknown): item is StopCommand {
 export interface TempoDeclaration extends langium.AstNode {
     readonly $container: Model;
     readonly $type: 'TempoDeclaration';
-    bpm: number;
+    bpm: TempoNumber;
 }
 
 export const TempoDeclaration = {
@@ -538,6 +538,12 @@ export const TempoDeclaration = {
 
 export function isTempoDeclaration(item: unknown): item is TempoDeclaration {
     return reflection.isInstance(item, TempoDeclaration.$type);
+}
+
+export type TempoNumber = number;
+
+export function isTempoNumber(item: unknown): item is TempoNumber {
+    return typeof item === 'number';
 }
 
 export interface TimbreCommand extends langium.AstNode {

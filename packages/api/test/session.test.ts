@@ -70,6 +70,23 @@ describe('session creation and loading', () => {
     expect(session.getState().timelineLoaded).toBe(false);
     expect(wiring.current().loads).toHaveLength(0);
   });
+
+  it('both load methods return authored warnings with the same ids emitted as events', async () => {
+    for (const method of ['source', 'timeline'] as const) {
+      const wiring = createFakeWiring(undefined, capabilitiesWith({ tempo: 'unsupported' }));
+      const session = await createSession(wiring);
+      const warningIds: string[] = [];
+      session.on('warning', (warning) => warningIds.push(warning.warningId));
+      const result =
+        method === 'source'
+          ? await session.loadSource(SOURCE)
+          : await session.loadTimeline((await session.compileSource(SOURCE)).timeline);
+      expect(result.warnings).toEqual([
+        expect.objectContaining({ intent: 'tempo', support: 'unsupported' })
+      ]);
+      expect(warningIds).toEqual(result.warnings.map((warning) => warning.warningId));
+    }
+  });
 });
 
 describe('command forwarding', () => {
@@ -117,6 +134,16 @@ describe('atomic replacement', () => {
     wiring.current().failLoad = true;
     await expect(session.loadSource(OTHER_SOURCE)).rejects.toBeInstanceOf(GasOperationError);
     expect(session.getTracks().map((t) => t.id)).toEqual(['track.drums', 'track.lead']);
+  });
+
+  it('emits no authored warnings when a load fails', async () => {
+    const wiring = createFakeWiring(undefined, capabilitiesWith({ tempo: 'unsupported' }));
+    const session = await createSession(wiring);
+    const warnings: string[] = [];
+    session.on('warning', (warning) => warnings.push(warning.warningId));
+    wiring.current().failLoad = true;
+    await expect(session.loadSource(SOURCE)).rejects.toBeInstanceOf(GasOperationError);
+    expect(warnings).toEqual([]);
   });
 });
 
@@ -264,6 +291,32 @@ describe('retryRenderer', () => {
     // Exactly one delivery, from the fresh renderer.
     expect(chunks).toHaveLength(1);
   });
+
+  it('discards a candidate that cannot reload and permits a later successful retry', async () => {
+    let creation = 0;
+    const wiring = createFakeWiring((renderer) => {
+      creation += 1;
+      renderer.failLoad = creation === 2;
+    });
+    const session = await createSession(wiring);
+    await session.loadSource(SOURCE);
+    wiring.current().emitFailure({ code: 'x', message: 'died', retryable: true });
+    const failures: GasOperationError[] = [];
+    session.on('error', (error) => failures.push(error));
+
+    await expect(session.retryRenderer()).rejects.toMatchObject({
+      name: 'GasOperationError',
+      kind: 'renderer',
+      message: 'The fresh Renderer failed to reload the timeline.'
+    });
+    expect(failures).toHaveLength(1);
+    expect(wiring.renderers[1]?.closes).toBe(1);
+    expect(session.getState()).toMatchObject({ lifecycle: 'failed', playback: 'stopped' });
+
+    await expect(session.retryRenderer()).resolves.toBeUndefined();
+    expect(wiring.renderers[2]?.loads).toHaveLength(1);
+    expect(session.getState()).toMatchObject({ lifecycle: 'ready', playback: 'stopped' });
+  });
 });
 
 describe('events and single-channel warnings', () => {
@@ -288,6 +341,21 @@ describe('events and single-channel warnings', () => {
     expect(events[0]).toBe(result.warnings[0]?.warningId);
   });
 
+  it('keeps global level silent while an approximated track level warns', async () => {
+    const { session } = await loadedSession(capabilitiesWith({ level: 'approximated' }));
+    await expect(session.setGlobalLevel(0.5)).resolves.toEqual({ warnings: [] });
+    await expect(session.clearGlobalLevel()).resolves.toEqual({ warnings: [] });
+    await expect(session.setTrackLevel('track.lead', 0.5)).resolves.toMatchObject({
+      warnings: [
+        expect.objectContaining({
+          intent: 'level',
+          support: 'approximated',
+          trackId: 'track.lead'
+        })
+      ]
+    });
+  });
+
   it('unsubscribes cleanly', async () => {
     const { session } = await loadedSession();
     const seen: SessionState[] = [];
@@ -295,6 +363,27 @@ describe('events and single-channel warnings', () => {
     off();
     await session.setGlobalFlavor('warm');
     expect(seen).toHaveLength(0);
+  });
+
+  it('isolates throwing warning, state, and diagnostic subscribers', async () => {
+    const warningSource = SOURCE.replace('tempo 120', 'tempo 120\ntempo 100');
+    const wiring = createFakeWiring(undefined, capabilitiesWith({ tempo: 'unsupported' }));
+    const session = await createSession(wiring);
+    const seen = { warning: 0, state: 0, diagnostic: 0 };
+    for (const event of ['warning', 'state', 'diagnostic'] as const) {
+      session.on(event, () => {
+        throw new Error(`${event} observer failed`);
+      });
+      session.on(event, () => {
+        seen[event] += 1;
+      });
+    }
+
+    await expect(session.loadSource(warningSource)).resolves.toMatchObject({
+      warnings: [expect.objectContaining({ intent: 'tempo' })]
+    });
+    expect(seen).toEqual({ warning: 1, state: 1, diagnostic: 1 });
+    await expect(session.setGlobalFlavor('warm')).resolves.toBeDefined();
   });
 });
 

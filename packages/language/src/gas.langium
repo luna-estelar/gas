@@ -10,7 +10,7 @@ GlobalDeclaration:
     TempoDeclaration | KeyDeclaration | TimeSignatureDeclaration | GlobalLengthDeclaration | FlavorDeclaration | LevelDeclaration;
 
 TempoDeclaration:
-    'tempo' bpm=INT;
+    'tempo' bpm=TempoNumber;
 
 KeyDeclaration:
     'key' value=STRING;
@@ -123,6 +123,9 @@ Name returns string:
     'stop' | 'tempo' | 'theme' | 'time_signature' | 'timbre' | 'track';
 
 LevelNumber returns number:
+    DECIMAL | INT;
+
+TempoNumber returns number:
     DECIMAL | INT;
 
 terminal INDENT: 'synthetic:indent';

@@ -32,6 +32,7 @@ export type {
   StopTrackCommand
 } from './commands.js';
 export { applyCommand, defineTrack } from './commands.js';
+export { warningsForTimeline } from './warnings.js';
 
 export type { TimelineProblem, TimelineProblemCode, ValidateTimelineResult } from './validate.js';
 export { validateTimeline } from './validate.js';

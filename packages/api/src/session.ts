@@ -8,6 +8,7 @@ import {
   applyStop,
   createInputState,
   validateTimeline,
+  warningsForTimeline,
   type CommandFailure,
   type InputState
 } from '@luna-estelar/gas-core';
@@ -18,6 +19,7 @@ import type {
   CompileResult,
   ConnectorConfig,
   ConnectorConfigSchema,
+  LoadResult,
   ModelInfo,
   Renderer,
   RendererDefaults,
@@ -26,7 +28,7 @@ import type {
   Timeline
 } from '@luna-estelar/gas-protocol';
 
-export type { CompileResult } from '@luna-estelar/gas-protocol';
+export type { CompileResult, LoadResult } from '@luna-estelar/gas-protocol';
 
 import { liveStatementToCommand } from './commands.js';
 import { EventHub, type SessionEvent, type SessionEventMap } from './events.js';
@@ -118,17 +120,18 @@ export class GasSession {
   // Compile then commit the timeline while stopped. Atomic: nothing is mutated
   // until the Renderer accepts the load, so a failed load leaves the previous
   // document and playback untouched.
-  async loadSource(input: SourceInput, options: CompileOptions = {}): Promise<void> {
+  async loadSource(input: SourceInput, options: CompileOptions = {}): Promise<LoadResult> {
     const compiled = await this.compileSource(input, options);
-    await this.commitTimeline(compiled.timeline, 'load');
+    const result = await this.commitTimeline(compiled.timeline, 'load');
     if (compiled.diagnostics.length > 0) {
       this.events.emit('diagnostic', { source: 'compile', diagnostics: compiled.diagnostics });
     }
+    return result;
   }
 
   // Commit a canonical protocol 1.0 timeline. Core validates it before any
   // Renderer call; an invalid timeline rejects and leaves the session unchanged.
-  async loadTimeline(timeline: Timeline, _options: CompileOptions = {}): Promise<void> {
+  async loadTimeline(timeline: Timeline, _options: CompileOptions = {}): Promise<LoadResult> {
     const validation = validateTimeline(timeline);
     if (!validation.ok) {
       throw new GasOperationError('The timeline is not valid.', {
@@ -137,10 +140,10 @@ export class GasSession {
         cause: validation.problems
       });
     }
-    await this.commitTimeline(timeline, 'load');
+    return this.commitTimeline(timeline, 'load');
   }
 
-  private async commitTimeline(timeline: Timeline, reason: 'load' | 'retry'): Promise<void> {
+  private async commitTimeline(timeline: Timeline, reason: 'load' | 'retry'): Promise<LoadResult> {
     this.ensureOpen();
     if (reason === 'load' && this.phase !== 'stopped') {
       throw new GasOperationError('Stop the session before loading a new document.', {
@@ -162,6 +165,10 @@ export class GasSession {
     this.acceptedRun.clear();
     this.phase = 'stopped';
     this.emitState();
+    const warnings = warningsForTimeline(timeline, this.capabilities).map((warning) =>
+      this.events.warn(warning)
+    );
+    return { warnings };
   }
 
   // ---- Programmatic commands ----------------------------------------------
@@ -370,13 +377,29 @@ export class GasSession {
       throw failure;
     }
 
+    if (this.input !== undefined) {
+      try {
+        await renderer.load(this.input.timeline, this.input);
+      } catch (error) {
+        try {
+          await renderer.close();
+        } catch {
+          // The rejected candidate is discarded regardless of close outcome.
+        }
+        this.lifecycle = 'failed';
+        const failure = new GasOperationError('The fresh Renderer failed to reload the timeline.', {
+          kind: 'renderer',
+          cause: error
+        });
+        this.events.emit('error', failure);
+        this.emitState();
+        throw failure;
+      }
+    }
     this.rendererInstance = renderer;
     this.attachRenderer(renderer);
     this.capabilities = renderer.getCapabilities();
     this.lifecycle = 'ready';
-    if (this.input !== undefined) {
-      await renderer.load(this.input.timeline, this.input);
-    }
     this.emitState();
   }
 

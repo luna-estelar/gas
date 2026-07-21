@@ -86,6 +86,7 @@ export type {
   CompileResult,
   DiagnosticEvent,
   LifecycleEvent,
+  LoadResult,
   LiveCommandFailureResult,
   LiveCommandResult,
   LiveCommandSuccess,

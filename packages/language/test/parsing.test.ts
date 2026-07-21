@@ -65,6 +65,12 @@ level 0.8
     }
   });
 
+  test('parses fractional tempo', async () => {
+    const document = await parse('tempo 123.5\nlength bars 4\n');
+    expect(checkDocumentValid(document)).toBeUndefined();
+    expect(document.parseResult.value.elements[0]).toMatchObject({ bpm: 123.5 });
+  });
+
   test('parses documents without optional timing globals', async () => {
     const document = await parse(`
 length bars 8
@@ -171,6 +177,33 @@ section drone:
 
     expect(result.ok).toBe(false);
     expect(result.diagnostics.some((diagnostic) => diagnostic.severity === 'error')).toBe(true);
+  });
+
+  test('publishes concise GAS-owned lexer and parser messages without vendor details', () => {
+    const unexpected = parseGasDocument('tempo nope');
+    const incomplete = parseGasDocument('tempo');
+    const unreadable = parseGasDocument('@');
+    const messages = [
+      ...unexpected.diagnostics,
+      ...incomplete.diagnostics,
+      ...unreadable.diagnostics
+    ].map((diagnostic) => diagnostic.message);
+
+    expect(messages).toContain(
+      'This statement is incomplete at the end of the document. Check its value and indentation.'
+    );
+    expect(messages).toContain(
+      "GAS couldn't read this character. Check for an unfinished string or unsupported character."
+    );
+    expect(messages.some((message) => message.startsWith('Unexpected "'))).toBe(true);
+    expect(messages.join('\n')).not.toMatch(/Expecting|Token sequences|Chevrotain|Langium/i);
+
+    for (const result of [unexpected, incomplete, unreadable]) {
+      const keys = result.diagnostics.map(
+        (diagnostic) => `${diagnostic.code}:${JSON.stringify(diagnostic.range)}`
+      );
+      expect(new Set(keys).size).toBe(keys.length);
+    }
   });
 });
 

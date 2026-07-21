@@ -15,6 +15,12 @@ beforeAll(() => {
 });
 
 describe('GAS semantic validation', () => {
+  test('analyzes fractional tempo without changing its value', () => {
+    const result = analyzeGasDocument('tempo 123.5\nlength bars 4\n');
+    expect(result.ok).toBe(true);
+    expect(result.document?.globals.tempo?.bpm).toBe(123.5);
+  });
+
   test('accepts missing optional timing globals', () => {
     const result = analyzeGasDocument(`
 length bars 4
@@ -91,6 +97,12 @@ intro()
     expect(
       result.diagnostics.filter((diagnostic) => diagnostic.code === 'invalid-level')
     ).toHaveLength(2);
+  });
+
+  test('retains the lower tempo bound for fractional values', () => {
+    const result = analyzeGasDocument('tempo 0.5\nlength bars 4\n');
+    expect(result.ok).toBe(false);
+    expect(codes(result.diagnostics)).toContain('invalid-tempo');
   });
 
   test('rejects top-level play/stop but allows section-level shorthand before bars', () => {

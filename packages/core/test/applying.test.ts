@@ -64,8 +64,8 @@ const OVERRIDES: ReadonlyArray<
   ['stopTrack', { kind: 'stopTrack', trackId: 'track.pad' }, undefined],
   ['setGlobalFlavor', { kind: 'setGlobalFlavor', value: 'warm dusk' }, 'flavor'],
   ['clearGlobalFlavor', { kind: 'clearGlobalFlavor' }, 'flavor'],
-  ['setGlobalLevel', { kind: 'setGlobalLevel', value: 0.7 }, 'level'],
-  ['clearGlobalLevel', { kind: 'clearGlobalLevel' }, 'level'],
+  ['setGlobalLevel', { kind: 'setGlobalLevel', value: 0.7 }, undefined],
+  ['clearGlobalLevel', { kind: 'clearGlobalLevel' }, undefined],
   ['setTrackFlavor', { kind: 'setTrackFlavor', trackId: 'track.pad', value: 'glassy' }, 'flavor'],
   ['clearTrackFlavor', { kind: 'clearTrackFlavor', trackId: 'track.pad' }, 'flavor'],
   [
@@ -341,6 +341,26 @@ describe('applyCommand warns from the capabilities table', () => {
       expect(result.warnings).toEqual([]);
     }
   );
+
+  it('treats global level as Renderer-owned while track level still follows capabilities', () => {
+    const global = applyCommand(
+      baseState(),
+      { kind: 'setGlobalLevel', value: 0.5 },
+      { phase: 'active', capabilities: ALL_UNSUPPORTED }
+    );
+    const track = applyCommand(
+      baseState(),
+      { kind: 'setTrackLevel', trackId: 'track.pad', value: 0.5 },
+      { phase: 'active', capabilities: ALL_APPROXIMATED }
+    );
+    expect(global.ok).toBe(true);
+    expect(track.ok).toBe(true);
+    if (!global.ok || !track.ok) return;
+    expect(global.warnings).toEqual([]);
+    expect(track.warnings).toEqual([
+      expect.objectContaining({ intent: 'level', support: 'approximated', trackId: 'track.pad' })
+    ]);
+  });
 
   it('warns on a clear exactly like the matching set', () => {
     const set = applyCommand(

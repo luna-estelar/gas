@@ -13,6 +13,7 @@ import type {
 export type {
   AppliedPosition,
   CommandResult,
+  LoadResult,
   LiveCommandFailureResult,
   LiveCommandResult,
   LiveCommandSuccess,
