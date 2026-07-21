@@ -1,12 +1,7 @@
-export interface GasSourcePosition {
-  readonly line: number;
-  readonly character: number;
-}
+import type { SourcePosition, SourceRange } from '@luna-estelar/gas-protocol';
 
-export interface GasSourceRange {
-  readonly start: GasSourcePosition;
-  readonly end: GasSourcePosition;
-}
+export type GasSourcePosition = SourcePosition;
+export type GasSourceRange = SourceRange;
 
 export interface GasNode {
   readonly kind: string;

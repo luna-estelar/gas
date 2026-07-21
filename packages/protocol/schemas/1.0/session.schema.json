@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gas.luna-estelar.com/protocol/1.0/session.schema.json",
+  "title": "GAS API Session Values 1.0",
+  "$defs": {
+    "CompileResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["timeline", "diagnostics"],
+      "properties": {
+        "timeline": { "$ref": "timeline.schema.json" },
+        "diagnostics": {
+          "type": "array",
+          "items": { "$ref": "diagnostics.schema.json#/$defs/GasDiagnostic" }
+        }
+      }
+    },
+    "SessionWarning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["warningId", "code", "intent", "support", "message"],
+      "properties": {
+        "warningId": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
+        "code": { "const": "unsupported-intent" },
+        "intent": { "$ref": "capabilities.schema.json#/$defs/IntentKeyword" },
+        "support": { "enum": ["approximated", "unsupported"] },
+        "trackId": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    },
+    "PlaybackWarning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["warningId", "code", "message"],
+      "properties": {
+        "warningId": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
+        "code": { "type": "string", "minLength": 1 },
+        "message": { "type": "string", "minLength": 1 },
+        "runId": { "$ref": "common.schema.json#/$defs/NonEmptyString" }
+      }
+    },
+    "WarningEvent": {
+      "oneOf": [{ "$ref": "#/$defs/SessionWarning" }, { "$ref": "#/$defs/PlaybackWarning" }]
+    },
+    "AppliedPosition": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requestedPosition": { "$ref": "common.schema.json#/$defs/MusicalPosition" },
+        "appliedPosition": { "$ref": "common.schema.json#/$defs/MusicalPosition" }
+      }
+    },
+    "CommandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["warnings"],
+      "properties": {
+        "requestedPosition": { "$ref": "common.schema.json#/$defs/MusicalPosition" },
+        "appliedPosition": { "$ref": "common.schema.json#/$defs/MusicalPosition" },
+        "warnings": { "type": "array", "items": { "$ref": "#/$defs/SessionWarning" } }
+      }
+    },
+    "LiveCommandSuccess": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "applied", "warnings"],
+      "properties": {
+        "ok": { "const": true },
+        "applied": { "type": "integer", "minimum": 0 },
+        "warnings": { "type": "array", "items": { "$ref": "#/$defs/SessionWarning" } },
+        "requestedPosition": { "$ref": "common.schema.json#/$defs/MusicalPosition" },
+        "appliedPosition": { "$ref": "common.schema.json#/$defs/MusicalPosition" }
+      }
+    },
+    "LiveCommandFailureResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "applied", "warnings", "failure"],
+      "properties": {
+        "ok": { "const": false },
+        "applied": { "type": "integer", "minimum": 0 },
+        "warnings": { "type": "array", "items": { "$ref": "#/$defs/SessionWarning" } },
+        "failure": { "$ref": "diagnostics.schema.json#/$defs/CommandFailure" }
+      }
+    },
+    "LiveCommandResult": {
+      "oneOf": [
+        { "$ref": "#/$defs/LiveCommandSuccess" },
+        { "$ref": "#/$defs/LiveCommandFailureResult" }
+      ]
+    },
+    "TrackView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "source"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "source": { "enum": ["authored", "host"] }
+      }
+    },
+    "SessionState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lifecycle", "playback", "timelineLoaded", "tracks"],
+      "properties": {
+        "lifecycle": { "enum": ["initializing", "ready", "closing", "closed", "failed"] },
+        "playback": { "enum": ["stopped", "active"] },
+        "timelineLoaded": { "type": "boolean" },
+        "runId": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
+        "tracks": { "type": "array", "items": { "$ref": "#/$defs/TrackView" } }
+      }
+    },
+    "LifecycleEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lifecycle", "playback"],
+      "properties": {
+        "lifecycle": { "enum": ["initializing", "ready", "closing", "closed", "failed"] },
+        "playback": { "enum": ["stopped", "active"] },
+        "runId": { "$ref": "common.schema.json#/$defs/NonEmptyString" }
+      }
+    },
+    "DiagnosticEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "diagnostics"],
+      "properties": {
+        "source": { "const": "compile" },
+        "diagnostics": {
+          "type": "array",
+          "items": { "$ref": "diagnostics.schema.json#/$defs/GasDiagnostic" }
+        }
+      }
+    }
+  }
+}

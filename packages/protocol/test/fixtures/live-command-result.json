@@ -1,0 +1,10 @@
+{
+  "ok": false,
+  "applied": 1,
+  "warnings": [],
+  "failure": {
+    "code": "unknown-track",
+    "message": "No track with id \"ghost\" exists; define it first or check the id.",
+    "trackId": "ghost"
+  }
+}

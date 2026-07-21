@@ -1,16 +1,11 @@
 import type { GasSourceRange } from './ast.js';
+import type { GasDiagnostic, GasDiagnosticSeverity } from '@luna-estelar/gas-protocol';
 
-export type GasDiagnosticSeverity = 'error' | 'warning' | 'info';
-
-export type GasDiagnosticCategory = 'syntax' | 'semantic' | 'deferred' | 'informational';
-
-export interface GasDiagnostic {
-  readonly code: string;
-  readonly category: GasDiagnosticCategory;
-  readonly severity: GasDiagnosticSeverity;
-  readonly message: string;
-  readonly range?: GasSourceRange;
-}
+export type {
+  GasDiagnostic,
+  GasDiagnosticCategory,
+  GasDiagnosticSeverity
+} from '@luna-estelar/gas-protocol';
 
 export function semanticDiagnostic(
   code: string,

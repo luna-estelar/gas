@@ -14,7 +14,12 @@
     ".": {
       "types": "./out/index.d.ts",
       "default": "./out/index.js"
-    }
+    },
+    "./validation": {
+      "types": "./out/validation.d.ts",
+      "default": "./out/validation.js"
+    },
+    "./schemas/1.0/*": "./schemas/1.0/*"
   },
   "files": [
     "out",
@@ -23,5 +28,9 @@
   ],
   "scripts": {
     "clean": "tsc -b --clean"
+  },
+  "dependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1"
   }
 }

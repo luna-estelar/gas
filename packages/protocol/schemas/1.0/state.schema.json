@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gas.luna-estelar.com/protocol/1.0/state.schema.json",
+  "title": "GAS State Values 1.0",
+  "$defs": {
+    "HostTrack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
+        "name": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "InputState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["timeline", "hostTracks", "staged", "live"],
+      "properties": {
+        "timeline": { "$ref": "timeline.schema.json" },
+        "hostTracks": { "type": "array", "items": { "$ref": "#/$defs/HostTrack" } },
+        "staged": {
+          "type": "array",
+          "items": { "$ref": "commands.schema.json#/$defs/OverrideCommand" }
+        },
+        "live": {
+          "type": "array",
+          "items": { "$ref": "commands.schema.json#/$defs/OverrideCommand" }
+        }
+      }
+    },
+    "EffectiveGlobals": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "flavor": { "$ref": "resources.schema.json#/$defs/IntentValue" },
+        "level": { "$ref": "resources.schema.json#/$defs/IntentValue" },
+        "tempo": { "type": "number", "exclusiveMinimum": 0 },
+        "key": { "type": "string", "minLength": 1 },
+        "timeSignature": { "$ref": "timeline.schema.json#/$defs/TimeSignature" }
+      }
+    },
+    "EffectiveTrack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["trackId", "name", "active"],
+      "properties": {
+        "trackId": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "active": { "type": "boolean" },
+        "flavor": { "$ref": "resources.schema.json#/$defs/IntentValue" },
+        "timbre": { "$ref": "resources.schema.json#/$defs/IntentValue" },
+        "level": { "$ref": "resources.schema.json#/$defs/IntentValue" },
+        "notes": { "$ref": "resources.schema.json#/$defs/IntentValue" },
+        "motif": { "$ref": "resources.schema.json#/$defs/IntentValue" }
+      }
+    },
+    "EffectiveState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["globals", "tracks"],
+      "properties": {
+        "globals": { "$ref": "#/$defs/EffectiveGlobals" },
+        "tracks": { "type": "array", "items": { "$ref": "#/$defs/EffectiveTrack" } }
+      }
+    }
+  }
+}

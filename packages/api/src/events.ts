@@ -1,33 +1,21 @@
 // Allocate warning IDs and emit session events. The session filters stale runs
 // before forwarding renderer position and audio events.
 
-import type { CommandWarning } from '@luna-estelar/gas-core';
-import type { GasDiagnostic } from '@luna-estelar/gas-language';
 import type {
   AudioChunk,
-  RendererLifecycle,
-  RendererPositionEvent,
-  RendererWarning
-} from '@luna-estelar/gas-protocol';
-import type {
-  GasOperationError,
-  PlaybackPhase,
+  CommandWarning,
+  DiagnosticEvent,
+  LifecycleEvent,
   PlaybackWarning,
+  RendererPositionEvent,
+  RendererWarning,
   SessionState,
   SessionWarning,
   WarningEvent
-} from './types.js';
+} from '@luna-estelar/gas-protocol';
+import type { GasOperationError } from './types.js';
 
-export interface LifecycleEvent {
-  readonly lifecycle: RendererLifecycle;
-  readonly playback: PlaybackPhase;
-  readonly runId?: string;
-}
-
-export interface DiagnosticEvent {
-  readonly source: 'compile';
-  readonly diagnostics: readonly GasDiagnostic[];
-}
+export type { DiagnosticEvent, LifecycleEvent } from '@luna-estelar/gas-protocol';
 
 export interface SessionEventMap {
   readonly state: SessionState;

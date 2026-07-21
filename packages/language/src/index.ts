@@ -1,14 +1,13 @@
 // GAS parsing and language services. Public values are independent of Langium types.
 
 import { EmptyFileSystem } from 'langium';
+import type { GasDiagnostic, GasDiagnosticSeverity, Timeline } from '@luna-estelar/gas-protocol';
 import { createGasServices } from './gas-module.js';
 import { compileDocument } from './compiler/compile.js';
 import { isModel, type Model } from './generated/ast.js';
 import type { GasDocument } from './semantic/ast.js';
 import { buildDocument } from './semantic/build.js';
-import type { GasDiagnostic, GasDiagnosticSeverity } from './semantic/diagnostics.js';
 import { buildLiveCommands, type LiveStatement } from './semantic/live.js';
-import type { Timeline } from './compiler/timeline.js';
 import { validate } from './semantic/validate.js';
 
 export type {
@@ -45,7 +44,7 @@ export type {
   GasDiagnostic,
   GasDiagnosticCategory,
   GasDiagnosticSeverity
-} from './semantic/diagnostics.js';
+} from '@luna-estelar/gas-protocol';
 export type { LiveStatement, LiveTempoCommand, LiveTrackDeclaration } from './semantic/live.js';
 export type {
   ArrangementInstance,
@@ -81,7 +80,7 @@ export type {
   TrackDefaultAction,
   ValuedTrackAction,
   ValuedTrackEvent
-} from './compiler/timeline.js';
+} from '@luna-estelar/gas-protocol';
 
 export { highlightSource } from './highlight.js';
 export type {

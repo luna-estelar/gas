@@ -36,4 +36,4 @@ export type {
   TrackDefaultAction,
   ValuedTrackAction,
   ValuedTrackEvent
-} from './timeline.js';
+} from '@luna-estelar/gas-protocol';

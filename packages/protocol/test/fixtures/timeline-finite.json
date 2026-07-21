@@ -122,10 +122,5 @@
       "scope": "timed",
       "sectionInstanceId": "section.chorus.0"
     }
-  ],
-  "extensions": {
-    "com.luna-estelar.demo": {
-      "fixture": true
-    }
-  }
+  ]
 }

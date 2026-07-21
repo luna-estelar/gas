@@ -1,27 +1,30 @@
-// Validate timeline structure and references before loading external data. Core has no
-// schema-engine dependency at this revision. Arrangement-length differences remain warnings.
+// Timeline shape and reference validation, used at load time (API `loadTimeline`).
+// Protocol's canonical JSON Schema is the structural gate. Core then adds the
+// referential and musical invariants JSON Schema cannot express, rejecting
+// hand-authored, persisted, or foreign timelines before a session is built.
+// Every problem carries a musician-friendly message.
+//
+// This is a structural and referential gate, not a musical-quality check: it does
+// not, for example, reject a `declaredBars` that differs from the arranged span
+// (the language treats that as a non-fatal warning), so it accepts every timeline
+// the compiler can produce. The input is typed `unknown` because a load-time
+// timeline may be hand-authored or persisted, not freshly compiled.
 
-export type TimelineProblemCode =
-  | 'unsupported-format-version'
-  | 'invalid-shape'
-  | 'duplicate-id'
-  | 'unresolved-reference'
-  | 'position-out-of-range'
-  | 'arrangement-not-contiguous'
-  | 'invalid-level'
-  | 'invalid-playback';
+import type {
+  TimelineProblem,
+  TimelineProblemCode,
+  ValidateTimelineResult
+} from '@luna-estelar/gas-protocol';
+import {
+  validateTimelinePayload,
+  type ProtocolValidationIssue
+} from '@luna-estelar/gas-protocol/validation';
 
-export interface TimelineProblem {
-  readonly code: TimelineProblemCode;
-  readonly message: string;
-}
-
-export interface ValidateTimelineResult {
-  readonly ok: boolean;
-  readonly problems: readonly TimelineProblem[];
-}
-
-const SUPPORTED_MAJOR = 1;
+export type {
+  TimelineProblem,
+  TimelineProblemCode,
+  ValidateTimelineResult
+} from '@luna-estelar/gas-protocol';
 
 export function validateTimeline(timeline: unknown): ValidateTimelineResult {
   const problems: TimelineProblem[] = [];
@@ -30,7 +33,11 @@ export function validateTimeline(timeline: unknown): ValidateTimelineResult {
     return fail(problems, 'invalid-shape', 'This timeline is not an object.');
   }
 
-  validateFormatVersion(timeline.formatVersion, problems);
+  const structural = validateTimelinePayload(timeline);
+  if (!structural.ok) {
+    return { ok: false, problems: schemaProblems(structural.issues, timeline) };
+  }
+
   requireNonEmptyString(timeline.timelineId, 'timelineId', problems);
   requireNonEmptyString(timeline.languageVersion, 'languageVersion', problems);
   requireNonEmptyString(timeline.compilerVersion, 'compilerVersion', problems);
@@ -58,21 +65,79 @@ export function validateTimeline(timeline: unknown): ValidateTimelineResult {
 
 // --- Top-level fields ---------------------------------------------------------
 
-function validateFormatVersion(value: unknown, problems: TimelineProblem[]): void {
-  if (!isObject(value)) {
-    problems.push(shape('The timeline is missing its format version.'));
-    return;
+function schemaProblems(
+  issues: readonly ProtocolValidationIssue[],
+  timeline: Record<string, unknown>
+): readonly TimelineProblem[] {
+  const version = timeline.formatVersion;
+  if (
+    issues.some((issue) => issue.instancePath.startsWith('/formatVersion')) &&
+    isObject(version) &&
+    isNonNegativeInteger(version.major) &&
+    isNonNegativeInteger(version.minor) &&
+    (version.major !== 1 || version.minor !== 0)
+  ) {
+    return [
+      {
+        code: 'unsupported-format-version',
+        message: `This timeline is format version ${describeVersion(version)}, but this version of GAS understands 1.0 timelines.`
+      }
+    ];
   }
-  if (value.major !== SUPPORTED_MAJOR) {
-    problems.push({
-      code: 'unsupported-format-version',
-      message: `This timeline is format version ${describeVersion(value)}, but this version of GAS understands 1.x timelines.`
-    });
-    return;
+
+  if (issues.some((issue) => issue.instancePath.startsWith('/playback'))) {
+    return [
+      {
+        code: 'invalid-playback',
+        message: 'The timeline playback value does not match the protocol 1.0 playback shape.'
+      }
+    ];
   }
-  if (!isNonNegativeInteger(value.minor)) {
-    problems.push(shape('The timeline format version needs a whole-number minor version.'));
+
+  if (issues.some((issue) => isLevelSchemaIssue(issue, timeline))) {
+    return [
+      {
+        code: 'invalid-level',
+        message: 'A timeline level value is invalid; levels run from 0 to 1.'
+      }
+    ];
   }
+
+  const issue =
+    [...issues]
+      .filter((candidate) => !['oneOf', 'if', 'then'].includes(candidate.keyword))
+      .sort((left, right) => right.instancePath.length - left.instancePath.length)[0] ?? issues[0];
+  const location = issue?.instancePath === '' || issue === undefined ? '/' : issue.instancePath;
+  const detail =
+    issue?.message === undefined || issue.message === '' ? 'the value is invalid' : issue.message;
+  return [
+    {
+      code: 'invalid-shape',
+      message: `The timeline does not match protocol 1.0 at "${location}": ${detail}.`
+    }
+  ];
+}
+
+function isLevelSchemaIssue(
+  issue: ProtocolValidationIssue,
+  timeline: Record<string, unknown>
+): boolean {
+  const candidates = [issue.instancePath, issue.instancePath.replace(/\/value$/, '')];
+  return candidates.some((pointer) => {
+    const value = valueAtPointer(timeline, pointer);
+    return isObject(value) && value.kind === 'level';
+  });
+}
+
+function valueAtPointer(root: unknown, pointer: string): unknown {
+  if (pointer === '') return root;
+  let value = root;
+  for (const encoded of pointer.slice(1).split('/')) {
+    if (!isObject(value) && !Array.isArray(value)) return undefined;
+    const key = encoded.replace(/~1/g, '/').replace(/~0/g, '~');
+    value = (value as Record<string, unknown>)[key];
+  }
+  return value;
 }
 
 function validatePlayback(value: unknown, problems: TimelineProblem[]): void {

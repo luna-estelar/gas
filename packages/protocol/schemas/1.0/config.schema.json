@@ -1,40 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://gas.luna-estelar.com/protocol/1.0/config.schema.json",
-  "title": "GAS Renderer Configuration Payloads 1.0",
+  "title": "GAS Connector Configuration Values 1.0",
   "$defs": {
-    "ConfigSchemaDescriptor": {
+    "ConnectorSettings": { "$ref": "common.schema.json#/$defs/JsonObject" },
+    "ConnectorConfig": { "$ref": "common.schema.json#/$defs/JsonObject" },
+    "ConnectorConfigSchema": {
       "type": "object",
-      "additionalProperties": false,
-      "required": ["formatVersion", "configId", "revision", "schema"],
-      "properties": {
-        "formatVersion": { "$ref": "common.schema.json#/$defs/FormatVersion" },
-        "configId": { "$ref": "common.schema.json#/$defs/OpaqueId" },
-        "revision": { "$ref": "common.schema.json#/$defs/OpaqueId" },
-        "schema": {
-          "type": "object",
-          "required": ["$schema"],
-          "properties": {
-            "$schema": {
-              "const": "https://json-schema.org/draft/2020-12/schema"
-            }
-          }
-        },
-        "extensions": { "$ref": "common.schema.json#/$defs/Extensions" }
-      }
-    },
-    "ConfigSnapshot": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["formatVersion", "configId", "revision", "schemaRevision", "value"],
-      "properties": {
-        "formatVersion": { "$ref": "common.schema.json#/$defs/FormatVersion" },
-        "configId": { "$ref": "common.schema.json#/$defs/OpaqueId" },
-        "revision": { "$ref": "common.schema.json#/$defs/OpaqueId" },
-        "schemaRevision": { "$ref": "common.schema.json#/$defs/OpaqueId" },
-        "value": { "type": "object" },
-        "extensions": { "$ref": "common.schema.json#/$defs/Extensions" }
-      }
+      "description": "A synchronous JSON Schema accepted by the Renderer configuration validator."
     }
   }
 }

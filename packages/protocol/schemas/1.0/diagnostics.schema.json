@@ -3,110 +3,88 @@
   "$id": "https://gas.luna-estelar.com/protocol/1.0/diagnostics.schema.json",
   "title": "GAS Diagnostics 1.0",
   "$defs": {
-    "Component": {
-      "enum": ["language", "api", "core", "renderer", "connector", "host"]
-    },
-    "AffectedIntent": {
+    "GasDiagnostic": {
       "type": "object",
       "additionalProperties": false,
+      "required": ["code", "category", "severity", "message"],
       "properties": {
-        "type": { "enum": ["track", "section", "global"] },
-        "targetId": { "$ref": "common.schema.json#/$defs/LocalId" },
-        "action": {
-          "enum": [
-            "play",
-            "stop",
-            "flavor",
-            "timbre",
-            "notes",
-            "motif",
-            "level",
-            "tempo",
-            "time-signature",
-            "key"
-          ]
-        },
-        "entity": {
-          "$ref": "common.schema.json#/$defs/TimelineEntityReference"
-        }
-      }
-    },
-    "CompilerDiagnostic": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["formatVersion", "code", "severity", "message", "component"],
-      "properties": {
-        "formatVersion": { "$ref": "common.schema.json#/$defs/FormatVersion" },
-        "code": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+        "code": { "type": "string", "minLength": 1 },
+        "category": { "enum": ["syntax", "semantic", "deferred", "informational"] },
         "severity": { "enum": ["error", "warning", "info"] },
         "message": { "type": "string", "minLength": 1 },
-        "component": { "const": "language" },
-        "sourceRange": { "$ref": "common.schema.json#/$defs/SourceRange" },
-        "jsonPointer": { "type": "string", "pattern": "^(?:/(?:[^~/]|~[01])*)*$" },
-        "extensions": { "$ref": "common.schema.json#/$defs/Extensions" }
+        "range": { "$ref": "common.schema.json#/$defs/SourceRange" }
+      }
+    },
+    "TimelineProblem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": {
+          "enum": [
+            "unsupported-format-version",
+            "invalid-shape",
+            "duplicate-id",
+            "unresolved-reference",
+            "position-out-of-range",
+            "arrangement-not-contiguous",
+            "invalid-level",
+            "invalid-playback"
+          ]
+        },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    },
+    "CommandFailure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": {
+          "enum": [
+            "duplicate-track",
+            "unknown-track",
+            "invalid-level",
+            "invalid-tempo",
+            "invalid-value"
+          ]
+        },
+        "message": { "type": "string", "minLength": 1 },
+        "trackId": { "$ref": "common.schema.json#/$defs/NonEmptyString" }
+      }
+    },
+    "CommandWarning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "intent", "support", "message"],
+      "properties": {
+        "code": { "const": "unsupported-intent" },
+        "intent": { "$ref": "capabilities.schema.json#/$defs/IntentKeyword" },
+        "support": { "enum": ["approximated", "unsupported"] },
+        "trackId": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
+        "message": { "type": "string", "minLength": 1 }
       }
     },
     "RendererWarning": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "formatVersion",
-        "warningId",
-        "code",
-        "severity",
-        "message",
-        "component",
-        "policy"
-      ],
+      "required": ["code", "message"],
       "properties": {
-        "formatVersion": { "$ref": "common.schema.json#/$defs/FormatVersion" },
-        "warningId": { "$ref": "common.schema.json#/$defs/OpaqueId" },
-        "code": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
-        "severity": { "const": "warning" },
+        "code": { "type": "string", "minLength": 1 },
         "message": { "type": "string", "minLength": 1 },
-        "component": { "$ref": "#/$defs/Component" },
-        "policy": { "enum": ["dropped", "approximated", "ignored"] },
-        "affected": { "$ref": "#/$defs/AffectedIntent" },
-        "extensions": { "$ref": "common.schema.json#/$defs/Extensions" }
-      }
-    },
-    "FailureCause": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["code", "message", "component"],
-      "properties": {
-        "code": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
-        "message": { "type": "string", "minLength": 1 },
-        "component": { "$ref": "#/$defs/Component" }
+        "runId": { "$ref": "common.schema.json#/$defs/NonEmptyString" }
       }
     },
     "RendererFailure": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "formatVersion",
-        "failureId",
-        "code",
-        "severity",
-        "message",
-        "component",
-        "retryable",
-        "recoverability"
-      ],
+      "required": ["code", "message", "retryable"],
       "properties": {
-        "formatVersion": { "$ref": "common.schema.json#/$defs/FormatVersion" },
-        "failureId": { "$ref": "common.schema.json#/$defs/OpaqueId" },
-        "code": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
-        "severity": { "const": "error" },
+        "code": { "type": "string", "minLength": 1 },
         "message": { "type": "string", "minLength": 1 },
-        "component": { "$ref": "#/$defs/Component" },
-        "retryable": { "type": "boolean" },
-        "recoverability": {
-          "enum": ["operation", "session", "renderer", "fatal"]
-        },
-        "cause": { "$ref": "#/$defs/FailureCause" },
-        "affected": { "$ref": "#/$defs/AffectedIntent" },
-        "extensions": { "$ref": "common.schema.json#/$defs/Extensions" }
+        "reason": { "enum": ["network", "auth", "quota", "provider", "internal"] },
+        "runId": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
+        "retryable": { "type": "boolean" }
       }
     }
   }

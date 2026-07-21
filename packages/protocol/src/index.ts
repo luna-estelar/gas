@@ -1,8 +1,9 @@
 // @luna-estelar/gas-protocol
 // Shared, transport-neutral payload schemas and types used across the GAS
 // packages. This package depends on no other GAS package. The v1.0 JSON
-// schemas ship under `schemas/1.0/`; the TypeScript contracts promoted so far
-// are the compiled timeline and the renderer capabilities table.
+// schemas ship under `schemas/1.0/`; JSON-compatible value contracts have
+// matching schemas, while service interfaces and binary values remain
+// canonical TypeScript contracts.
 
 export type {
   ArrangementInstance,
@@ -43,6 +44,18 @@ export type {
 export type { CapabilitiesTable, IntentKeyword, IntentSupport } from './capabilities.js';
 
 export type {
+  CommandFailure,
+  CommandFailureCode,
+  CommandWarning,
+  GasDiagnostic,
+  GasDiagnosticCategory,
+  GasDiagnosticSeverity,
+  TimelineProblem,
+  TimelineProblemCode,
+  ValidateTimelineResult
+} from './diagnostics.js';
+
+export type {
   ClearGlobalFlavorCommand,
   ClearGlobalLevelCommand,
   ClearTempoCommand,
@@ -66,6 +79,23 @@ export type {
 
 export type { HostTrack, InputState, Override } from './input-state.js';
 export type { EffectiveGlobals, EffectiveState, EffectiveTrack } from './effective-state.js';
+
+export type {
+  AppliedPosition,
+  CommandResult,
+  CompileResult,
+  DiagnosticEvent,
+  LifecycleEvent,
+  LiveCommandFailureResult,
+  LiveCommandResult,
+  LiveCommandSuccess,
+  PlaybackPhase,
+  PlaybackWarning,
+  SessionState,
+  SessionWarning,
+  TrackView,
+  WarningEvent
+} from './session.js';
 
 export type {
   AudioChunk,

@@ -11,10 +11,11 @@ import {
   type CommandFailure,
   type InputState
 } from '@luna-estelar/gas-core';
-import { compileSource, parseLiveCommands, type GasDiagnostic } from '@luna-estelar/gas-language';
+import { compileSource, parseLiveCommands } from '@luna-estelar/gas-language';
 import type {
   CapabilitiesTable,
   Command,
+  CompileResult,
   ConnectorConfig,
   ConnectorConfigSchema,
   ModelInfo,
@@ -24,6 +25,8 @@ import type {
   RendererStatusEvent,
   Timeline
 } from '@luna-estelar/gas-protocol';
+
+export type { CompileResult } from '@luna-estelar/gas-protocol';
 
 import { liveStatementToCommand } from './commands.js';
 import { EventHub, type SessionEvent, type SessionEventMap } from './events.js';
@@ -44,11 +47,6 @@ import {
 export interface CompileOptions {
   readonly name?: string;
   readonly timelineId?: string;
-}
-
-export interface CompileResult {
-  readonly timeline: Timeline;
-  readonly diagnostics: readonly GasDiagnostic[];
 }
 
 // The Renderer config window (`session.renderer`). Reads pass straight through;
@@ -128,8 +126,8 @@ export class GasSession {
     }
   }
 
-  // Commit a stage-two protocol timeline. Core validates it before any Renderer
-  // call; an invalid timeline rejects and leaves the session unchanged.
+  // Commit a canonical protocol 1.0 timeline. Core validates it before any
+  // Renderer call; an invalid timeline rejects and leaves the session unchanged.
   async loadTimeline(timeline: Timeline, _options: CompileOptions = {}): Promise<void> {
     const validation = validateTimeline(timeline);
     if (!validation.ok) {
