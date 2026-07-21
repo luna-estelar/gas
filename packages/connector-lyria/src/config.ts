@@ -70,7 +70,7 @@ export const LYRIA_CONFIG_SCHEMA: ConnectorConfigSchema = deepFreeze({
             'Whether global mood folds into every track prompt (per-track) or rides in its own ' +
             'prompt alongside the tracks (global-plus-tracks).',
           enum: ['per-track', 'global-plus-tracks'],
-          default: 'per-track'
+          default: 'global-plus-tracks'
         },
         trackWeight: {
           description: 'Base influence of a track prompt before its level scales it.',
@@ -172,7 +172,7 @@ export const LYRIA_CONFIG_SCHEMA: ConnectorConfigSchema = deepFreeze({
 
 export const DEFAULT_LYRIA_CONFIG = deepFreeze({
   prompt: {
-    strategy: 'per-track',
+    strategy: 'global-plus-tracks',
     trackWeight: 1,
     globalWeight: 0.8,
     minimumPositiveWeight: 0.05,
@@ -201,7 +201,7 @@ function optionalBoolean(value: JsonValue | undefined): boolean | undefined {
 }
 
 function asStrategy(value: JsonValue | undefined): LyriaPromptStrategy {
-  return value === 'global-plus-tracks' ? 'global-plus-tracks' : 'per-track';
+  return value === 'per-track' ? 'per-track' : 'global-plus-tracks';
 }
 
 function asMode(value: JsonValue | undefined): LyriaGenerationMode {
