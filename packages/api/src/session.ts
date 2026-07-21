@@ -23,6 +23,7 @@ import type {
   ModelInfo,
   Renderer,
   RendererDefaults,
+  RendererFailure,
   RendererLifecycle,
   RendererStatusEvent,
   Timeline
@@ -84,6 +85,7 @@ export class GasSession {
   private phase: PlaybackPhase = 'stopped';
   private input: InputState | undefined;
   private closed = false;
+  private playPending = false;
 
   readonly renderer: RendererControl;
 
@@ -293,7 +295,7 @@ export class GasSession {
     if (this.input === undefined) {
       throw new GasOperationError('Load a timeline before playing.', { kind: 'playback' });
     }
-    if (this.phase === 'active') {
+    if (this.phase === 'active' || this.playPending) {
       throw new GasOperationError('The session is already playing.', { kind: 'playback' });
     }
     if (this.lifecycle !== 'ready') {
@@ -302,17 +304,22 @@ export class GasSession {
       });
     }
     let runId: string;
+    this.playPending = true;
     try {
       runId = await this.rendererInstance.start();
     } catch (error) {
       this.markRendererFailed();
+      const rendererFailure = getRendererFailureFields(error);
       const failure = new GasOperationError('The Renderer failed to start.', {
         kind: 'playback',
+        ...(rendererFailure ?? {}),
         cause: error
       });
       this.events.emit('error', failure);
       this.emitState();
       throw failure;
+    } finally {
+      this.playPending = false;
     }
     this.acceptedRun.accept(runId);
     this.phase = 'active';
@@ -579,7 +586,7 @@ export class GasSession {
           'error',
           new GasOperationError(failure.message, {
             kind: 'renderer',
-            ...(failure.reason !== undefined ? { reason: failure.reason } : {})
+            ...operationFailureFields(failure)
           })
         );
         this.emitState();
@@ -594,6 +601,13 @@ export class GasSession {
 
   private onRendererStatus(status: RendererStatusEvent): void {
     this.lifecycle = status.lifecycle;
+    // Renderer.start() reports the newly allocated run synchronously, before
+    // its connector setup promise settles. Trust only that `starting` status
+    // during our pending play call so initial audio/position events pass the
+    // stale-run guard without weakening it for any later status.
+    if (this.playPending && status.playback === 'starting' && status.runId !== undefined) {
+      this.acceptedRun.accept(status.runId);
+    }
     // Apply completion before emitting lifecycle events so phase and state agree.
     const endedThisRun =
       status.stream === 'ended' &&
@@ -607,7 +621,56 @@ export class GasSession {
     this.events.emit('lifecycle', {
       lifecycle: status.lifecycle,
       playback: this.phase,
-      ...(status.runId !== undefined ? { runId: status.runId } : {})
+      rendererPlayback: status.playback,
+      ...(status.runId !== undefined ? { runId: status.runId } : {}),
+      ...(status.stream !== undefined ? { stream: status.stream } : {}),
+      ...(status.throttled !== undefined ? { throttled: status.throttled } : {})
     });
   }
+}
+
+function operationFailureFields(failure: RendererFailure): {
+  readonly code: string;
+  readonly retryable: boolean;
+  readonly reason?: RendererFailure['reason'];
+} {
+  return {
+    code: failure.code,
+    retryable: failure.retryable,
+    ...(failure.reason !== undefined ? { reason: failure.reason } : {})
+  };
+}
+
+// A RendererError is implementation-owned rather than part of the protocol
+// surface, so preserve its nested safe RendererFailure structurally without
+// importing the implementation or ever copying a thrown/provider message.
+function getRendererFailureFields(
+  error: unknown
+): ReturnType<typeof operationFailureFields> | undefined {
+  if (typeof error !== 'object' || error === null || !('failure' in error)) return undefined;
+  const failure = error.failure;
+  if (typeof failure !== 'object' || failure === null) return undefined;
+  if (!('code' in failure) || typeof failure.code !== 'string' || failure.code.length === 0) {
+    return undefined;
+  }
+  if (!('retryable' in failure) || typeof failure.retryable !== 'boolean') return undefined;
+  if ('reason' in failure && failure.reason !== undefined) {
+    const reasons: readonly NonNullable<RendererFailure['reason']>[] = [
+      'network',
+      'auth',
+      'quota',
+      'provider',
+      'internal'
+    ];
+    if (!reasons.includes(failure.reason as NonNullable<RendererFailure['reason']>)) {
+      return undefined;
+    }
+  }
+  return {
+    code: failure.code,
+    retryable: failure.retryable,
+    ...('reason' in failure && failure.reason !== undefined
+      ? { reason: failure.reason as NonNullable<RendererFailure['reason']> }
+      : {})
+  };
 }

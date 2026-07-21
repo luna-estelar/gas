@@ -123,11 +123,16 @@
     "LifecycleEvent": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["lifecycle", "playback"],
+      "required": ["lifecycle", "playback", "rendererPlayback"],
       "properties": {
         "lifecycle": { "enum": ["initializing", "ready", "closing", "closed", "failed"] },
         "playback": { "enum": ["stopped", "active"] },
-        "runId": { "$ref": "common.schema.json#/$defs/NonEmptyString" }
+        "rendererPlayback": {
+          "enum": ["stopped", "starting", "running", "holding", "stopping", "failed"]
+        },
+        "runId": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
+        "stream": { "enum": ["streaming", "ended", "throttled"] },
+        "throttled": { "type": "boolean" }
       }
     },
     "DiagnosticEvent": {

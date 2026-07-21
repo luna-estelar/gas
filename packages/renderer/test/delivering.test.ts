@@ -7,6 +7,73 @@ import { testTimeline } from './support/timeline.js';
 import { VirtualClock } from './support/virtual-clock.js';
 
 describe('audio delivery', () => {
+  it('holds startup audio and releases it from the committed audible anchor', async () => {
+    const clock = new VirtualClock();
+    const gate = deferred();
+    const connector = new FakeConnector({
+      startGate: gate.promise,
+      startChunks: [
+        chunk('run-startup-audio', [1], 2),
+        chunk('run-startup-audio', [2], 2),
+        chunk('run-startup-audio', [3], 2)
+      ]
+    });
+    const renderer = await createRenderer({
+      clock,
+      connector,
+      runIdFactory: () => 'run-startup-audio'
+    });
+    const timeline = infiniteTimeline();
+    await renderer.load(timeline, createInputState(timeline));
+    const sequences: number[] = [];
+    renderer.on('audio', (value) => sequences.push(value.sequence));
+
+    const starting = renderer.start();
+    await flushAsync();
+    expect(sequences).toEqual([]);
+    clock.advanceTo(10);
+    expect(sequences).toEqual([]);
+
+    gate.resolve();
+    await starting;
+    expect(sequences).toEqual([0, 1]);
+    clock.advanceTo(11.99);
+    expect(sequences).toEqual([0, 1]);
+    clock.advanceTo(12);
+    expect(sequences).toEqual([0, 1, 2]);
+  });
+
+  it('rejects startup audio when playback stops before the anchor is committed', async () => {
+    const clock = new VirtualClock();
+    const gate = deferred();
+    const connector = new FakeConnector({
+      startGate: gate.promise,
+      startChunks: [chunk('run-stopped-startup', [1], 2)]
+    });
+    const renderer = await createRenderer({
+      clock,
+      connector,
+      runIdFactory: () => 'run-stopped-startup'
+    });
+    const timeline = infiniteTimeline();
+    await renderer.load(timeline, createInputState(timeline));
+    const audio: number[] = [];
+    const warnings: string[] = [];
+    renderer.on('audio', (value) => audio.push(value.sequence));
+    renderer.on('warning', (value) => warnings.push(value.code));
+
+    const starting = renderer.start();
+    await flushAsync();
+    await renderer.stop();
+    gate.resolve();
+    await starting;
+
+    expect(audio).toEqual([]);
+    expect(warnings).toContain('buffered-audio-rejected');
+    expect(connector.calls.filter((call) => call === 'stop:run-stopped-startup')).toHaveLength(1);
+    expect(clock.pendingDeadlines()).toEqual([]);
+  });
+
   it('assigns sequence numbers and applies global s16le gain once', async () => {
     const timeline = testTimeline({ globals: { level: { kind: 'level', value: 0.5 } } });
     const { connector, renderer } = await audioRenderer(timeline);
@@ -204,4 +271,12 @@ function decodeSamples(bytes: Uint8Array): number[] {
 
 async function flushAsync(): Promise<void> {
   for (let index = 0; index < 12; index += 1) await Promise.resolve();
+}
+
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
 }

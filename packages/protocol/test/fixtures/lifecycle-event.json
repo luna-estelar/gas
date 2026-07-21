@@ -1,0 +1,8 @@
+{
+  "lifecycle": "ready",
+  "playback": "active",
+  "rendererPlayback": "holding",
+  "runId": "run.1",
+  "stream": "throttled",
+  "throttled": true
+}

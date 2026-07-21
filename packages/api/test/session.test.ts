@@ -156,6 +156,33 @@ describe('playback lifecycle', () => {
     expect(session.getState().runId).toBe('run-1');
   });
 
+  it('accepts initial position and audio while play is still pending', async () => {
+    const { wiring, session } = await loadedSession();
+    let releaseStart: (() => void) | undefined;
+    wiring.current().startGate = new Promise<void>((resolve) => {
+      releaseStart = resolve;
+    });
+    const positions: number[] = [];
+    const chunks: string[] = [];
+    session.on('position', (event) => positions.push(event.position.bar));
+    session.on('audio', (chunk) => chunks.push(chunk.runId));
+
+    const play = session.play();
+    await Promise.resolve();
+    wiring.current().emitStatus({
+      lifecycle: 'ready',
+      playback: 'starting',
+      runId: 'run-1'
+    });
+    wiring.current().emitPosition('run-1', { bar: 1 });
+    wiring.current().emitAudio({ runId: 'run-1' });
+
+    expect(positions).toEqual([1]);
+    expect(chunks).toEqual(['run-1']);
+    releaseStart?.();
+    await play;
+  });
+
   it('rejects a second play while active', async () => {
     const { session } = await loadedSession();
     await session.play();
@@ -166,6 +193,27 @@ describe('playback lifecycle', () => {
     const wiring = createFakeWiring();
     const session = await createSession(wiring);
     await expect(session.play()).rejects.toBeInstanceOf(GasOperationError);
+  });
+
+  it('preserves safe classification from a structured start failure', async () => {
+    const { wiring, session } = await loadedSession();
+    const thrown = new Error('raw provider text with a credential');
+    Object.assign(thrown, {
+      failure: {
+        code: 'lyria-auth',
+        message: 'renderer-safe message',
+        reason: 'auth',
+        retryable: false
+      }
+    });
+    wiring.current().startError = thrown;
+
+    await expect(session.play()).rejects.toMatchObject({
+      message: 'The Renderer failed to start.',
+      code: 'lyria-auth',
+      reason: 'auth',
+      retryable: false
+    });
   });
 
   it('stop is safe when already stopped and clears overrides', async () => {
@@ -216,6 +264,31 @@ describe('playback lifecycle', () => {
     // state lands on 'stopped'.
     expect(playbacks).toEqual(['stopped']);
   });
+
+  it('relays authoritative renderer playback and stream details', async () => {
+    const { wiring, session } = await loadedSession();
+    const events: Array<{
+      rendererPlayback: string;
+      stream?: string;
+      throttled?: boolean;
+    }> = [];
+    session.on('lifecycle', (event) => events.push(event));
+
+    wiring.current().emitStatus({
+      lifecycle: 'ready',
+      playback: 'holding',
+      runId: 'run-1',
+      stream: 'throttled',
+      throttled: true
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      rendererPlayback: 'holding',
+      stream: 'throttled',
+      throttled: true
+    });
+  });
 });
 
 describe('stale audio and position rejection', () => {
@@ -251,6 +324,27 @@ describe('stale audio and position rejection', () => {
 });
 
 describe('retryRenderer', () => {
+  it('preserves safe renderer failure classification on operation errors', async () => {
+    const { wiring, session } = await loadedSession();
+    const errors: GasOperationError[] = [];
+    session.on('error', (error) => errors.push(error));
+
+    wiring.current().emitFailure({
+      code: 'lyria-auth',
+      message: 'The connector reported an authentication failure.',
+      reason: 'auth',
+      retryable: false
+    });
+
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatchObject({
+      kind: 'renderer',
+      code: 'lyria-auth',
+      reason: 'auth',
+      retryable: false
+    });
+  });
+
   it('preserves host tracks, clears overrides, and reloads a fresh Renderer', async () => {
     const { wiring, session } = await loadedSession();
     await session.defineTrack({ id: 'track.bass', name: 'bass', description: 'deep bass' });
