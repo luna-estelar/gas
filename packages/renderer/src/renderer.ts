@@ -87,7 +87,8 @@ interface LoadedDocument {
 
 interface ActiveRun {
   readonly id: string;
-  readonly startTime: number;
+  startTime: number;
+  anchored: boolean;
   readonly timers: Set<ClockTimer>;
   readonly audioTimers: Set<ClockTimer>;
   loopIteration: number;
@@ -108,7 +109,7 @@ interface ActiveRun {
 
 interface BufferedAudio {
   readonly chunk: ConnectorAudioChunk;
-  readonly startTime: number;
+  startTime: number;
 }
 
 let fallbackRunSequence = 0;
@@ -307,6 +308,7 @@ class RendererSession implements Renderer {
     const run: ActiveRun = {
       id: runId,
       startTime: this.options.clock.now(),
+      anchored: false,
       timers: new Set(),
       audioTimers: new Set(),
       loopIteration: 1,
@@ -355,9 +357,11 @@ class RendererSession implements Renderer {
         await this.options.connector.update(initialUpdate, initialPosition);
       }
       if (run.ended) return runId;
+      this.anchorRun(loaded, run);
       this.playback = 'running';
       this.emitStatus();
       this.emitPosition(initialPosition, run);
+      this.releaseHeldAudio(run);
       this.scheduleRun(loaded, run);
       return runId;
     } catch (error) {
@@ -654,6 +658,16 @@ class RendererSession implements Renderer {
     }
   }
 
+  private anchorRun(loaded: LoadedDocument, run: ActiveRun): void {
+    const anchor = this.options.clock.now();
+    const shift = anchor - run.startTime;
+    run.startTime = anchor;
+    run.audioCursor += shift;
+    for (const buffered of run.heldAudio) buffered.startTime += shift;
+    run.anchored = true;
+    loaded.tempoMap = createTempoSegmentMap({ ...loaded.timing, tempo: run.tempo }, anchor);
+  }
+
   private schedule(
     run: ActiveRun,
     deadline: number,
@@ -945,10 +959,18 @@ class RendererSession implements Renderer {
     const buffered: BufferedAudio = { chunk, startTime: run.audioCursor };
     run.audioCursor += chunk.durationSeconds;
     run.heldAudio.push(buffered);
+    if (run.anchored) this.scheduleAudioDelivery(run, buffered);
+    this.checkBackpressure(run);
+  }
+
+  private releaseHeldAudio(run: ActiveRun): void {
+    for (const buffered of [...run.heldAudio]) this.scheduleAudioDelivery(run, buffered);
+  }
+
+  private scheduleAudioDelivery(run: ActiveRun, buffered: BufferedAudio): void {
     const releaseDeadline = buffered.startTime - this.lookaheadSeconds();
     if (releaseDeadline <= this.options.clock.now()) this.deliverAudio(run, buffered);
     else this.schedule(run, releaseDeadline, () => this.deliverAudio(run, buffered), 'audio');
-    this.checkBackpressure(run);
   }
 
   private deliverAudio(run: ActiveRun, buffered: BufferedAudio): void {

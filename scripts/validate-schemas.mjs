@@ -26,6 +26,7 @@ const fixtureSchemas = new Map([
   ['connector-config.json', `${SCHEMA_BASE}/config.schema.json#/$defs/ConnectorConfig`],
   ['effective-state.json', `${SCHEMA_BASE}/state.schema.json#/$defs/EffectiveState`],
   ['live-command-result.json', `${SCHEMA_BASE}/session.schema.json#/$defs/LiveCommandResult`],
+  ['lifecycle-event.json', `${SCHEMA_BASE}/session.schema.json#/$defs/LifecycleEvent`],
   ['renderer-failure.json', `${SCHEMA_BASE}/diagnostics.schema.json#/$defs/RendererFailure`],
   ['renderer-position.json', `${SCHEMA_BASE}/renderer.schema.json#/$defs/RendererPositionEvent`],
   ['renderer-status.json', `${SCHEMA_BASE}/renderer.schema.json#/$defs/RendererStatusEvent`],
@@ -124,6 +125,11 @@ const invalidCases = [
     name: 'sessions reject unknown playback phases',
     schemaId: `${SCHEMA_BASE}/session.schema.json#/$defs/SessionState`,
     value: { ...fixtureValues.get('session-state.json'), playback: 'paused' }
+  },
+  {
+    name: 'lifecycle events reject unknown properties',
+    schemaId: `${SCHEMA_BASE}/session.schema.json#/$defs/LifecycleEvent`,
+    value: { ...fixtureValues.get('lifecycle-event.json'), providerStatus: 'secret' }
   },
   {
     name: 'timelines reject non-1.0 versions',

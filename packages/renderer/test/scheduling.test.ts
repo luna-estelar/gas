@@ -7,6 +7,44 @@ import { testTimeline } from './support/timeline.js';
 import { VirtualClock } from './support/virtual-clock.js';
 
 describe('renderer scheduling and derivation', () => {
+  it('anchors musical time after delayed connector startup', async () => {
+    const clock = new VirtualClock();
+    const gate = deferred();
+    const connector = new FakeConnector({ startGate: gate.promise });
+    const renderer = await createRenderer({
+      clock,
+      connector,
+      runIdFactory: () => 'run-delayed-start'
+    });
+    const timeline = timelineWithBarThreeStop();
+    await renderer.load(timeline, createInputState(timeline));
+    const positions: Array<{ bar: number; seconds: number }> = [];
+    renderer.on('position', (event) =>
+      positions.push({ bar: event.position.bar, seconds: event.seconds })
+    );
+
+    const starting = renderer.start();
+    await flushAsync();
+    clock.advanceTo(10);
+    await flushAsync();
+    expect(connector.updates).toHaveLength(0);
+    expect(positions).toEqual([]);
+
+    gate.resolve();
+    await expect(starting).resolves.toBe('run-delayed-start');
+    expect(positions).toEqual([{ bar: 1, seconds: 0 }]);
+
+    clock.advanceTo(11.99);
+    await flushAsync();
+    expect(connector.updates).toHaveLength(0);
+    clock.advanceTo(12);
+    await flushAsync();
+    expect(connector.updates[0]?.requested).toEqual({ bar: 3 });
+    clock.advanceTo(14);
+    await flushAsync();
+    expect(positions.at(-1)).toEqual({ bar: 3, seconds: 4 });
+  });
+
   it('prepares bar one before starting and derives authored boundaries ahead', async () => {
     const { clock, connector, renderer } = await runningRenderer(timelineWithBarThreeStop());
     expect(connector.calls.slice(-2)).toEqual(['prepare', 'start']);
@@ -78,6 +116,33 @@ describe('renderer scheduling and derivation', () => {
     await flushAsync();
     expect(connector.calls).toContain('stop:run-1');
     expect(statuses.slice(-2)).toEqual(['stopping', 'stopped']);
+    expect(clock.pendingDeadlines()).toEqual([]);
+  });
+
+  it('times finite completion from a delayed startup anchor', async () => {
+    const clock = new VirtualClock();
+    const gate = deferred();
+    const connector = new FakeConnector({ startGate: gate.promise });
+    const renderer = await createRenderer({
+      clock,
+      connector,
+      runIdFactory: () => 'run-delayed-completion'
+    });
+    const timeline = timelineWithBarThreeStop();
+    await renderer.load(timeline, createInputState(timeline));
+
+    const starting = renderer.start();
+    await flushAsync();
+    clock.advanceTo(10);
+    gate.resolve();
+    await starting;
+
+    clock.advanceTo(17.99);
+    await flushAsync();
+    expect(connector.calls).not.toContain('stop:run-delayed-completion');
+    clock.advanceTo(18);
+    await flushAsync();
+    expect(connector.calls).toContain('stop:run-delayed-completion');
     expect(clock.pendingDeadlines()).toEqual([]);
   });
 
@@ -233,4 +298,12 @@ async function scriptedLog(): Promise<readonly string[]> {
 
 async function flushAsync(): Promise<void> {
   for (let index = 0; index < 8; index += 1) await Promise.resolve();
+}
+
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
 }

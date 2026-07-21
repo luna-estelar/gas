@@ -1,6 +1,6 @@
 import type { CommandFailure, CommandWarning, GasDiagnostic } from './diagnostics.js';
 import type { MusicalPosition, Timeline } from './timeline.js';
-import type { RendererLifecycle } from './renderer.js';
+import type { ConnectorStreamStatus, PlaybackStatus, RendererLifecycle } from './renderer.js';
 
 export type PlaybackPhase = 'stopped' | 'active';
 
@@ -64,7 +64,10 @@ export interface SessionState {
 export interface LifecycleEvent {
   readonly lifecycle: RendererLifecycle;
   readonly playback: PlaybackPhase;
+  readonly rendererPlayback: PlaybackStatus;
   readonly runId?: string;
+  readonly stream?: ConnectorStreamStatus;
+  readonly throttled?: boolean;
 }
 
 export interface DiagnosticEvent {

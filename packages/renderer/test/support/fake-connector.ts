@@ -31,6 +31,7 @@ export interface FakeConnectorOptions {
   readonly prepareFailure?: Error;
   readonly startFailure?: Error;
   readonly startChunks?: readonly ConnectorAudioChunk[];
+  readonly startGate?: Promise<void>;
   readonly updateFailure?: Error;
   readonly stopFailure?: Error;
   readonly closeFailure?: Error;
@@ -97,6 +98,7 @@ export class FakeConnector implements Connector {
     this.timing = timing;
     this.runId = runId;
     for (const chunk of this.options.startChunks ?? []) sink.push(chunk);
+    if (this.options.startGate !== undefined) await this.options.startGate;
     if (this.options.startFailure !== undefined) throw this.options.startFailure;
   }
 

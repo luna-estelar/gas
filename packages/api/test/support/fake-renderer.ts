@@ -71,6 +71,8 @@ export class FakeRenderer implements Renderer {
   failStart = false;
   failStop = false;
   failUpdate = false;
+  startError: unknown;
+  startGate: Promise<void> | undefined;
   updateResult: RendererUpdateResult = {};
 
   private readonly caps: CapabilitiesTable;
@@ -110,6 +112,8 @@ export class FakeRenderer implements Renderer {
     this.starts += 1;
     this.runCounter += 1;
     this.lastRunId = `run-${this.runCounter}`;
+    if (this.startGate !== undefined) await this.startGate;
+    if (this.startError !== undefined) throw this.startError;
     return this.lastRunId;
   }
 
