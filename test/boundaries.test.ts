@@ -36,4 +36,31 @@ describe('check-boundaries', () => {
     ]);
     expect(violations).toHaveLength(0);
   });
+
+  // Astro frontmatter imports like any other module, so a page must not be able
+  // to reach the concrete runtime just by not being a .ts file.
+  it('holds the wiring rule for .astro pages too', () => {
+    const page = findViolations([
+      {
+        package: 'host',
+        scope: 'app',
+        path: 'fixtures/host/src/pages/demo.astro',
+        content: "import { createLyriaConnector } from '@luna-estelar/gas-connector-lyria';"
+      }
+    ]);
+    expect(page).toHaveLength(1);
+  });
+
+  // Apply the wiring rule to JSX components.
+  it('holds the wiring rule for .jsx components too', () => {
+    const component = findViolations([
+      {
+        package: 'host',
+        scope: 'app',
+        path: 'fixtures/host/src/design-system/components/Player/Player.jsx',
+        content: "import { createRenderer } from '@luna-estelar/gas-renderer';"
+      }
+    ]);
+    expect(component).toHaveLength(1);
+  });
 });

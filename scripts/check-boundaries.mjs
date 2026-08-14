@@ -20,6 +20,9 @@ export const APP_ALLOW_MAP = {};
 
 const SPEC_PREFIX = '@luna-estelar/gas-';
 
+// Scan TypeScript, JSX and Astro module code.
+const SCANNED_EXTENSIONS = ['.ts', '.tsx', '.jsx', '.astro'];
+
 /** Extract module specifiers from import/export/dynamic-import statements. */
 export function extractSpecifiers(content) {
   const specifiers = [];
@@ -89,7 +92,7 @@ async function walkSource(dir) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       found.push(...(await walkSource(full)));
-    } else if (entry.isFile() && (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx'))) {
+    } else if (entry.isFile() && SCANNED_EXTENSIONS.some((ext) => entry.name.endsWith(ext))) {
       found.push(full);
     }
   }
