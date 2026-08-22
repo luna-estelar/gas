@@ -73,18 +73,20 @@ function stripAldaWrapper(raw: string): string {
 }
 
 /**
- * Assigns monotonically increasing sourceOrder values and lowers Langium track-command
- * nodes into the package-owned semantic shapes. Shared by the document builder and the
- * live-command builder so both project the same TrackCommand union the same way.
+ * Lowers Langium track-command nodes into the package-owned semantic shapes. Shared by the
+ * document builder and the live-command builder so both project the same TrackCommand union
+ * the same way.
+ *
+ * sourceOrder is the node's character offset in the source text, not a visit counter: the
+ * document builder walks model.elements in several passes so forward references resolve, so
+ * a counter would order nodes by pass rather than by where they were written.
  */
 export class NodeLowering {
-  private sourceOrder = 0;
-
   base(node: AstNode | undefined): GasNode {
     return {
       kind: 'Node',
       range: rangeOf(node),
-      sourceOrder: this.sourceOrder++
+      sourceOrder: node?.$cstNode?.offset ?? 0
     };
   }
 
