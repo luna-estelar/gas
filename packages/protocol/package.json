@@ -4,6 +4,7 @@
   "description": "Shared, transport-neutral payload schemas and types used across the GAS packages.",
   "license": "MIT",
   "type": "module",
+  "sideEffects": false,
   "engines": {
     "node": ">=22.13.0"
   },

@@ -4,6 +4,7 @@
   "description": "Pure GAS semantics: the session input state, command validation, and the effective-state cascade. Owns no clock, no I/O, and no instance state.",
   "license": "MIT",
   "type": "module",
+  "sideEffects": false,
   "engines": {
     "node": ">=22.13.0"
   },
