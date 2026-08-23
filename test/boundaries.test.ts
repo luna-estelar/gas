@@ -51,6 +51,69 @@ describe('check-boundaries', () => {
     expect(page).toHaveLength(1);
   });
 
+  // Import text inside a rendered code sample is not an executable import.
+  it('ignores a specifier inside a template literal', () => {
+    const violations = findViolations([
+      {
+        package: 'host',
+        scope: 'app',
+        path: 'fixtures/host/src/components/home/Surfaces.astro',
+        content: [
+          '---',
+          "import GasCode from '../GasCode.astro';",
+          "const hostSource = `import { createSession } from '@luna-estelar/gas-api';",
+          "import { createRenderer } from '@luna-estelar/gas-renderer';",
+          "import { createLyriaConnector } from '@luna-estelar/gas-connector-lyria';`;",
+          '---',
+          '<GasCode code={hostSource} />'
+        ].join('\n')
+      }
+    ]);
+    expect(violations).toHaveLength(0);
+  });
+
+  // Mask code samples without hiding adjacent executable imports.
+  it('still flags a real import that follows a sample', () => {
+    const violations = findViolations([
+      {
+        package: 'host',
+        scope: 'app',
+        path: 'fixtures/host/src/host/playback.ts',
+        content: [
+          "const sample = `import { createRenderer } from '@luna-estelar/gas-renderer';`;",
+          "// Or: import { createRenderer } from '@luna-estelar/gas-renderer';",
+          'const quoted = "import { createRenderer } from \'@luna-estelar/gas-renderer\'";',
+          "import { createLyriaConnector } from '@luna-estelar/gas-connector-lyria';"
+        ].join('\n')
+      }
+    ]);
+    expect(violations).toHaveLength(1);
+    expect(violations[0].importedPackage).toBe('@luna-estelar/gas-connector-lyria');
+  });
+
+  // Only an .astro file's frontmatter and <script> blocks are module code; the
+  // markup between them is prose. The <script> half still has to be scanned.
+  it('holds the wiring rule inside an .astro <script> block', () => {
+    const violations = findViolations([
+      {
+        package: 'host',
+        scope: 'app',
+        path: 'fixtures/host/src/components/Player.astro',
+        content: [
+          '---',
+          "const label = 'Play';",
+          '---',
+          '<p>It\u2019s the player. Don\u2019t reach past the wiring.</p>',
+          '<script>',
+          "  import { createRenderer } from '@luna-estelar/gas-renderer';",
+          '</script>'
+        ].join('\n')
+      }
+    ]);
+    expect(violations).toHaveLength(1);
+    expect(violations[0].importedPackage).toBe('@luna-estelar/gas-renderer');
+  });
+
   // Apply the wiring rule to JSX components.
   it('holds the wiring rule for .jsx components too', () => {
     const component = findViolations([

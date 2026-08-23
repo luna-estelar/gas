@@ -23,8 +23,207 @@ const SPEC_PREFIX = '@luna-estelar/gas-';
 // Scan TypeScript, JSX and Astro module code.
 const SCANNED_EXTENSIONS = ['.ts', '.tsx', '.jsx', '.astro'];
 
+// Replace string contents with indexed handles so code samples cannot match import patterns.
+const HANDLE = /^@@literal:(\d+)@@$/;
+
+// After one of these, a `/` opens a regex literal rather than dividing. Without
+// the keyword list, `return /x['"]/` reads as division and its quotes open a
+// phantom string.
+const REGEX_PRECEDING_KEYWORDS = new Set([
+  'return',
+  'typeof',
+  'instanceof',
+  'in',
+  'of',
+  'case',
+  'do',
+  'else',
+  'yield',
+  'await',
+  'delete',
+  'void',
+  'new'
+]);
+
+class MaskError extends Error {}
+
+/**
+ * Mask comments, regexes and template text; store quoted strings in a shared table.
+ * Unclosed literals throw MaskError so callers can fall back to scanning raw text.
+ * @param source Module text.
+ * @param literals String contents indexed by generated handles.
+ */
+function maskCode(source, literals) {
+  let out = '';
+  let i = 0;
+  let prev = ''; // last significant code character emitted
+  let word = ''; // identifier ending at `prev`, for the regex-vs-division test
+  const modes = ['code'];
+  const substitutionDepths = []; // brace depth at each open `${`
+  let braceDepth = 0;
+
+  const blank = (text) => text.replace(/[^\n]/g, ' ');
+  const advance = (char) => {
+    if (/\s/.test(char)) return;
+    word = /[\w$]/.test(char) ? word + char : '';
+    prev = char;
+  };
+
+  while (i < source.length) {
+    const char = source[i];
+
+    if (modes[modes.length - 1] === 'template') {
+      if (char === '\\') {
+        out += blank(source.slice(i, i + 2));
+        i += 2;
+      } else if (char === '`') {
+        out += ' ';
+        i += 1;
+        modes.pop();
+        advance(')'); // a finished template is a value, so a following `/` divides
+      } else if (char === '$' && source[i + 1] === '{') {
+        out += '  ';
+        i += 2;
+        modes.push('code');
+        substitutionDepths.push(braceDepth);
+        braceDepth += 1;
+        prev = '(';
+        word = '';
+      } else {
+        out += char === '\n' ? '\n' : ' ';
+        i += 1;
+      }
+      continue;
+    }
+
+    if (char === '/' && source[i + 1] === '/') {
+      const newline = source.indexOf('\n', i);
+      const stop = newline === -1 ? source.length : newline;
+      out += blank(source.slice(i, stop));
+      i = stop;
+      continue;
+    }
+    if (char === '/' && source[i + 1] === '*') {
+      const end = source.indexOf('*/', i + 2);
+      if (end === -1) throw new MaskError('unterminated block comment');
+      out += blank(source.slice(i, end + 2));
+      i = end + 2;
+      continue;
+    }
+    // `prev === '<'` is a JSX closing tag, not a regex — the islands are .tsx.
+    if (
+      char === '/' &&
+      prev !== '<' &&
+      (!/[\w$)\]}]/.test(prev) || REGEX_PRECEDING_KEYWORDS.has(word))
+    ) {
+      const end = endOfRegex(source, i);
+      out += blank(source.slice(i, end));
+      i = end;
+      advance(')');
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      let j = i + 1;
+      while (j < source.length && source[j] !== char) {
+        if (source[j] === '\n') throw new MaskError('newline inside a quoted string');
+        j += source[j] === '\\' ? 2 : 1;
+      }
+      if (j >= source.length) throw new MaskError('unterminated string');
+      out += `'@@literal:${literals.length}@@'`;
+      literals.push(source.slice(i + 1, j));
+      i = j + 1;
+      advance(')');
+      continue;
+    }
+    if (char === '`') {
+      out += ' ';
+      i += 1;
+      modes.push('template');
+      continue;
+    }
+    if (char === '{') braceDepth += 1;
+    if (char === '}') {
+      braceDepth -= 1;
+      if (modes.length > 1 && braceDepth === substitutionDepths[substitutionDepths.length - 1]) {
+        substitutionDepths.pop();
+        modes.pop();
+        out += ' ';
+        i += 1;
+        continue;
+      }
+    }
+    out += char;
+    advance(char);
+    i += 1;
+  }
+
+  if (modes.length > 1) throw new MaskError('unterminated template literal');
+  return out;
+}
+
+/** Index just past the regex literal starting at `start`. */
+function endOfRegex(source, start) {
+  let i = start + 1;
+  let inClass = false;
+  while (i < source.length) {
+    const char = source[i];
+    if (char === '\\') {
+      i += 2;
+      continue;
+    }
+    if (char === '\n') throw new MaskError('newline inside a regex literal');
+    if (char === '[') inClass = true;
+    else if (char === ']') inClass = false;
+    else if (char === '/' && !inClass) return i + 1;
+    i += 1;
+  }
+  throw new MaskError('unterminated regex literal');
+}
+
+// Scan Astro frontmatter and script blocks as module code; leave markup as text.
+function maskAstro(content, literals) {
+  const regions = [];
+  const fence = /^\uFEFF?[ \t]*---[^\n]*\n/.exec(content);
+  if (fence) {
+    const start = fence[0].length;
+    const close = /\r?\n[ \t]*---/.exec(content.slice(start));
+    if (close) regions.push([start, start + close.index + 1]);
+  }
+  const openTag = /<script\b[^>]*>/gi;
+  let match;
+  while ((match = openTag.exec(content)) !== null) {
+    const start = match.index + match[0].length;
+    const close = /<\/script\s*>/i.exec(content.slice(start));
+    if (!close) break;
+    regions.push([start, start + close.index]);
+    openTag.lastIndex = start + close.index;
+  }
+
+  let out = '';
+  let cursor = 0;
+  for (const [start, end] of regions) {
+    if (start < cursor) continue; // a `<script>` quoted inside the frontmatter
+    out += content.slice(cursor, start);
+    out += maskCode(content.slice(start, end), literals);
+    cursor = end;
+  }
+  return out + content.slice(cursor);
+}
+
 /** Extract module specifiers from import/export/dynamic-import statements. */
-export function extractSpecifiers(content) {
+export function extractSpecifiers(content, filePath = '') {
+  const literals = [];
+  let masked;
+  try {
+    masked = filePath.endsWith('.astro')
+      ? maskAstro(content, literals)
+      : maskCode(content, literals);
+  } catch (error) {
+    if (!(error instanceof MaskError)) throw error;
+    masked = content; // lost the thread: scan the raw text, as this script always did
+    literals.length = 0;
+  }
+
   const specifiers = [];
   const patterns = [
     /(?:^|[\s;])(?:import|export)\b[^'"]*?\bfrom\s*['"]([^'"]+)['"]/g, // import/export ... from '...'
@@ -33,8 +232,9 @@ export function extractSpecifiers(content) {
   ];
   for (const pattern of patterns) {
     let match;
-    while ((match = pattern.exec(content)) !== null) {
-      specifiers.push(match[1]);
+    while ((match = pattern.exec(masked)) !== null) {
+      const handle = HANDLE.exec(match[1]);
+      specifiers.push(handle ? (literals[Number(handle[1])] ?? '') : match[1]);
     }
   }
   return specifiers;
@@ -49,7 +249,7 @@ export function findViolations(files, allowMap = { ...ALLOW_MAP, ...APP_ALLOW_MA
   const violations = [];
   for (const file of files) {
     const allowed = allowMap[file.package] ?? [];
-    for (const specifier of extractSpecifiers(file.content)) {
+    for (const specifier of extractSpecifiers(file.content, file.path)) {
       if (!specifier.startsWith(SPEC_PREFIX)) continue;
       const importedShort = specifier.slice(SPEC_PREFIX.length).split('/')[0];
       if (importedShort === file.package) continue; // self-import is fine
