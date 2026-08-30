@@ -3,6 +3,7 @@
   "references": [
     { "path": "packages/protocol" },
     { "path": "packages/language" },
+    { "path": "packages/highlight" },
     { "path": "packages/notation" },
     { "path": "packages/api" },
     { "path": "packages/core" },

@@ -65,6 +65,11 @@ importers:
       "@luna-estelar/gas-protocol":
         specifier: workspace:*
         version: link:../protocol
+  packages/highlight:
+    devDependencies:
+      "@luna-estelar/gas-language":
+        specifier: workspace:*
+        version: link:../language
   packages/language:
     dependencies:
       "@luna-estelar/gas-protocol":

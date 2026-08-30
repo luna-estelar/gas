@@ -1,0 +1,29 @@
+{
+  "name": "@luna-estelar/gas-highlight",
+  "version": "0.1.0",
+  "description": "Pure GAS syntax-presentation helpers for highlighted source and documentation fences.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "main": "./out/index.js",
+  "module": "./out/index.js",
+  "types": "./out/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./out/index.d.ts",
+      "default": "./out/index.js"
+    }
+  },
+  "files": [
+    "out",
+    "src"
+  ],
+  "scripts": {
+    "clean": "tsc -b --clean"
+  },
+  "devDependencies": {
+    "@luna-estelar/gas-language": "workspace:*"
+  }
+}
