@@ -27,6 +27,57 @@ function importHasValue(clause: ts.ImportClause | undefined): boolean {
   return clause.namedBindings.elements.some((element) => !element.isTypeOnly);
 }
 
+function exportHasValue(declaration: ts.ExportDeclaration): boolean {
+  if (declaration.isTypeOnly) return false;
+  if (declaration.exportClause === undefined || ts.isNamespaceExport(declaration.exportClause)) {
+    return true;
+  }
+  return declaration.exportClause.elements.some((element) => !element.isTypeOnly);
+}
+
+interface LanguageReference {
+  readonly kind: 'dynamic-import' | 'export' | 'import' | 'import-type';
+  readonly value: boolean;
+}
+
+function isLanguageSpecifier(value: string): boolean {
+  return value === '@luna-estelar/gas-language' || value.startsWith('@luna-estelar/gas-language/');
+}
+
+function languageReferences(source: ts.SourceFile): LanguageReference[] {
+  const references: LanguageReference[] = [];
+  const add = (kind: LanguageReference['kind'], value: boolean, specifier: string): void => {
+    if (isLanguageSpecifier(specifier)) references.push({ kind, value });
+  };
+  const visit = (node: ts.Node): void => {
+    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+      add('import', importHasValue(node.importClause), node.moduleSpecifier.text);
+    } else if (
+      ts.isExportDeclaration(node) &&
+      node.moduleSpecifier !== undefined &&
+      ts.isStringLiteral(node.moduleSpecifier)
+    ) {
+      add('export', exportHasValue(node), node.moduleSpecifier.text);
+    } else if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments.length === 1 &&
+      ts.isStringLiteral(node.arguments[0]!)
+    ) {
+      add('dynamic-import', true, node.arguments[0].text);
+    } else if (
+      ts.isImportTypeNode(node) &&
+      ts.isLiteralTypeNode(node.argument) &&
+      ts.isStringLiteral(node.argument.literal)
+    ) {
+      add('import-type', false, node.argument.literal.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return references;
+}
+
 describe('browser package surface', () => {
   const manifest = JSON.parse(
     readFileSync(path.join(packageRoot, 'package.json'), 'utf8')
@@ -57,7 +108,7 @@ describe('browser package surface', () => {
   });
 
   it('keeps gas-language as a value dependency of compile only', () => {
-    const imports = sourceFiles().flatMap((file) => {
+    const references = sourceFiles().flatMap((file) => {
       const source = ts.createSourceFile(
         file,
         readFileSync(file, 'utf8'),
@@ -65,23 +116,45 @@ describe('browser package surface', () => {
         true,
         ts.ScriptKind.TS
       );
-      return source.statements.flatMap((statement) => {
-        if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) {
-          return [];
-        }
-        if (!statement.moduleSpecifier.text.startsWith('@luna-estelar/gas-language')) return [];
-        return [
-          {
-            file: path.relative(sourceRoot, file).split(path.sep).join('/'),
-            value: importHasValue(statement.importClause)
-          }
-        ];
-      });
+      return languageReferences(source).map((reference) => ({
+        ...reference,
+        file: path.relative(sourceRoot, file).split(path.sep).join('/')
+      }));
     });
 
-    expect(imports.filter(({ value }) => value).map(({ file }) => file)).toEqual(['compile.ts']);
-    expect(imports.filter(({ file }) => file !== 'compile.ts').every(({ value }) => !value)).toBe(
-      true
+    expect(references.filter(({ value }) => value).map(({ file }) => file)).toEqual(['compile.ts']);
+    expect(
+      references.filter(({ file }) => file !== 'compile.ts').every(({ value }) => !value)
+    ).toBe(true);
+  });
+
+  it('classifies imports, re-exports, and dynamic imports by runtime cost', () => {
+    const source = ts.createSourceFile(
+      'references.ts',
+      [
+        "import type { HighlightToken } from '@luna-estelar/gas-language';",
+        "export type { HighlightToken } from '@luna-estelar/gas-language';",
+        "export { type HighlightToken } from '@luna-estelar/gas-language';",
+        "type Token = import('@luna-estelar/gas-language').HighlightToken;",
+        "import { compileSource } from '@luna-estelar/gas-language';",
+        "export { compileSource } from '@luna-estelar/gas-language';",
+        "export * from '@luna-estelar/gas-language';",
+        "void import('@luna-estelar/gas-language');"
+      ].join('\n'),
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TS
     );
+
+    expect(languageReferences(source)).toEqual([
+      { kind: 'import', value: false },
+      { kind: 'export', value: false },
+      { kind: 'export', value: false },
+      { kind: 'import-type', value: false },
+      { kind: 'import', value: true },
+      { kind: 'export', value: true },
+      { kind: 'export', value: true },
+      { kind: 'dynamic-import', value: true }
+    ]);
   });
 });

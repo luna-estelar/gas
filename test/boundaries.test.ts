@@ -84,8 +84,8 @@ describe('check-boundaries', () => {
   it('holds the wiring rule for .astro pages too', () => {
     const page = findViolations([
       {
-        package: 'host',
-        path: 'fixtures/host/src/pages/demo.astro',
+        package: 'browser',
+        path: 'packages/browser/src/demo.astro',
         content: "import { createLyriaConnector } from '@luna-estelar/gas-connector-lyria';"
       }
     ]);
