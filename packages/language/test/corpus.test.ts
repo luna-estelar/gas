@@ -38,6 +38,9 @@ const ALDA_EXPECTATIONS = new Map<string, readonly string[]>([
 const corpusFiles = readdirSync(corpusRoot)
   .filter((entry) => entry.endsWith('.gas'))
   .sort();
+if (corpusFiles.length === 0) {
+  throw new Error(`No .gas corpus documents found in ${corpusRoot}.`);
+}
 
 describe('GAS corpus', () => {
   test.each(corpusFiles)(

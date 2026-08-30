@@ -27,6 +27,9 @@ const corpusRoot = path.resolve(here, '../packages/language/test/corpus');
 const corpusFiles = readdirSync(corpusRoot)
   .filter((entry) => entry.endsWith('.gas'))
   .sort();
+if (corpusFiles.length === 0) {
+  throw new Error(`No .gas corpus documents found in ${corpusRoot}.`);
+}
 
 describe('renderer executes every compiled corpus timeline', () => {
   test.each(corpusFiles)(

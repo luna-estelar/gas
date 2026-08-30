@@ -6,13 +6,15 @@ import { highlightSource } from '../src/index.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const corpusRoot = path.join(here, 'corpus');
+const corpusFiles = readdirSync(corpusRoot)
+  .filter((name) => name.endsWith('.gas'))
+  .sort();
+if (corpusFiles.length === 0) {
+  throw new Error(`No .gas corpus documents found in ${corpusRoot}.`);
+}
 
 describe('GAS editor highlighting', () => {
-  test.each(
-    readdirSync(corpusRoot)
-      .filter((name) => name.endsWith('.gas'))
-      .sort()
-  )('%s returns sorted, in-range tokens', (name) => {
+  test.each(corpusFiles)('%s returns sorted, in-range tokens', (name) => {
     const source = readFileSync(path.join(corpusRoot, name), 'utf8');
     const result = highlightSource(source);
     expect(result.tokens.length).toBeGreaterThan(0);
