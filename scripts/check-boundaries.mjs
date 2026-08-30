@@ -18,7 +18,17 @@ export const ALLOW_MAP = {
 // Optional dependency rules for consuming applications.
 export const APP_ALLOW_MAP = {};
 
+const CONCRETE_RUNTIME = new Set(['renderer', 'connector-lyria']);
+
+/** Runtime composition modules, keyed by package. */
+export const WIRING_MODULES = {};
+
+// Units with no source files.
+const EXPECTED_EMPTY = new Set();
+
 const SPEC_PREFIX = '@luna-estelar/gas-';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // Scan TypeScript, JSX and Astro module code.
 const SCANNED_EXTENSIONS = ['.ts', '.tsx', '.jsx', '.astro'];
@@ -241,7 +251,7 @@ export function extractSpecifiers(content, filePath = '') {
 }
 
 /**
- * @param files Array of { package, path, content, scope? }.
+ * @param files Array of { package, path, content }.
  * @param allowMap Per-package allowed short names (defaults to ALLOW_MAP + APP_ALLOW_MAP).
  * @returns Array of violations.
  */
@@ -253,12 +263,12 @@ export function findViolations(files, allowMap = { ...ALLOW_MAP, ...APP_ALLOW_MA
       if (!specifier.startsWith(SPEC_PREFIX)) continue;
       const importedShort = specifier.slice(SPEC_PREFIX.length).split('/')[0];
       if (importedShort === file.package) continue; // self-import is fine
-      const isApp =
-        file.scope === 'app' ||
-        file.path.includes(`${path.sep}apps${path.sep}`) ||
-        file.path.startsWith('apps/');
-      const isConcreteRuntime = importedShort === 'renderer' || importedShort === 'connector-lyria';
-      if (isApp && isConcreteRuntime && path.basename(file.path) !== 'wiring.ts') {
+      const confinedTo = WIRING_MODULES[file.package];
+      if (
+        confinedTo !== undefined &&
+        CONCRETE_RUNTIME.has(importedShort) &&
+        path.basename(file.path) !== confinedTo
+      ) {
         violations.push({
           package: file.package,
           path: file.path,
@@ -299,7 +309,7 @@ async function walkSource(dir) {
   return found;
 }
 
-async function collectWorkspaceFiles(packagesRoot) {
+export async function collectWorkspaceFiles(packagesRoot) {
   const files = [];
   const packages = (await readdir(packagesRoot, { withFileTypes: true }))
     .filter((entry) => entry.isDirectory())
@@ -314,21 +324,15 @@ async function collectWorkspaceFiles(packagesRoot) {
   return files;
 }
 
-async function collectApplicationFiles(appsRoot) {
+export async function collectApplicationFiles(appsRoot) {
   const files = [];
-  let apps = [];
-  try {
-    apps = (await readdir(appsRoot, { withFileTypes: true }))
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name);
-  } catch {
-    return files;
-  }
+  const apps = (await readdir(appsRoot, { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name);
   for (const app of apps) {
     for (const filePath of await walkSource(path.join(appsRoot, app, 'src'))) {
       files.push({
         package: app,
-        scope: 'app',
         path: filePath,
         content: await readFile(filePath, 'utf8')
       });
@@ -337,21 +341,96 @@ async function collectApplicationFiles(appsRoot) {
   return files;
 }
 
+/** Collect every source file governed by the boundary scanner. */
+export async function collectAll(root = ROOT) {
+  return [...(await collectWorkspaceFiles(path.join(root, 'packages')))];
+}
+
+async function collectUnitDirectories(root) {
+  return (await readdir(root, { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+}
+
+/**
+ * Verify that the configured boundary units and the files found on disk cover
+ * one another. Returns sorted per-unit file counts for reporting.
+ */
+export async function assertCoverage(files, root = ROOT) {
+  const packageDirectories = await collectUnitDirectories(path.join(root, 'packages'));
+  const applicationDirectories = [];
+  const errors = [];
+
+  for (const unit of Object.keys(ALLOW_MAP)) {
+    if (!packageDirectories.includes(unit)) {
+      errors.push(`declared but missing package unit: ${unit}`);
+    }
+  }
+  for (const unit of Object.keys(APP_ALLOW_MAP)) {
+    if (!applicationDirectories.includes(unit)) {
+      errors.push(`declared but missing application unit: ${unit}`);
+    }
+  }
+  for (const unit of packageDirectories) {
+    if (!(unit in ALLOW_MAP)) errors.push(`undeclared unit: packages/${unit}`);
+  }
+  for (const unit of applicationDirectories) {
+    if (!(unit in APP_ALLOW_MAP)) errors.push(`undeclared unit: apps/${unit}`);
+  }
+
+  const allowMap = { ...ALLOW_MAP, ...APP_ALLOW_MAP };
+  for (const [unit, allowed] of Object.entries(allowMap)) {
+    if (allowed.some((dependency) => CONCRETE_RUNTIME.has(dependency))) {
+      if (WIRING_MODULES[unit] === undefined) {
+        errors.push(`unit allowed concrete runtime imports has no wiring module: ${unit}`);
+      }
+    }
+  }
+
+  for (const [unit, wiringModule] of Object.entries(WIRING_MODULES)) {
+    const matched = files.some(
+      (file) => file.package === unit && path.basename(file.path) === wiringModule
+    );
+    if (!matched) errors.push(`wiring module matched no scanned file: ${unit}/${wiringModule}`);
+  }
+
+  const counts = Object.keys(allowMap)
+    .sort()
+    .map((unit) => ({
+      unit,
+      count: files.filter((file) => file.package === unit).length
+    }));
+  for (const { unit, count } of counts) {
+    if (count === 0 && !EXPECTED_EMPTY.has(unit)) {
+      errors.push(`declared unit contributed no scanned files: ${unit}`);
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error(`Boundary scan coverage failed:\n  ${errors.join('\n  ')}`);
+  }
+  return counts;
+}
+
 async function main() {
-  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-  const files = [...(await collectWorkspaceFiles(path.join(root, 'packages')))];
+  const files = await collectAll(ROOT);
+  const counts = await assertCoverage(files, ROOT);
   const violations = findViolations(files);
   if (violations.length > 0) {
     console.error('Import-boundary violations found:');
     for (const v of violations) {
       console.error(
-        `  ${path.relative(root, v.path)}: '${v.package}' may not import ${v.importedPackage}`
+        `  ${path.relative(ROOT, v.path)}: '${v.package}' may not import ${v.importedPackage}`
       );
     }
     process.exitCode = 1;
     return;
   }
-  console.log(`Import boundaries OK: scanned ${files.length} files across packages.`);
+  console.log(
+    `Import boundaries OK: scanned ${files.length} files ` +
+      `(${counts.map(({ unit, count }) => `${unit}: ${count}`).join(', ')}).`
+  );
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

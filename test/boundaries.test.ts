@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error -- plain ESM script without type declarations
-import { findViolations } from '../scripts/check-boundaries.mjs';
+import { assertCoverage, collectAll, findViolations } from '../scripts/check-boundaries.mjs';
 
 describe('check-boundaries', () => {
   it('flags a forbidden cross-package import', () => {
@@ -43,7 +43,6 @@ describe('check-boundaries', () => {
     const page = findViolations([
       {
         package: 'host',
-        scope: 'app',
         path: 'fixtures/host/src/pages/demo.astro',
         content: "import { createLyriaConnector } from '@luna-estelar/gas-connector-lyria';"
       }
@@ -125,5 +124,14 @@ describe('check-boundaries', () => {
       }
     ]);
     expect(component).toHaveLength(1);
+  });
+
+  it('finds no violations in the real workspace tree', async () => {
+    expect(findViolations(await collectAll())).toEqual([]);
+  });
+
+  it('covers every declared unit in the real workspace tree', async () => {
+    const counts = await assertCoverage(await collectAll());
+    expect(counts.filter(({ count }) => count === 0).map(({ unit }) => unit)).toEqual([]);
   });
 });
