@@ -13,7 +13,8 @@ export const ALLOW_MAP = {
   core: ['protocol'],
   renderer: ['protocol', 'core', 'notation'],
   'connector-lyria': ['protocol'],
-  cli: ['protocol', 'language', 'core']
+  cli: ['protocol', 'language', 'core'],
+  browser: ['protocol', 'language', 'core', 'api', 'renderer', 'connector-lyria']
 };
 
 // Optional dependency rules for consuming applications.
@@ -22,7 +23,7 @@ export const APP_ALLOW_MAP = {};
 const CONCRETE_RUNTIME = new Set(['renderer', 'connector-lyria']);
 
 /** Runtime composition modules, keyed by package. */
-export const WIRING_MODULES = {};
+export const WIRING_MODULES = { browser: 'wiring.ts' };
 
 // Units with no source files.
 const EXPECTED_EMPTY = new Set();

@@ -6,6 +6,7 @@ The workspace contains the library implementation and its tests.
 ## Packages
 
 - `@luna-estelar/gas-api`: Application-facing JavaScript control surface for GAS source and programmatic commands.
+- `@luna-estelar/gas-browser`: Browser-host composition, Web Audio playback, and framework-free UI view models for GAS sessions.
 - `@luna-estelar/gas-cli`: Command-line entrypoint for GAS.
 - `@luna-estelar/gas-connector-lyria`: Model-specific Lyria boundary: prompt translation, transport, and config interpretation.
 - `@luna-estelar/gas-core`: Pure GAS semantics: the session input state, command validation, and the effective-state cascade. Owns no clock, no I/O, and no instance state.

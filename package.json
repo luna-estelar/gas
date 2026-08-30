@@ -17,6 +17,7 @@
     "test": "pnpm build && pnpm check:schemas && pnpm check:boundaries && vitest run"
   },
   "devDependencies": {
+    "@luna-estelar/gas-browser": "workspace:*",
     "@types/node": "^22.10.0",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",

@@ -5,6 +5,9 @@ settings:
 importers:
   .:
     devDependencies:
+      "@luna-estelar/gas-browser":
+        specifier: workspace:*
+        version: link:packages/browser
       "@types/node":
         specifier: ^22.10.0
         version: 22.20.1
@@ -34,6 +37,26 @@ importers:
       "@luna-estelar/gas-protocol":
         specifier: workspace:*
         version: link:../protocol
+  packages/browser:
+    dependencies:
+      "@luna-estelar/gas-api":
+        specifier: workspace:*
+        version: link:../api
+      "@luna-estelar/gas-connector-lyria":
+        specifier: workspace:*
+        version: link:../connector-lyria
+      "@luna-estelar/gas-core":
+        specifier: workspace:*
+        version: link:../core
+      "@luna-estelar/gas-language":
+        specifier: workspace:*
+        version: link:../language
+      "@luna-estelar/gas-protocol":
+        specifier: workspace:*
+        version: link:../protocol
+      "@luna-estelar/gas-renderer":
+        specifier: workspace:*
+        version: link:../renderer
   packages/cli:
     dependencies:
       "@luna-estelar/gas-core":

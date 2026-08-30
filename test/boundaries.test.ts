@@ -37,6 +37,48 @@ describe('check-boundaries', () => {
     expect(violations).toHaveLength(0);
   });
 
+  it('allows the browser package to compose language and core', () => {
+    const violations = findViolations([
+      {
+        package: 'browser',
+        path: 'packages/browser/src/compile.ts',
+        content:
+          "import { compileSource } from '@luna-estelar/gas-language';\nimport { createInputState } from '@luna-estelar/gas-core';"
+      }
+    ]);
+    expect(violations).toHaveLength(0);
+  });
+
+  it('confines concrete runtime imports to the unit wiring module regardless of path', () => {
+    const content = "import { createRenderer } from '@luna-estelar/gas-renderer';";
+    const ordinary = findViolations([
+      {
+        package: 'browser',
+        path: 'src/playback.ts',
+        content
+      }
+    ]);
+    expect(ordinary).toHaveLength(1);
+
+    const wiring = findViolations([
+      {
+        package: 'browser',
+        path: 'src/wiring.ts',
+        content
+      }
+    ]);
+    expect(wiring).toHaveLength(0);
+
+    const arbitraryPath = findViolations([
+      {
+        package: 'browser',
+        path: 'anywhere/at/all/wiring.ts',
+        content
+      }
+    ]);
+    expect(arbitraryPath).toHaveLength(0);
+  });
+
   // Astro frontmatter imports like any other module, so a page must not be able
   // to reach the concrete runtime just by not being a .ts file.
   it('holds the wiring rule for .astro pages too', () => {
@@ -77,7 +119,7 @@ describe('check-boundaries', () => {
       {
         package: 'host',
         scope: 'app',
-        path: 'fixtures/host/src/host/playback.ts',
+        path: 'fixtures/host/src/islands/Playback.tsx',
         content: [
           "const sample = `import { createRenderer } from '@luna-estelar/gas-renderer';`;",
           "// Or: import { createRenderer } from '@luna-estelar/gas-renderer';",
