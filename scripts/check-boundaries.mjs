@@ -20,6 +20,11 @@ export const ALLOW_MAP = {
 // Optional dependency rules for consuming applications.
 export const APP_ALLOW_MAP = {};
 
+// Fixture helpers must not import GAS packages: package tests share these helpers.
+export const EXAMPLE_ALLOW_MAP = {
+  examples: []
+};
+
 const CONCRETE_RUNTIME = new Set(['renderer', 'connector-lyria']);
 
 /** Runtime composition modules, keyed by package. */
@@ -254,10 +259,13 @@ export function extractSpecifiers(content, filePath = '') {
 
 /**
  * @param files Array of { package, path, content }.
- * @param allowMap Per-package allowed short names (defaults to ALLOW_MAP + APP_ALLOW_MAP).
+ * @param allowMap Per-unit allowed short names (defaults to every allow map).
  * @returns Array of violations.
  */
-export function findViolations(files, allowMap = { ...ALLOW_MAP, ...APP_ALLOW_MAP }) {
+export function findViolations(
+  files,
+  allowMap = { ...ALLOW_MAP, ...APP_ALLOW_MAP, ...EXAMPLE_ALLOW_MAP }
+) {
   const violations = [];
   for (const file of files) {
     const allowed = allowMap[file.package] ?? [];
@@ -343,9 +351,24 @@ export async function collectApplicationFiles(appsRoot) {
   return files;
 }
 
+/** Collect example modules by their immediate subdirectory, or the root examples unit. */
+export async function collectExampleFiles(examplesRoot) {
+  const files = [];
+  for (const filePath of await walkSource(examplesRoot)) {
+    const relative = path.relative(examplesRoot, filePath);
+    const segments = relative.split(path.sep);
+    const unit = segments.length === 1 ? 'examples' : segments[0];
+    files.push({ package: unit, path: filePath, content: await readFile(filePath, 'utf8') });
+  }
+  return files;
+}
+
 /** Collect every source file governed by the boundary scanner. */
 export async function collectAll(root = ROOT) {
-  return [...(await collectWorkspaceFiles(path.join(root, 'packages')))];
+  return [
+    ...(await collectWorkspaceFiles(path.join(root, 'packages'))),
+    ...(await collectExampleFiles(path.join(root, 'examples')))
+  ];
 }
 
 async function collectUnitDirectories(root) {
@@ -362,6 +385,7 @@ async function collectUnitDirectories(root) {
 export async function assertCoverage(files, root = ROOT) {
   const packageDirectories = await collectUnitDirectories(path.join(root, 'packages'));
   const applicationDirectories = [];
+  const exampleDirectories = await collectUnitDirectories(path.join(root, 'examples'));
   const errors = [];
 
   for (const unit of Object.keys(ALLOW_MAP)) {
@@ -380,8 +404,20 @@ export async function assertCoverage(files, root = ROOT) {
   for (const unit of applicationDirectories) {
     if (!(unit in APP_ALLOW_MAP)) errors.push(`undeclared unit: apps/${unit}`);
   }
+  for (const unit of Object.keys(EXAMPLE_ALLOW_MAP)) {
+    if (unit !== 'examples' && !exampleDirectories.includes(unit)) {
+      errors.push(`declared but missing example unit: ${unit}`);
+    }
+  }
+  // Require a boundary declaration once an example directory contains source code.
+  for (const unit of exampleDirectories) {
+    if (unit in EXAMPLE_ALLOW_MAP) continue;
+    if (files.some((file) => file.package === unit)) {
+      errors.push(`undeclared unit: examples/${unit}`);
+    }
+  }
 
-  const allowMap = { ...ALLOW_MAP, ...APP_ALLOW_MAP };
+  const allowMap = { ...ALLOW_MAP, ...APP_ALLOW_MAP, ...EXAMPLE_ALLOW_MAP };
   for (const [unit, allowed] of Object.entries(allowMap)) {
     if (allowed.some((dependency) => CONCRETE_RUNTIME.has(dependency))) {
       if (WIRING_MODULES[unit] === undefined) {

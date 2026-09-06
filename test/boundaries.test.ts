@@ -168,6 +168,20 @@ describe('check-boundaries', () => {
     expect(component).toHaveLength(1);
   });
 
+  // support.ts is imported by every package's corpus sweep. A GAS import here
+  // would reach into all of them at once, including packages that may not
+  // depend on what it pulled in.
+  it('denies the shared example fixtures every GAS package', () => {
+    const violations = findViolations([
+      {
+        package: 'examples',
+        path: 'examples/support.ts',
+        content: "import { compileSource } from '@luna-estelar/gas-language';"
+      }
+    ]);
+    expect(violations).toHaveLength(1);
+  });
+
   it('finds no violations in the real workspace tree', async () => {
     expect(findViolations(await collectAll())).toEqual([]);
   });
