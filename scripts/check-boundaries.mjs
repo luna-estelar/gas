@@ -354,11 +354,21 @@ export async function collectApplicationFiles(appsRoot) {
 /** Collect example modules by their immediate subdirectory, or the root examples unit. */
 export async function collectExampleFiles(examplesRoot) {
   const files = [];
-  for (const filePath of await walkSource(examplesRoot)) {
-    const relative = path.relative(examplesRoot, filePath);
-    const segments = relative.split(path.sep);
-    const unit = segments.length === 1 ? 'examples' : segments[0];
-    files.push({ package: unit, path: filePath, content: await readFile(filePath, 'utf8') });
+  // A missing scan root must fail; only optional package subdirectories may be absent.
+  const entries = await readdir(examplesRoot, { withFileTypes: true });
+  for (const entry of entries) {
+    const full = path.join(examplesRoot, entry.name);
+    if (entry.isDirectory()) {
+      for (const filePath of await walkSource(full)) {
+        files.push({
+          package: entry.name,
+          path: filePath,
+          content: await readFile(filePath, 'utf8')
+        });
+      }
+    } else if (entry.isFile() && SCANNED_EXTENSIONS.some((ext) => entry.name.endsWith(ext))) {
+      files.push({ package: 'examples', path: full, content: await readFile(full, 'utf8') });
+    }
   }
   return files;
 }

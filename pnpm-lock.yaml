@@ -89,7 +89,7 @@ importers:
         specifier: workspace:*
         version: link:../protocol
   packages/highlight:
-    devDependencies:
+    dependencies:
       "@luna-estelar/gas-language":
         specifier: workspace:*
         version: link:../language
