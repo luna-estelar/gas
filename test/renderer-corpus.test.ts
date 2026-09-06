@@ -2,9 +2,6 @@
 // Renderer scheduler for every corpus document. Root tests may compose package
 // surfaces; package boundary tests intentionally may not.
 
-import { readFileSync, readdirSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, test } from 'vitest';
 import {
   createInputState,
@@ -21,21 +18,15 @@ import type {
 } from '../packages/protocol/src/index.js';
 import { FakeConnector } from '../packages/renderer/test/support/fake-connector.js';
 import { VirtualClock } from '../packages/renderer/test/support/virtual-clock.js';
+import { exampleFiles, readExample } from '../examples/support.js';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const corpusRoot = path.resolve(here, '../packages/language/test/corpus');
-const corpusFiles = readdirSync(corpusRoot)
-  .filter((entry) => entry.endsWith('.gas'))
-  .sort();
-if (corpusFiles.length === 0) {
-  throw new Error(`No .gas corpus documents found in ${corpusRoot}.`);
-}
+const corpusFiles = exampleFiles();
 
 describe('renderer executes every compiled corpus timeline', () => {
   test.each(corpusFiles)(
     '%s renders deterministically from Core-derived boundaries',
     async (file) => {
-      const source = readFileSync(path.join(corpusRoot, file), 'utf8');
+      const source = readExample(file);
       const result = compileSource(source, { name: file });
       expect(result.ok).toBe(true);
       if (!result.ok) return;

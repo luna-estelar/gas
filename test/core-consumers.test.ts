@@ -1,8 +1,5 @@
 // Exercise Core through API commands, renderer state derivation and compile-only inspection.
 
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   compileSource,
@@ -24,14 +21,10 @@ import {
   type InputState,
   type PlaybackPhase
 } from '../packages/core/src/index.js';
-
-const here = path.dirname(fileURLToPath(import.meta.url));
-const corpusRoot = path.resolve(here, '../packages/language/test/corpus');
+import { readExample } from '../examples/support.js';
 
 function corpusTimeline(name: string): Timeline {
-  const result = compileSource(readFileSync(path.join(corpusRoot, `${name}.gas`), 'utf8'), {
-    name
-  });
+  const result = compileSource(readExample(name), { name });
   if (!result.ok) {
     throw new Error(`Expected ${name}.gas to compile.`);
   }

@@ -1,8 +1,5 @@
 // Compile the language corpus and validate the resulting Core state and schedule.
 
-import { readFileSync, readdirSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, test } from 'vitest';
 import { compileSource, type Timeline } from '../packages/language/src/index.js';
 import {
@@ -14,19 +11,13 @@ import {
   type EffectiveState
 } from '../packages/core/src/index.js';
 import { comparePositions } from '../packages/core/src/positions.js';
+import { exampleFiles, readExample } from '../examples/support.js';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const corpusRoot = path.resolve(here, '../packages/language/test/corpus');
-const corpusFiles = readdirSync(corpusRoot)
-  .filter((entry) => entry.endsWith('.gas'))
-  .sort();
-if (corpusFiles.length === 0) {
-  throw new Error(`No .gas corpus documents found in ${corpusRoot}.`);
-}
+const corpusFiles = exampleFiles();
 
 describe('core reads every compiled corpus timeline', () => {
   test.each(corpusFiles)('%s validates, derives across every bar, and schedules', (file) => {
-    const source = readFileSync(path.join(corpusRoot, file), 'utf8');
+    const source = readExample(file);
     const result = compileSource(source, { name: file });
     expect(result.ok).toBe(true);
     if (!result.ok) {

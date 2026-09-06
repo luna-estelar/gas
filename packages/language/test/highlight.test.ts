@@ -1,21 +1,12 @@
-import { readFileSync, readdirSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, test } from 'vitest';
 import { highlightSource } from '../src/index.js';
+import { exampleFiles, readExample } from '../../../examples/support.js';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const corpusRoot = path.join(here, 'corpus');
-const corpusFiles = readdirSync(corpusRoot)
-  .filter((name) => name.endsWith('.gas'))
-  .sort();
-if (corpusFiles.length === 0) {
-  throw new Error(`No .gas corpus documents found in ${corpusRoot}.`);
-}
+const corpusFiles = exampleFiles();
 
 describe('GAS editor highlighting', () => {
   test.each(corpusFiles)('%s returns sorted, in-range tokens', (name) => {
-    const source = readFileSync(path.join(corpusRoot, name), 'utf8');
+    const source = readExample(name);
     const result = highlightSource(source);
     expect(result.tokens.length).toBeGreaterThan(0);
     for (const [index, token] of result.tokens.entries()) {
@@ -27,7 +18,7 @@ describe('GAS editor highlighting', () => {
   });
 
   test('finds track and section declarations and references', () => {
-    const source = readFileSync(path.join(corpusRoot, 'spec-example.gas'), 'utf8');
+    const source = readExample('spec-example');
     const symbols = highlightSource(source).symbols;
     expect(symbols).toEqual(
       expect.arrayContaining([

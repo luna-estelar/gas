@@ -38,10 +38,10 @@ import type {
   TimelineProblem as ProtocolTimelineProblem
 } from '../packages/protocol/src/index.js';
 import { capabilitiesWith, createFakeWiring } from '../packages/api/test/support/fake-renderer.js';
+import { readExample } from '../examples/support.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const schemaRoot = path.resolve(here, '../packages/protocol/schemas/1.0');
-const corpusRoot = path.resolve(here, '../packages/language/test/corpus');
 const base = 'https://gas.luna-estelar.com/protocol/1.0';
 const addFormats = addFormatsImport as unknown as FormatsPlugin;
 
@@ -58,7 +58,7 @@ function schema(ref: string): ValidateFunction {
 }
 
 function timeline(): Timeline {
-  const source = readFileSync(path.join(corpusRoot, 'minimal.gas'), 'utf8');
+  const source = readExample('minimal');
   const result = compileSource(source, { name: 'minimal.gas' });
   if (!result.ok) throw new Error('The minimal corpus document should compile.');
   return result.timeline;
@@ -198,9 +198,7 @@ describe('landed values match canonical protocol schemas', () => {
     session.on('lifecycle', (event) => lifecycles.push(event));
     session.on('warning', (event) => warnings.push(event));
 
-    const compileResult = await session.compileSource(
-      readFileSync(path.join(corpusRoot, 'minimal.gas'), 'utf8')
-    );
+    const compileResult = await session.compileSource(readExample('minimal'));
     expect(schema(`${base}/session.schema.json#/$defs/CompileResult`)(compileResult)).toBe(true);
     const compiled = compileResult.timeline;
     await session.loadTimeline(compiled);

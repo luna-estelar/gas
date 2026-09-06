@@ -1,12 +1,7 @@
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { compileSource } from '@luna-estelar/gas-language';
 import { execute, packageName, version, type CliIo } from '../src/index.js';
-
-const here = path.dirname(fileURLToPath(import.meta.url));
-const corpusFile = path.resolve(here, '../../language/test/corpus/spec-example.gas');
+import { readExample } from '../../../examples/support.js';
 
 function harness(files: Record<string, string> = {}): {
   io: CliIo;
@@ -53,7 +48,7 @@ describe('@luna-estelar/gas-cli', () => {
   });
 
   it('compiles deterministically to stdout', () => {
-    const source = readFileSync(corpusFile, 'utf8');
+    const source = readExample('spec-example');
     const cli = harness({ 'song.gas': source });
     expect(execute(['compile', 'song.gas'], cli.io)).toBe(0);
     const direct = compileSource(source, { name: 'song.gas' });
@@ -63,7 +58,7 @@ describe('@luna-estelar/gas-cli', () => {
   });
 
   it('writes --out without timeline JSON on stdout', () => {
-    const source = readFileSync(corpusFile, 'utf8');
+    const source = readExample('spec-example');
     const cli = harness({ 'song.gas': source });
     expect(execute(['compile', 'song.gas', '--out', 'timeline.json'], cli.io)).toBe(0);
     expect(cli.stdout).toEqual([]);
@@ -90,7 +85,7 @@ describe('@luna-estelar/gas-cli', () => {
     expect(execute(['compile', 'missing.gas'], missing.io)).toBe(1);
     expect(missing.stderr.join('')).toContain("cannot read 'missing.gas'");
 
-    const source = readFileSync(corpusFile, 'utf8');
+    const source = readExample('spec-example');
     const blocked = harness({ 'song.gas': source });
     expect(execute(['compile', 'song.gas', '--out', '/blocked'], blocked.io)).toBe(1);
     expect(blocked.stderr.join('')).toContain("cannot write '/blocked'");

@@ -1,8 +1,5 @@
 // Compile, inspect and derive browser timelines from the library corpus.
 
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   compileGas,
@@ -17,21 +14,16 @@ import {
   totalBars,
   totalSeconds
 } from '@luna-estelar/gas-browser/timeline';
-
-const here = path.dirname(fileURLToPath(import.meta.url));
-const corpusRoot = path.resolve(here, '../packages/language/test/corpus');
+import { readExample } from '../examples/support.js';
 
 function compile(name: string) {
-  const result = compileGas(
-    readFileSync(path.join(corpusRoot, `${name}.gas`), 'utf8'),
-    `${name}.gas`
-  );
+  const result = compileGas(readExample(name), `${name}.gas`);
   expect(result.ok).toBe(true);
   if (result.timeline === undefined) throw new Error(`Could not compile ${name}.gas`);
   return result.timeline;
 }
 
-describe('host compile and timeline over the language corpus', () => {
+describe('host compile and timeline over the example documents', () => {
   it('derives musical time and timeline view models without mutating the timeline', () => {
     const timeline = compile('spec-example');
     expect(secondsPerBar(timeline)).toBeCloseTo(240 / 104);

@@ -1,22 +1,16 @@
-import { readFileSync, readdirSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, test } from 'vitest';
 import { compileSource, type AldaValue, type Timeline } from '../packages/language/src/index.js';
 import { parseAlda, toMidi } from '../packages/notation/src/index.js';
+import { exampleFiles, readExample } from '../examples/support.js';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const corpusRoot = path.resolve(here, '../packages/language/test/corpus');
-const corpusFiles = readdirSync(corpusRoot)
-  .filter((entry) => entry.endsWith('.gas'))
-  .sort();
+const corpusFiles = exampleFiles();
 
 describe('notation covers the language corpus Alda subset', () => {
   test('every corpus Alda value parses and encodes as MIDI', () => {
     const midiOutputs: Uint8Array[] = [];
 
     for (const file of corpusFiles) {
-      const source = readFileSync(path.join(corpusRoot, file), 'utf8');
+      const source = readExample(file);
       const result = compileSource(source, { name: file });
       expect(result.ok).toBe(true);
       if (!result.ok) {

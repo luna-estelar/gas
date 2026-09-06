@@ -1,12 +1,7 @@
-import { readFileSync, readdirSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, expect, test } from 'vitest';
 import { compileSource, type AldaValue, type Timeline } from '../src/index.js';
+import { exampleFiles, readExample } from '../../../examples/support.js';
 import { loadTimelineValidator } from './support/schema.js';
-
-const here = path.dirname(fileURLToPath(import.meta.url));
-const corpusRoot = path.join(here, 'corpus');
 
 let validate: ReturnType<typeof loadTimelineValidator>;
 
@@ -35,18 +30,13 @@ const ALDA_EXPECTATIONS = new Map<string, readonly string[]>([
   ]
 ]);
 
-const corpusFiles = readdirSync(corpusRoot)
-  .filter((entry) => entry.endsWith('.gas'))
-  .sort();
-if (corpusFiles.length === 0) {
-  throw new Error(`No .gas corpus documents found in ${corpusRoot}.`);
-}
+const corpusFiles = exampleFiles();
 
 describe('GAS corpus', () => {
   test.each(corpusFiles)(
     '%s compiles and validates against the protocol timeline schema',
     (file) => {
-      const source = readFileSync(path.join(corpusRoot, file), 'utf8');
+      const source = readExample(file);
       const result = compileSource(source, { name: file });
 
       expect(result.ok).toBe(true);
