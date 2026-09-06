@@ -79,6 +79,21 @@ describe('check-boundaries', () => {
     expect(arbitraryPath).toHaveLength(0);
   });
 
+  // Exercise scanner configuration independently of the packages present in this checkout.
+  it('allows an application the packages its allow map names', () => {
+    const violations = findViolations(
+      [
+        {
+          package: 'site',
+          path: 'fixtures/site/src/islands/TimelinePreview.tsx',
+          content: "import { deriveTimeline } from '@luna-estelar/gas-browser/timeline';"
+        }
+      ],
+      { site: ['browser'] }
+    );
+    expect(violations).toHaveLength(0);
+  });
+
   // Astro frontmatter imports like any other module, so a page must not be able
   // to reach the concrete runtime just by not being a .ts file.
   it('holds the wiring rule for .astro pages too', () => {
@@ -96,9 +111,8 @@ describe('check-boundaries', () => {
   it('ignores a specifier inside a template literal', () => {
     const violations = findViolations([
       {
-        package: 'host',
-        scope: 'app',
-        path: 'fixtures/host/src/components/home/Surfaces.astro',
+        package: 'browser',
+        path: 'packages/browser/src/surfaces.astro',
         content: [
           '---',
           "import GasCode from '../GasCode.astro';",
@@ -117,9 +131,8 @@ describe('check-boundaries', () => {
   it('still flags a real import that follows a sample', () => {
     const violations = findViolations([
       {
-        package: 'host',
-        scope: 'app',
-        path: 'fixtures/host/src/islands/Playback.tsx',
+        package: 'browser',
+        path: 'packages/browser/src/playback-island.tsx',
         content: [
           "const sample = `import { createRenderer } from '@luna-estelar/gas-renderer';`;",
           "// Or: import { createRenderer } from '@luna-estelar/gas-renderer';",
@@ -137,9 +150,8 @@ describe('check-boundaries', () => {
   it('holds the wiring rule inside an .astro <script> block', () => {
     const violations = findViolations([
       {
-        package: 'host',
-        scope: 'app',
-        path: 'fixtures/host/src/components/Player.astro',
+        package: 'browser',
+        path: 'packages/browser/src/player.astro',
         content: [
           '---',
           "const label = 'Play';",
@@ -159,9 +171,8 @@ describe('check-boundaries', () => {
   it('holds the wiring rule for .jsx components too', () => {
     const component = findViolations([
       {
-        package: 'host',
-        scope: 'app',
-        path: 'fixtures/host/src/design-system/components/Player/Player.jsx',
+        package: 'browser',
+        path: 'packages/browser/src/player.jsx',
         content: "import { createRenderer } from '@luna-estelar/gas-renderer';"
       }
     ]);
