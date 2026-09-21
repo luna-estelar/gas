@@ -3,6 +3,22 @@
 `@luna-estelar/gas-protocol` is the canonical owner of the plain values shared by GAS Language,
 Core, API, Renderer, and connectors. It depends on no other GAS package.
 
+## Install
+
+```bash
+npm install @luna-estelar/gas-protocol
+```
+
+The package is ESM-only and requires Node.js 20 or newer when used in Node. Importing types from the
+root is runtime-free; the `validation` subpath loads Ajv and the packaged JSON Schemas.
+
+```ts
+import { validateTimelinePayload } from '@luna-estelar/gas-protocol/validation';
+
+const result = validateTimelinePayload(JSON.parse('{"formatVersion":{"major":1,"minor":0}}'));
+if (!result.ok) console.log(result.issues);
+```
+
 ## Contract families
 
 The package root exports the TypeScript contracts for timelines and musical positions, commands,
