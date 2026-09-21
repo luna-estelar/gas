@@ -1,0 +1,29 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      # One PR for the toolchain rather than five. These move together and are
+      # verified by the same gate.
+      dev-tooling:
+        patterns:
+          - '@types/*'
+          - 'prettier'
+          - 'typescript'
+          - 'vitest'
+          - 'publint'
+          - '@arethetypeswrong/*'
+    ignore:
+      # langium and langium-cli must stay on the same minor: langium-cli
+      # generates the parser that langium runs. Bump them together, by hand.
+      - dependency-name: 'langium'
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
+      - dependency-name: 'langium-cli'
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

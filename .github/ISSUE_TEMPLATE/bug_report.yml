@@ -1,0 +1,35 @@
+name: Bug report
+description: Something in GAS behaves differently than documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Compiling a document needs no credentials and no network, so a GAS document that
+        reproduces the problem is the most useful thing you can attach.
+  - type: input
+    id: package
+    attributes:
+      label: Package and version
+      placeholder: '@luna-estelar/gas-language 0.1.0'
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: A GAS document, a timeline, or a short script. Smaller is better.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what happened instead
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Node version and platform
+      placeholder: 'Node 22.13 on macOS 15'

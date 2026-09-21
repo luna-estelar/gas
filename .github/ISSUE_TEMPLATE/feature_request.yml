@@ -1,0 +1,22 @@
+name: Feature request
+description: Propose a change to the language, the runtime, or a connector.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The musical or application goal, not the implementation you have in mind.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like GAS to do?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What did you try instead?
+      description: Including whether an existing intent almost covers it.

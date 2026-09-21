@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security report
+    url: https://github.com/luna-estelar/gas/security/advisories/new
+    about: Report a vulnerability privately rather than in a public issue.
+  - name: Documentation
+    url: https://gas.lunaestelar.com/docs
+    about: The language reference, guides, and model support table.
