@@ -27,7 +27,7 @@ const CONCRETE_RUNTIME = new Set(['renderer', 'connector-lyria']);
 /** Runtime composition modules, keyed by package. */
 export const WIRING_MODULES = { browser: 'wiring.ts' };
 
-// Units with no source files.
+// Units allowed to contain no scannable source files.
 const EXPECTED_EMPTY = new Set();
 
 const SPEC_PREFIX = '@luna-estelar/gas-';
