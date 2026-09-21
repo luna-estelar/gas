@@ -17,9 +17,6 @@ export const ALLOW_MAP = {
   browser: ['protocol', 'language', 'core', 'api', 'renderer', 'connector-lyria']
 };
 
-// Optional dependency rules for consuming applications.
-export const APP_ALLOW_MAP = {};
-
 // Fixture helpers must not import GAS packages: package tests share these helpers.
 export const EXAMPLE_ALLOW_MAP = {
   examples: []
@@ -37,7 +34,7 @@ const SPEC_PREFIX = '@luna-estelar/gas-';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-// Scan TypeScript, JSX and Astro module code.
+// Supported module file types, including JSX and Astro frontmatter.
 const SCANNED_EXTENSIONS = ['.ts', '.tsx', '.jsx', '.astro'];
 
 // Replace string contents with indexed handles so code samples cannot match import patterns.
@@ -262,10 +259,7 @@ export function extractSpecifiers(content, filePath = '') {
  * @param allowMap Per-unit allowed short names (defaults to every allow map).
  * @returns Array of violations.
  */
-export function findViolations(
-  files,
-  allowMap = { ...ALLOW_MAP, ...APP_ALLOW_MAP, ...EXAMPLE_ALLOW_MAP }
-) {
+export function findViolations(files, allowMap = { ...ALLOW_MAP, ...EXAMPLE_ALLOW_MAP }) {
   const violations = [];
   for (const file of files) {
     const allowed = allowMap[file.package] ?? [];
@@ -334,23 +328,6 @@ export async function collectWorkspaceFiles(packagesRoot) {
   return files;
 }
 
-export async function collectApplicationFiles(appsRoot) {
-  const files = [];
-  const apps = (await readdir(appsRoot, { withFileTypes: true }))
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name);
-  for (const app of apps) {
-    for (const filePath of await walkSource(path.join(appsRoot, app, 'src'))) {
-      files.push({
-        package: app,
-        path: filePath,
-        content: await readFile(filePath, 'utf8')
-      });
-    }
-  }
-  return files;
-}
-
 /** Collect example modules by their immediate subdirectory, or the root examples unit. */
 export async function collectExampleFiles(examplesRoot) {
   const files = [];
@@ -394,7 +371,6 @@ async function collectUnitDirectories(root) {
  */
 export async function assertCoverage(files, root = ROOT) {
   const packageDirectories = await collectUnitDirectories(path.join(root, 'packages'));
-  const applicationDirectories = [];
   const exampleDirectories = await collectUnitDirectories(path.join(root, 'examples'));
   const errors = [];
 
@@ -403,16 +379,8 @@ export async function assertCoverage(files, root = ROOT) {
       errors.push(`declared but missing package unit: ${unit}`);
     }
   }
-  for (const unit of Object.keys(APP_ALLOW_MAP)) {
-    if (!applicationDirectories.includes(unit)) {
-      errors.push(`declared but missing application unit: ${unit}`);
-    }
-  }
   for (const unit of packageDirectories) {
     if (!(unit in ALLOW_MAP)) errors.push(`undeclared unit: packages/${unit}`);
-  }
-  for (const unit of applicationDirectories) {
-    if (!(unit in APP_ALLOW_MAP)) errors.push(`undeclared unit: apps/${unit}`);
   }
   for (const unit of Object.keys(EXAMPLE_ALLOW_MAP)) {
     if (unit !== 'examples' && !exampleDirectories.includes(unit)) {
@@ -427,7 +395,7 @@ export async function assertCoverage(files, root = ROOT) {
     }
   }
 
-  const allowMap = { ...ALLOW_MAP, ...APP_ALLOW_MAP, ...EXAMPLE_ALLOW_MAP };
+  const allowMap = { ...ALLOW_MAP, ...EXAMPLE_ALLOW_MAP };
   for (const [unit, allowed] of Object.entries(allowMap)) {
     if (allowed.some((dependency) => CONCRETE_RUNTIME.has(dependency))) {
       if (WIRING_MODULES[unit] === undefined) {

@@ -80,12 +80,12 @@ describe('check-boundaries', () => {
   });
 
   // Exercise scanner configuration independently of the packages present in this checkout.
-  it('allows an application the packages its allow map names', () => {
+  it('allows a unit the packages its allow map names', () => {
     const violations = findViolations(
       [
         {
           package: 'site',
-          path: 'fixtures/site/src/islands/TimelinePreview.tsx',
+          path: 'site/src/islands/TimelinePreview.tsx',
           content: "import { deriveTimeline } from '@luna-estelar/gas-browser/timeline';"
         }
       ],
