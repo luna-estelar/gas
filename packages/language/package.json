@@ -2,10 +2,31 @@
   "name": "@luna-estelar/gas-language",
   "version": "0.1.0",
   "description": "Parses, validates, and compiles GAS documents and live fragments into musical-time timelines.",
+  "keywords": [
+    "gas",
+    "generative-audio",
+    "music",
+    "parser",
+    "compiler",
+    "dsl"
+  ],
+  "homepage": "https://gas.lunaestelar.com",
+  "bugs": {
+    "url": "https://github.com/luna-estelar/gas/issues"
+  },
   "license": "MIT",
+  "author": "sathira10 (https://github.com/sathira10)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/luna-estelar/gas.git",
+    "directory": "packages/language"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=22.0.0"
   },
   "main": "./out/index.js",
   "module": "./out/index.js",

@@ -15,7 +15,7 @@ import {
 describe('@luna-estelar/gas-connector-lyria', () => {
   it('exposes package metadata', () => {
     expect(packageName).toBe('@luna-estelar/gas-connector-lyria');
-    expect(version).toBe('0.1.0');
+    expect(version).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
   it('exposes the prompt-translation surface the transport stage consumes', () => {

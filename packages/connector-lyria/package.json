@@ -2,10 +2,31 @@
   "name": "@luna-estelar/gas-connector-lyria",
   "version": "0.1.0",
   "description": "Model-specific Lyria boundary: prompt translation, transport, and config interpretation.",
+  "keywords": [
+    "gas",
+    "generative-audio",
+    "music",
+    "lyria",
+    "connector"
+  ],
+  "homepage": "https://gas.lunaestelar.com",
+  "bugs": {
+    "url": "https://github.com/luna-estelar/gas/issues"
+  },
   "license": "MIT",
+  "author": "sathira10 (https://github.com/sathira10)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/luna-estelar/gas.git",
+    "directory": "packages/connector-lyria"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
+  "sideEffects": false,
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=20.0.0"
   },
   "main": "./out/index.js",
   "module": "./out/index.js",
@@ -26,7 +47,7 @@
     "manual:smoke": "node manual/smoke.mjs"
   },
   "dependencies": {
-    "@google/genai": "2.12.0",
+    "@google/genai": "^2.12.0",
     "@luna-estelar/gas-protocol": "workspace:*"
   },
   "devDependencies": {

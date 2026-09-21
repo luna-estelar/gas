@@ -2,10 +2,30 @@
   "name": "@luna-estelar/gas-cli",
   "version": "0.1.0",
   "description": "Command-line entrypoint for GAS.",
+  "keywords": [
+    "gas",
+    "generative-audio",
+    "music",
+    "cli",
+    "compiler"
+  ],
+  "homepage": "https://gas.lunaestelar.com",
+  "bugs": {
+    "url": "https://github.com/luna-estelar/gas/issues"
+  },
   "license": "MIT",
+  "author": "sathira10 (https://github.com/sathira10)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/luna-estelar/gas.git",
+    "directory": "packages/cli"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=22.0.0"
   },
   "main": "./out/index.js",
   "module": "./out/index.js",

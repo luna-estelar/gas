@@ -2,11 +2,31 @@
   "name": "@luna-estelar/gas-browser",
   "version": "0.1.0",
   "description": "Browser-host composition, Web Audio playback, and framework-free UI view models for GAS sessions.",
+  "keywords": [
+    "gas",
+    "generative-audio",
+    "music",
+    "browser",
+    "web-audio"
+  ],
+  "homepage": "https://gas.lunaestelar.com",
+  "bugs": {
+    "url": "https://github.com/luna-estelar/gas/issues"
+  },
   "license": "MIT",
+  "author": "sathira10 (https://github.com/sathira10)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/luna-estelar/gas.git",
+    "directory": "packages/browser"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "sideEffects": false,
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=22.0.0"
   },
   "exports": {
     "./access": {

@@ -34,7 +34,7 @@ function harness(files: Record<string, string> = {}): {
 describe('@luna-estelar/gas-cli', () => {
   it('exposes package metadata', () => {
     expect(packageName).toBe('@luna-estelar/gas-cli');
-    expect(version).toBe('0.1.0');
+    expect(version).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
   it('preserves help and version output', () => {
@@ -44,7 +44,7 @@ describe('@luna-estelar/gas-cli', () => {
 
     const release = harness();
     expect(execute(['--version'], release.io)).toBe(0);
-    expect(release.stdout).toEqual(['0.1.0\n']);
+    expect(release.stdout).toEqual([`${version}\n`]);
   });
 
   it('compiles deterministically to stdout', () => {

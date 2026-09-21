@@ -2,10 +2,32 @@
   "name": "@luna-estelar/gas-notation",
   "version": "0.1.0",
   "description": "Pure GAS notation helpers for parsing minimal Alda and encoding standard MIDI files.",
+  "keywords": [
+    "gas",
+    "generative-audio",
+    "music",
+    "alda",
+    "midi",
+    "notation"
+  ],
+  "homepage": "https://gas.lunaestelar.com",
+  "bugs": {
+    "url": "https://github.com/luna-estelar/gas/issues"
+  },
   "license": "MIT",
+  "author": "sathira10 (https://github.com/sathira10)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/luna-estelar/gas.git",
+    "directory": "packages/notation"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
+  "sideEffects": false,
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=20.0.0"
   },
   "main": "./out/index.js",
   "module": "./out/index.js",

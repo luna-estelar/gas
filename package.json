@@ -1,10 +1,19 @@
 {
   "name": "gas",
   "version": "0.1.0",
+  "description": "GAS — a readable language and runtime for controlling generative audio models.",
+  "homepage": "https://gas.lunaestelar.com",
+  "bugs": {
+    "url": "https://github.com/luna-estelar/gas/issues"
+  },
+  "license": "MIT",
+  "author": "sathira10 (https://github.com/sathira10)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/luna-estelar/gas.git"
+  },
   "private": true,
   "type": "module",
-  "license": "MIT",
-  "description": "GAS — a readable language and runtime for controlling generative audio models.",
   "packageManager": "pnpm@11.1.2",
   "engines": {
     "node": ">=22.13.0"

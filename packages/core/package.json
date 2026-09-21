@@ -2,11 +2,31 @@
   "name": "@luna-estelar/gas-core",
   "version": "0.1.0",
   "description": "Pure GAS semantics: the session input state, command validation, and the effective-state cascade. Owns no clock, no I/O, and no instance state.",
+  "keywords": [
+    "gas",
+    "generative-audio",
+    "music",
+    "semantics",
+    "state"
+  ],
+  "homepage": "https://gas.lunaestelar.com",
+  "bugs": {
+    "url": "https://github.com/luna-estelar/gas/issues"
+  },
   "license": "MIT",
+  "author": "sathira10 (https://github.com/sathira10)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/luna-estelar/gas.git",
+    "directory": "packages/core"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "sideEffects": false,
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=20.0.0"
   },
   "main": "./out/index.js",
   "module": "./out/index.js",
