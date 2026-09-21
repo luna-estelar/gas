@@ -8,8 +8,7 @@ Import the browser package through its explicit subpaths. The `compile` subpath 
 language package, Langium, and Chevrotain. Use a dynamic import to defer that cost until
 compilation is needed. Other subpaths provide timeline, inspection, audio, and Bitsy helpers.
 
-The package is compiled before the Astro app consumes it, so edits do not participate directly in
-Astro HMR. During browser-host development, run this alongside the site dev server:
+Applications consume the compiled output. Rebuild it during local development:
 
 ```sh
 pnpm exec tsc -b packages/browser --watch

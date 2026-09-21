@@ -1,4 +1,6 @@
-# BYOK listening comparison
+# Manual listening and transport checks
+
+## BYOK listening comparison
 
 This manual command is intentionally outside the automated test gate. It uses the pinned official
 Google SDK for a direct-BYOK comparison and requires an authorized `GEMINI_API_KEY` environment
