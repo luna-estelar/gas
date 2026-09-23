@@ -15,6 +15,10 @@ All ten packages share one version and are released together.
   validator, Core, the Renderer or a browser session generated code at runtime, which a
   Content Security Policy without `'unsafe-eval'` blocks, so no deployed page could start a
   session. Validation behaviour and reported problems are unchanged.
+- **`@luna-estelar/gas-renderer`** — a session no longer compiles the connector's
+  configuration schema at startup. The connector contract check it performed is now opt-in
+  through `checkConnectorContract`, and the schema is compiled on the first
+  `updateConnectorConfig` call.
 
 ## [0.1.0]
 

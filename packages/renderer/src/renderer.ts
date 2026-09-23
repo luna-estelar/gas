@@ -70,6 +70,14 @@ export interface CreateRendererOptions {
   readonly defaults?: RendererDefaults;
   readonly connectorConfig?: ConnectorConfig;
   readonly runIdFactory?: () => string;
+  /**
+   * Check the connector's own `defaultConfig` against its own `configSchema` at
+   * startup. Off by default: the answer is fixed by the connector's build and
+   * belongs in its test suite, while compiling a schema generates code at
+   * runtime, which a browser Content Security Policy without `'unsafe-eval'`
+   * blocks. Connector and renderer tests turn it on.
+   */
+  readonly checkConnectorContract?: boolean;
 }
 
 type RendererRuntimeOptions = Omit<CreateRendererOptions, 'settings'>;
@@ -157,18 +165,19 @@ class RendererSession implements Renderer {
       );
     }
 
-    let validator: ConfigValidator;
     let candidate: ConnectorConfig;
     try {
-      validator = compileConfigSchema(description.configSchema);
       const defaults = cloneJsonObject(description.defaultConfig);
-      const defaultProblems = validator.validate(defaults);
-      if (defaultProblems.length > 0) {
-        throw new RendererError(
-          'connector-unavailable',
-          'The connector advertised an invalid configuration contract.',
-          { problems: defaultProblems }
-        );
+      if (this.options.checkConnectorContract === true) {
+        const validator = this.ensureValidator(description.configSchema);
+        const defaultProblems = validator.validate(defaults);
+        if (defaultProblems.length > 0) {
+          throw new RendererError(
+            'connector-unavailable',
+            'The connector advertised an invalid configuration contract.',
+            { problems: defaultProblems }
+          );
+        }
       }
       candidate = defaults;
     } catch (error) {
@@ -184,6 +193,7 @@ class RendererSession implements Renderer {
 
     if (this.options.connectorConfig !== undefined) {
       try {
+        const validator = this.ensureValidator(description.configSchema);
         candidate = this.buildConnectorConfig(candidate, this.options.connectorConfig, validator);
       } catch (error) {
         this.lifecycle = 'failed';
@@ -194,7 +204,6 @@ class RendererSession implements Renderer {
     }
 
     this.description = description;
-    this.configValidator = validator;
     this.connectorConfig = freezeJson(candidate);
 
     try {
@@ -495,16 +504,32 @@ class RendererSession implements Renderer {
   async updateConnectorConfig(patch: ConnectorConfig): Promise<ConnectorConfig> {
     this.assertReady();
     this.assertStopped('update connector configuration');
-    const validator = this.configValidator;
-    if (validator === undefined) {
-      throw new RendererError(
-        'renderer-state-conflict',
-        'The renderer connector configuration is not available.'
-      );
-    }
+    const validator = this.ensureValidator(this.requireDescription().configSchema);
     const candidate = this.buildConnectorConfig(this.connectorConfig, patch, validator);
     this.connectorConfig = freezeJson(candidate);
     return this.connectorConfig;
+  }
+
+  /**
+   * Compiles the connector's advertised schema on first use and keeps it. Config
+   * edits are the only path that needs a validator, so a session that never
+   * edits its configuration never generates code — which is what keeps the
+   * renderer usable under a Content Security Policy without `'unsafe-eval'`.
+   */
+  private ensureValidator(schema: ConnectorConfigSchema): ConfigValidator {
+    const existing = this.configValidator;
+    if (existing !== undefined) return existing;
+    let validator: ConfigValidator;
+    try {
+      validator = compileConfigSchema(schema);
+    } catch {
+      throw new RendererError(
+        'invalid-configuration',
+        'The connector configuration could not be checked in this environment.'
+      );
+    }
+    this.configValidator = validator;
+    return validator;
   }
 
   private buildConnectorConfig(

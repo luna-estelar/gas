@@ -37,4 +37,8 @@ console.log(renderer.getCapabilities());
 Hosts supply a monotonic clock. Tests use a virtual clock to check scheduling.
 Browser applications can use `@luna-estelar/gas-browser` to compose the runtime.
 
-Like Core, this package pulls ajv and ajv-formats for connector-config validation.
+This package pulls ajv and ajv-formats to validate connector configuration edits. A connector's
+schema is compiled on the first `updateConnectorConfig` call, so a session that never edits its
+configuration generates no code — which keeps it usable under a Content Security Policy without
+`'unsafe-eval'`. Pass `checkConnectorContract` to also check a connector's own defaults against
+its own schema at startup; connector test suites turn it on.

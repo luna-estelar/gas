@@ -91,7 +91,9 @@ describe('renderer connector configuration validation', () => {
     const connector = new FakeConnector({
       description: { configSchema: CONFIG_SCHEMA, defaultConfig: brokenDefault }
     });
-    await expect(createRenderer({ clock: new VirtualClock(), connector })).rejects.toMatchObject({
+    await expect(
+      createRenderer({ clock: new VirtualClock(), connector, checkConnectorContract: true })
+    ).rejects.toMatchObject({
       code: 'connector-unavailable',
       failure: { retryable: false }
     });
@@ -104,7 +106,8 @@ describe('renderer connector configuration validation', () => {
       createRenderer({
         clock: new VirtualClock(),
         connector: masked,
-        connectorConfig: { prompt: { weight: 0.9 } }
+        connectorConfig: { prompt: { weight: 0.9 } },
+        checkConnectorContract: true
       })
     ).rejects.toMatchObject({ code: 'connector-unavailable', failure: { retryable: false } });
     expect(masked.calls).toEqual(['describe']);
@@ -123,7 +126,7 @@ describe('renderer connector configuration validation', () => {
     });
     let caught: unknown;
     try {
-      await createRenderer({ clock: new VirtualClock(), connector });
+      await createRenderer({ clock: new VirtualClock(), connector, checkConnectorContract: true });
     } catch (error) {
       caught = error;
     }
@@ -141,7 +144,9 @@ describe('renderer connector configuration validation', () => {
         defaultConfig: {}
       }
     });
-    await expect(createRenderer({ clock: new VirtualClock(), connector })).rejects.toMatchObject({
+    await expect(
+      createRenderer({ clock: new VirtualClock(), connector, checkConnectorContract: true })
+    ).rejects.toMatchObject({
       code: 'connector-unavailable',
       failure: { retryable: false }
     });
@@ -186,6 +191,48 @@ describe('renderer connector configuration validation', () => {
       })
     ).rejects.toMatchObject({ code: 'invalid-configuration' });
     expect(dateMember.calls).toEqual(['describe']);
+  });
+
+  it('starts a session without compiling the connector schema', async () => {
+    // The contract check is the only startup path that compiles a schema, and
+    // compiling generates code. A browser Content Security Policy without
+    // 'unsafe-eval' blocks that, so a default session must never reach it.
+    const connector = new FakeConnector({
+      description: {
+        configSchema: { $async: true, type: 'object' } as ConnectorConfigSchema,
+        defaultConfig: {}
+      }
+    });
+    const timeline = testTimeline();
+    const realFunction = globalThis.Function;
+    let constructed = 0;
+    globalThis.Function = new Proxy(realFunction, {
+      construct(target, args, newTarget) {
+        constructed++;
+        return Reflect.construct(target, args, newTarget);
+      }
+    });
+    try {
+      const renderer = await createRenderer({ clock: new VirtualClock(), connector });
+      await renderer.load(timeline, createInputState(timeline));
+      await renderer.close();
+    } finally {
+      globalThis.Function = realFunction;
+    }
+    expect(constructed).toBe(0);
+    expect(connector.calls).toContain('open');
+  });
+
+  it('compiles the connector schema on the first configuration update', async () => {
+    const connector = configuredConnector();
+    const renderer = await createRenderer({ clock: new VirtualClock(), connector });
+
+    await expect(
+      renderer.updateConnectorConfig({ prompt: { weight: 'loud' } } as unknown as ConnectorConfig)
+    ).rejects.toMatchObject({ code: 'invalid-configuration' });
+    expect(await renderer.updateConnectorConfig({ mode: 'bright' })).toMatchObject({
+      mode: 'bright'
+    });
   });
 
   it('accepts a valid stopped-state update and rejects an invalid one atomically', async () => {
