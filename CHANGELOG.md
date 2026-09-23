@@ -8,6 +8,14 @@ All ten packages share one version and are released together.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`@luna-estelar/gas-protocol`** — the canonical timeline validator is precompiled at build
+  time instead of being built with AJV when the module is imported. Importing the protocol
+  validator, Core, the Renderer or a browser session generated code at runtime, which a
+  Content Security Policy without `'unsafe-eval'` blocks, so no deployed page could start a
+  session. Validation behaviour and reported problems are unchanged.
+
 ## [0.1.0]
 
 First public preview. Package APIs may change in minor releases before 1.0.

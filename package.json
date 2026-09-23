@@ -22,12 +22,14 @@
     "build": "tsc -b",
     "clean": "tsc -b --clean",
     "check:schemas": "node scripts/validate-schemas.mjs",
+    "build:validators": "node scripts/build-validators.mjs",
+    "check:validators": "node scripts/build-validators.mjs --check",
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "format": "node scripts/format.mjs --write",
     "format:check": "node scripts/format.mjs --check",
     "check:publish": "node scripts/check-publish.mjs",
     "check:security": "pnpm audit --prod --audit-level high",
-    "test": "pnpm format:check && pnpm build && pnpm check:schemas && pnpm check:boundaries && pnpm check:publish && vitest run"
+    "test": "pnpm format:check && pnpm build && pnpm check:schemas && pnpm check:validators && pnpm check:boundaries && pnpm check:publish && vitest run"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",

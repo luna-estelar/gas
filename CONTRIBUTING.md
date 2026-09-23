@@ -15,6 +15,15 @@ pnpm test
 checks publication metadata and types, and runs the tests. CI runs the live npm advisory
 check separately with `pnpm check:security`.
 
+## Generated validators
+
+`packages/protocol/generated/` holds the precompiled timeline validator. Browsers run these
+packages under a Content Security Policy without `'unsafe-eval'`, so no validator may be
+compiled at runtime: AJV builds its validators with `new Function`. Run `pnpm build:validators`
+after changing `packages/protocol/schemas/1.0` or upgrading AJV, and commit the result.
+`pnpm check:validators`, part of `pnpm test`, fails when the committed file is stale. Never
+edit it by hand.
+
 `pnpm format` and `pnpm format:check` use tracked and nonignored untracked files. They
 respect Git's local excludes and `.prettierignore`; deleted files and unsupported file
 formats are skipped. These commands require a Git checkout, including linked worktrees.

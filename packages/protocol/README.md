@@ -10,7 +10,9 @@ npm install @luna-estelar/gas-protocol
 ```
 
 The package is ESM-only and requires Node.js 20 or newer when used in Node. Importing types from the
-root is runtime-free; the `validation` subpath loads Ajv and the packaged JSON Schemas.
+root is runtime-free. The `validation` subpath carries a validator precompiled from the packaged
+JSON Schemas, so it generates no code at runtime and works under a Content Security Policy without
+`'unsafe-eval'`.
 
 ```ts
 import { validateTimelinePayload } from '@luna-estelar/gas-protocol/validation';

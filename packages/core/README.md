@@ -34,6 +34,7 @@ console.log(state.tracks);
 
 ## Dependencies
 
-`validateTimeline` imports `@luna-estelar/gas-protocol/validation`, Ajv, and ajv-formats.
-The package declares `"sideEffects": false` so bundlers can remove unused validation code.
+`validateTimeline` imports `@luna-estelar/gas-protocol/validation`, whose validator is precompiled
+rather than built at runtime. The package declares `"sideEffects": false` so bundlers can remove
+unused validation code.
 Check the output of the consuming application to confirm tree shaking.

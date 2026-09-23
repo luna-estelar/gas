@@ -1,20 +1,13 @@
+// Canonical protocol validation. The timeline validator is precompiled by
+// `scripts/build-validators.mjs` rather than built here: browsers run these
+// packages under a Content Security Policy without 'unsafe-eval', and AJV
+// compiles its validators with `new Function`. Generating the validator at
+// build time keeps the structural gate, costs nothing at import, and leaves
+// AJV's compiler out of every bundle.
 import {
-  Ajv2020,
-  type ErrorObject,
-  type SchemaObject,
-  type ValidateFunction
-} from 'ajv/dist/2020.js';
-import addFormatsImport, { type FormatsPlugin } from 'ajv-formats';
-import capabilitiesSchema from '@luna-estelar/gas-protocol/schemas/1.0/capabilities.schema.json' with { type: 'json' };
-import commandsSchema from '@luna-estelar/gas-protocol/schemas/1.0/commands.schema.json' with { type: 'json' };
-import commonSchema from '@luna-estelar/gas-protocol/schemas/1.0/common.schema.json' with { type: 'json' };
-import configSchema from '@luna-estelar/gas-protocol/schemas/1.0/config.schema.json' with { type: 'json' };
-import diagnosticsSchema from '@luna-estelar/gas-protocol/schemas/1.0/diagnostics.schema.json' with { type: 'json' };
-import rendererSchema from '@luna-estelar/gas-protocol/schemas/1.0/renderer.schema.json' with { type: 'json' };
-import resourcesSchema from '@luna-estelar/gas-protocol/schemas/1.0/resources.schema.json' with { type: 'json' };
-import sessionSchema from '@luna-estelar/gas-protocol/schemas/1.0/session.schema.json' with { type: 'json' };
-import stateSchema from '@luna-estelar/gas-protocol/schemas/1.0/state.schema.json' with { type: 'json' };
-import timelineSchema from '@luna-estelar/gas-protocol/schemas/1.0/timeline.schema.json' with { type: 'json' };
+  validateTimeline,
+  type GeneratedValidationError
+} from '../generated/timeline-validator.mjs';
 import type { Timeline } from './timeline.js';
 
 const SCHEMA_BASE = 'https://gas.luna-estelar.com/protocol/1.0';
@@ -43,30 +36,11 @@ export type ProtocolValidationResult<T> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly issues: readonly ProtocolValidationIssue[] };
 
-const addFormats = addFormatsImport as unknown as FormatsPlugin;
-const ajv = new Ajv2020({ allErrors: true, strict: false });
-addFormats(ajv);
-
-for (const schema of [
-  commonSchema,
-  resourcesSchema,
-  timelineSchema,
-  capabilitiesSchema,
-  commandsSchema,
-  stateSchema,
-  diagnosticsSchema,
-  configSchema,
-  rendererSchema,
-  sessionSchema
-]) {
-  ajv.addSchema(schema as SchemaObject);
-}
-
-const validateTimeline = requireValidator<Timeline>(PROTOCOL_SCHEMA_IDS.timeline);
-
 export function validateTimelinePayload(value: unknown): ProtocolValidationResult<Timeline> {
   if (validateTimeline(value)) {
-    return Object.freeze({ ok: true, value });
+    // The generated validator reports a boolean rather than a type predicate;
+    // passing the timeline schema is what makes the value a Timeline.
+    return Object.freeze({ ok: true, value: value as Timeline });
   }
   return Object.freeze({
     ok: false,
@@ -74,15 +48,7 @@ export function validateTimelinePayload(value: unknown): ProtocolValidationResul
   });
 }
 
-function requireValidator<T>(schemaId: string): ValidateFunction<T> {
-  const validate = ajv.getSchema<T>(schemaId);
-  if (validate === undefined) {
-    throw new Error(`Protocol schema is not registered: ${schemaId}`);
-  }
-  return validate;
-}
-
-function sanitizeIssue(error: ErrorObject): ProtocolValidationIssue {
+function sanitizeIssue(error: GeneratedValidationError): ProtocolValidationIssue {
   return Object.freeze({
     instancePath: error.instancePath,
     schemaPath: error.schemaPath,
