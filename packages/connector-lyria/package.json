@@ -47,7 +47,7 @@
     "manual:smoke": "node manual/smoke.mjs"
   },
   "dependencies": {
-    "@google/genai": "^2.12.0",
+    "@google/genai": "^2.23.0",
     "@luna-estelar/gas-protocol": "workspace:*"
   },
   "devDependencies": {
