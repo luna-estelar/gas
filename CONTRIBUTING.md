@@ -24,6 +24,9 @@ after changing `packages/protocol/schemas/1.0` or upgrading AJV, and commit the 
 `pnpm check:validators`, part of `pnpm test`, fails when the committed file is stale. Never
 edit it by hand.
 
+`test/no-runtime-codegen.test.ts` imports each browser-facing entrypoint in a child process
+and fails if anything generates code at import.
+
 `pnpm format` and `pnpm format:check` use tracked and nonignored untracked files. They
 respect Git's local excludes and `.prettierignore`; deleted files and unsupported file
 formats are skipped. These commands require a Git checkout, including linked worktrees.
