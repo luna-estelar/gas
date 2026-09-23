@@ -41,4 +41,4 @@ export type {
 } from './types.js';
 
 export const packageName = '@luna-estelar/gas-api';
-export const version = '0.1.0';
+export const version = '0.1.1';

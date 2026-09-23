@@ -1,6 +1,6 @@
 {
   "name": "@luna-estelar/gas-language",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Parses, validates, and compiles GAS documents and live fragments into musical-time timelines.",
   "keywords": [
     "gas",

@@ -1,6 +1,6 @@
 {
   "name": "@luna-estelar/gas-connector-lyria",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Model-specific Lyria boundary: prompt translation, transport, and config interpretation.",
   "keywords": [
     "gas",

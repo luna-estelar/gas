@@ -50,4 +50,4 @@ export { authoredEventSchedule } from './schedule.js';
 export { applyStop, applyCompletion, applyLoopBoundary, applyRetry } from './transitions.js';
 
 export const packageName = '@luna-estelar/gas-core';
-export const version = '0.1.0';
+export const version = '0.1.1';

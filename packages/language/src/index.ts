@@ -97,7 +97,7 @@ export type {
 export { slugify } from './compiler/ids.js';
 
 export const packageName = '@luna-estelar/gas-language';
-export const version = '0.1.0';
+export const version = '0.1.1';
 
 export type GasParseDiagnostic = GasDiagnostic;
 

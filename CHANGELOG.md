@@ -6,7 +6,7 @@ All notable changes to GAS are recorded here. The format follows
 
 All ten packages share one version and are released together.
 
-## [Unreleased]
+## [0.1.1]
 
 ### Fixed
 
@@ -51,5 +51,6 @@ First public preview. Package APIs may change in minor releases before 1.0.
 - `time_signature`, `notes` and `motif` compile and remain in session state, but Lyria
   cannot render them. GAS reports a capability warning rather than dropping them.
 
-[Unreleased]: https://github.com/luna-estelar/gas/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/luna-estelar/gas/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/luna-estelar/gas/releases/tag/v0.1.1
 [0.1.0]: https://github.com/luna-estelar/gas/releases/tag/v0.1.0

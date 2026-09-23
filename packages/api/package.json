@@ -1,6 +1,6 @@
 {
   "name": "@luna-estelar/gas-api",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Application-facing JavaScript control surface for GAS source and programmatic commands.",
   "keywords": [
     "gas",

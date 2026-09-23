@@ -1,6 +1,6 @@
 {
   "name": "gas",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "GAS — a readable language and runtime for controlling generative audio models.",
   "homepage": "https://gas.lunaestelar.com",
   "bugs": {

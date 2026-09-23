@@ -1,6 +1,6 @@
 {
   "name": "@luna-estelar/gas-core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Pure GAS semantics: the session input state, command validation, and the effective-state cascade. Owns no clock, no I/O, and no instance state.",
   "keywords": [
     "gas",

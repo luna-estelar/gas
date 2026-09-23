@@ -1,6 +1,6 @@
 {
   "name": "@luna-estelar/gas-notation",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Pure GAS notation helpers for parsing minimal Alda and encoding standard MIDI files.",
   "keywords": [
     "gas",

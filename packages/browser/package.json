@@ -1,6 +1,6 @@
 {
   "name": "@luna-estelar/gas-browser",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Browser-host composition, Web Audio playback, and framework-free UI view models for GAS sessions.",
   "keywords": [
     "gas",

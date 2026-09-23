@@ -33,4 +33,4 @@ export {
 } from './constants.js';
 
 export const packageName = '@luna-estelar/gas-renderer';
-export const version = '0.1.0';
+export const version = '0.1.1';
