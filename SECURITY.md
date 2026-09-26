@@ -2,9 +2,10 @@
 
 ## Supported versions
 
-GAS is at `0.1.0`. Security fixes land on the latest minor release; there are no
-maintained older lines yet. Before 1.0, security fixes may accompany other breaking
-changes in a minor release and will be identified in the changelog.
+GAS packages are versioned independently and are all pre-1.0. Security fixes land on each
+package's latest minor release; there are no maintained older lines yet. Before 1.0,
+security fixes may accompany other breaking changes in a minor release and will be
+identified in that package's changelog.
 
 ## Reporting a vulnerability
 

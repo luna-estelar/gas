@@ -74,9 +74,8 @@ Install the packages your application needs:
 | `@luna-estelar/gas-notation`        | Alda notation and MIDI encoding                        |
 | `@luna-estelar/gas-highlight`       | Syntax classes and code-fence helpers                  |
 
-Each package has its own README with exports and usage examples. Packages are ESM-only
-and share one release version. Internal dependencies pin that exact version when packed;
-only matching versions are supported together.
+Each package has its own README, with exports and usage examples, and a changelog. Packages are
+ESM-only and versioned independently; internal dependencies use caret ranges.
 
 For Node consumers, Protocol, Core, Notation, Renderer and the Lyria connector require
 Node 20 or newer. Language, Highlight, API, CLI and Browser require Node 22 or newer
@@ -97,7 +96,7 @@ describes the package boundaries.
 ## Status
 
 `0.1.0` is the first public preview. Package APIs may change in a minor release before
-1.0; breaking changes will be recorded in the changelog. The packages implement
+1.0; breaking changes will be recorded in each package's changelog. The packages implement
 **Protocol 1.0**, which is distinct from the npm release version.
 
 Lyria is currently the only connector:
