@@ -23,6 +23,9 @@ updates:
         update-types: ['version-update:semver-major', 'version-update:semver-minor']
       - dependency-name: 'langium-cli'
         update-types: ['version-update:semver-major', 'version-update:semver-minor']
+      # Langium 4.2 requires chevrotain 12. Move it when Langium does.
+      - dependency-name: 'chevrotain'
+        update-types: ['version-update:semver-major']
   - package-ecosystem: github-actions
     directory: /
     schedule:
