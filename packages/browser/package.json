@@ -86,11 +86,11 @@
     "clean": "tsc -b --clean"
   },
   "dependencies": {
-    "@luna-estelar/gas-api": "workspace:*",
-    "@luna-estelar/gas-connector-lyria": "workspace:*",
-    "@luna-estelar/gas-core": "workspace:*",
-    "@luna-estelar/gas-language": "workspace:*",
-    "@luna-estelar/gas-protocol": "workspace:*",
-    "@luna-estelar/gas-renderer": "workspace:*"
+    "@luna-estelar/gas-api": "workspace:^",
+    "@luna-estelar/gas-connector-lyria": "workspace:^",
+    "@luna-estelar/gas-core": "workspace:^",
+    "@luna-estelar/gas-language": "workspace:^",
+    "@luna-estelar/gas-protocol": "workspace:^",
+    "@luna-estelar/gas-renderer": "workspace:^"
   }
 }

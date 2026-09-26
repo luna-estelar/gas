@@ -57,15 +57,27 @@ maintained here and included in npm tarballs.
 
 ## Releases
 
-All ten packages and the private root share one version. Update package manifests, exported
-version literals and the language compiler's `COMPILER_VERSION` together. Version literals
+Packages are versioned independently with [Changesets](https://github.com/changesets/changesets).
+Every PR that changes a published package adds a changeset:
+
+```bash
+pnpm changeset
+```
+
+Choose the affected packages and a bump for each, and write the summary for someone
+reading that package's changelog. Changes that only touch tests, CI or the private root
+need no changeset.
+
+Pending changesets on `main` keep a Version Packages PR open. It runs `pnpm
+version-packages`, which bumps manifests and internal ranges, writes each package's
+`CHANGELOG.md`, and copies the new versions into the exported `version` literals and the
+language compiler's `COMPILER_VERSION` (`scripts/sync-versions.mjs`). Version literals
 support browser consumers without loading package metadata. Tests check their agreement.
 
-Update `CHANGELOG.md`, then run `pnpm test` and `pnpm check:security`. Tag only a verified
-commit with its matching `v*` version. The release workflow repeats validation and publishes
-packages with provenance.
+Merging the Version Packages PR runs `pnpm check:security` and `pnpm test`, then publishes
+with provenance every package whose version is not yet on npm, in dependency order. Each
+package gets its own tag and GitHub release, for example `@luna-estelar/gas-core@0.1.2`.
 
-pnpm publishes dependencies before dependants and converts `workspace:*` references to
-exact versions when packing. Publication is not transactional. If interrupted, rerun the
-same tag workflow; pnpm skips versions already published. Verify all ten package versions
-before creating the matching GitHub release.
+Internal dependencies use `workspace:^`, which pnpm converts to a caret range such as
+`^0.1.2` when packing. Publication is not transactional. If it is interrupted, rerun the
+release workflow; versions already on npm are skipped.

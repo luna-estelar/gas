@@ -7,9 +7,6 @@ import { describe, expect, test } from 'vitest';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const packagesRoot = path.join(here, '..', 'packages');
-const rootManifest = JSON.parse(
-  readFileSync(path.join(here, '..', 'package.json'), 'utf8')
-) as Manifest;
 
 interface Manifest {
   readonly name: string;
@@ -24,6 +21,7 @@ interface Manifest {
   readonly repository?: { readonly directory?: string };
   readonly engines?: { readonly node?: string };
   readonly dependencies?: Readonly<Record<string, string>>;
+  readonly devDependencies?: Readonly<Record<string, string>>;
 }
 
 interface Package {
@@ -143,11 +141,16 @@ describe('publishable packages', () => {
     }
   });
 
-  test('every package is at the same version', () => {
-    const versions = [...new Set(packages.map((pkg) => pkg.manifest.version))];
-    // pnpm rewrites workspace:* to the concrete version at pack time, so a
-    // package left behind publishes dependencies that cannot resolve.
-    expect(versions).toHaveLength(1);
-    expect(versions[0]).toBe(rootManifest.version);
+  test.each(packages)('$manifest.name depends on siblings through workspace:^', ({ manifest }) => {
+    // Packages are versioned independently. pnpm packs workspace:^ as a caret
+    // range, so a patch to one package does not force a release of every
+    // dependant, while workspace:* would pin the exact version at pack time.
+    const internal = Object.entries({
+      ...manifest.dependencies,
+      ...manifest.devDependencies
+    }).filter(([name]) => name.startsWith('@luna-estelar/'));
+    for (const [name, range] of internal) {
+      expect(range, `${manifest.name} -> ${name}`).toBe('workspace:^');
+    }
   });
 });
