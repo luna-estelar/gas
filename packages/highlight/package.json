@@ -45,6 +45,6 @@
     "clean": "tsc -b --clean"
   },
   "dependencies": {
-    "@luna-estelar/gas-language": "workspace:*"
+    "@luna-estelar/gas-language": "workspace:^"
   }
 }

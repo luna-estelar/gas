@@ -48,10 +48,10 @@
   },
   "dependencies": {
     "@google/genai": "^2.12.0",
-    "@luna-estelar/gas-protocol": "workspace:*"
+    "@luna-estelar/gas-protocol": "workspace:^"
   },
   "devDependencies": {
-    "@luna-estelar/gas-core": "workspace:*",
-    "@luna-estelar/gas-language": "workspace:*"
+    "@luna-estelar/gas-core": "workspace:^",
+    "@luna-estelar/gas-language": "workspace:^"
   }
 }
