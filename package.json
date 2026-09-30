@@ -23,7 +23,7 @@
     "check:schemas": "node scripts/validate-schemas.mjs",
     "build:validators": "node scripts/build-validators.mjs",
     "check:validators": "node scripts/build-validators.mjs --check",
-    "check:language-generated": "pnpm --filter @luna-estelar/gas-language langium:generate && git diff --exit-code -- packages/language/src/generated packages/language/syntaxes",
+    "check:language-generated": "node scripts/check-language-generated.mjs",
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "format": "node scripts/format.mjs --write",
     "format:check": "node scripts/format.mjs --check",

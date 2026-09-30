@@ -11,9 +11,9 @@ pnpm test
 
 ## Development checks
 
-`pnpm test` checks formatting, regenerates the language files, builds packages, validates
-schemas and dependency boundaries, checks publication metadata and types, and runs the tests. CI runs the live npm advisory
-check separately with `pnpm check:security`.
+`pnpm test` checks formatting and the committed generated files, builds packages, validates
+schemas and dependency boundaries, checks publication metadata and types, and runs the tests.
+CI runs the live npm advisory check separately with `pnpm check:security`.
 
 ## Generated files
 
@@ -29,11 +29,12 @@ and fails if anything generates code at import.
 
 `packages/language/src/generated` and `packages/language/syntaxes` are generated from
 `src/gas.langium` by langium-cli and committed. Run `pnpm --filter @luna-estelar/gas-language
-langium:generate` after editing the grammar and commit the result. `pnpm
-check:language-generated`, part of `pnpm test`, regenerates them and fails when the committed
-files differ, so a grammar edit cannot ship a parser that does not match it. Never edit them by
-hand. `langium` and `langium-cli` stay on the same minor, pinned in `.github/dependabot.yml`,
-because the CLI generates the parser the runtime executes.
+langium:generate` after editing the grammar and commit the result, and never edit them by hand.
+`pnpm check:language-generated`, part of `pnpm test`, regenerates into a scratch directory and
+compares the committed bytes, so a grammar edit cannot ship a parser that does not match it. It
+writes nothing into the checkout, and staging state does not change its verdict. `langium` and
+`langium-cli` stay on the same minor, pinned in `.github/dependabot.yml`, because the CLI
+generates the parser the runtime executes.
 
 `pnpm format` and `pnpm format:check` use tracked and nonignored untracked files. They
 respect Git's local excludes and `.prettierignore`; deleted files and unsupported file
