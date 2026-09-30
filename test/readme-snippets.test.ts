@@ -118,6 +118,9 @@ function typecheckSnippets(items: readonly Snippet[]): Map<number, string> {
   paths['@luna-estelar/gas-browser/*'] = [
     path.join(repoRoot, 'packages', 'browser', 'out', '*.d.ts')
   ];
+  // The umbrella's subpaths mirror its out/ tree, nested ones included.
+  paths['@luna-estelar/gas'] = [path.join(repoRoot, 'packages', 'gas', 'out', 'index.d.ts')];
+  paths['@luna-estelar/gas/*'] = [path.join(repoRoot, 'packages', 'gas', 'out', '*.d.ts')];
 
   writeFileSync(path.join(scratch, 'package.json'), JSON.stringify({ type: 'module' }), 'utf8');
 

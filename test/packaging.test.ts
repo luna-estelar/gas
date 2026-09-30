@@ -69,8 +69,8 @@ function exportTargets(node: unknown, out: string[] = []): string[] {
 }
 
 describe('publishable packages', () => {
-  test('there are ten of them', () => {
-    expect(packages).toHaveLength(10);
+  test('there are eleven of them', () => {
+    expect(packages).toHaveLength(11);
   });
 
   test.each(packages)('$manifest.name carries its own LICENSE', ({ root }) => {
@@ -141,16 +141,22 @@ describe('publishable packages', () => {
     }
   });
 
-  test.each(packages)('$manifest.name depends on siblings through workspace:^', ({ manifest }) => {
-    // Packages are versioned independently. pnpm packs workspace:^ as a caret
-    // range, so a patch to one package does not force a release of every
-    // dependant, while workspace:* would pin the exact version at pack time.
-    const internal = Object.entries({
-      ...manifest.dependencies,
-      ...manifest.devDependencies
-    }).filter(([name]) => name.startsWith('@luna-estelar/'));
-    for (const [name, range] of internal) {
-      expect(range, `${manifest.name} -> ${name}`).toBe('workspace:^');
+  test.each(packages)(
+    '$manifest.name depends on siblings through the right range',
+    ({ manifest }) => {
+      // Packages are versioned independently. pnpm packs workspace:^ as a caret
+      // range, so a patch to one package does not force a release of every
+      // dependant. The umbrella is the one exception: it ships a tested set, so
+      // it pins exact versions with workspace:*, and every internal release
+      // cascades a release of it.
+      const expected = manifest.name === '@luna-estelar/gas' ? 'workspace:*' : 'workspace:^';
+      const internal = Object.entries({
+        ...manifest.dependencies,
+        ...manifest.devDependencies
+      }).filter(([name]) => name.startsWith('@luna-estelar/'));
+      for (const [name, range] of internal) {
+        expect(range, `${manifest.name} -> ${name}`).toBe(expected);
+      }
     }
-  });
+  );
 });
