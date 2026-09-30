@@ -73,15 +73,14 @@ describe('access and credentials', () => {
     expect(() => cell.read()).toThrow('cleared');
   });
 
-  it('produces connector settings for both access modes', () => {
-    expect(accessSettings({ mode: 'byok', credentials: createCredentialCell('k') })).toEqual({
-      accessMode: 'byok',
-      apiKey: 'k'
-    });
-    expect(accessSettings({ mode: 'hosted', proxyBaseUrl: 'https://proxy.example' })).toEqual({
-      accessMode: 'hosted',
-      proxyBaseUrl: 'https://proxy.example'
-    });
+  it('produces connector settings from the held credential', () => {
+    expect(accessSettings({ credentials: createCredentialCell('k') })).toEqual({ apiKey: 'k' });
+    expect(
+      accessSettings({
+        credentials: createCredentialCell('k'),
+        endpoint: 'https://proxy.example'
+      })
+    ).toEqual({ apiKey: 'k', endpoint: 'https://proxy.example' });
   });
 });
 

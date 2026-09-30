@@ -12,26 +12,14 @@ if (!existsSync(outIndex)) {
   process.exit(1);
 }
 
-const accessMode = process.env.GAS_LYRIA_ACCESS_MODE;
-let settings;
-if (accessMode === 'byok') {
-  const apiKey = process.env.GAS_LYRIA_API_KEY;
-  if (apiKey === undefined || apiKey.trim() === '') {
-    console.error('Set GAS_LYRIA_API_KEY for an authorized BYOK smoke.');
-    process.exit(1);
-  }
-  settings = { accessMode: 'byok', apiKey };
-} else if (accessMode === 'hosted') {
-  const proxyBaseUrl = process.env.GAS_LYRIA_PROXY_BASE_URL;
-  if (proxyBaseUrl === undefined || proxyBaseUrl.trim() === '') {
-    console.error('Set GAS_LYRIA_PROXY_BASE_URL for an authorized hosted smoke.');
-    process.exit(1);
-  }
-  settings = { accessMode: 'hosted', proxyBaseUrl };
-} else {
-  console.error("Set GAS_LYRIA_ACCESS_MODE to either 'byok' or 'hosted'.");
+const apiKey = process.env.GAS_LYRIA_API_KEY;
+if (apiKey === undefined || apiKey.trim() === '') {
+  console.error('Set GAS_LYRIA_API_KEY for an authorized smoke.');
   process.exit(1);
 }
+const endpoint = process.env.GAS_LYRIA_ENDPOINT;
+const settings =
+  endpoint === undefined || endpoint.trim() === '' ? { apiKey } : { apiKey, endpoint };
 
 const { createLyriaConnector, DEFAULT_LYRIA_CONFIG } = await import(outIndex);
 const connector = createLyriaConnector();

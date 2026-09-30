@@ -6,6 +6,7 @@ import type {
   ClockTimer,
   Connector,
   ConnectorConfig,
+  ConnectorConfigValidation,
   ConnectorDescription,
   ConnectorSettings,
   ConnectorTiming,
@@ -20,11 +21,10 @@ import {
   DEFAULT_LYRIA_CONFIG,
   LYRIA_CONFIG_SCHEMA,
   type LyriaConnectorConfig,
-  validateAndResolveLyriaConfig
+  validateAndResolveLyriaConfig,
+  validateLyriaConfig
 } from './config.js';
 import {
-  HOSTED_CLOSE_CODE,
-  HOSTED_SENTINEL,
   LYRIA_API_VERSION,
   LYRIA_MODEL_ID,
   PCM_BYTES_PER_FRAME,
@@ -151,9 +151,17 @@ const LYRIA_DESCRIPTION: ConnectorDescription = deepFreeze({
 function connectorError(
   code: string,
   reason: 'network' | 'auth' | 'quota' | 'provider' | 'internal',
-  retryable: boolean
+  retryable: boolean,
+  closeCode?: number
 ): ConnectorError {
-  return new ConnectorError({ code, reason, retryable });
+  // ConnectorError drops a close code outside 1000-4999 itself, so an absent or
+  // nonsensical transport code leaves no own property behind.
+  return new ConnectorError({
+    code,
+    reason,
+    retryable,
+    ...(closeCode !== undefined ? { closeCode } : {})
+  });
 }
 
 function stateConflict(): ConnectorError {
@@ -300,6 +308,10 @@ export class LyriaConnector implements Connector {
     if (this.state !== 'new') throw stateConflict();
     this.settings = validateLyriaSettings(settings);
     this.state = 'opened';
+  }
+
+  validateConfig(config: ConnectorConfig): ConnectorConfigValidation {
+    return validateLyriaConfig(config);
   }
 
   async prepare(initialState: EffectiveState, config: ConnectorConfig): Promise<void> {
@@ -456,13 +468,10 @@ export class LyriaConnector implements Connector {
   private clientOptions(): LyriaClientOptions {
     const settings = this.settings;
     if (settings === undefined) throw stateConflict();
-    if (settings.accessMode === 'byok') {
-      return { apiKey: settings.apiKey, apiVersion: LYRIA_API_VERSION };
-    }
     return {
-      apiKey: HOSTED_SENTINEL,
+      apiKey: settings.apiKey,
       apiVersion: LYRIA_API_VERSION,
-      httpOptions: { baseUrl: settings.proxyBaseUrl }
+      ...(settings.endpoint !== undefined ? { httpOptions: { baseUrl: settings.endpoint } } : {})
     };
   }
 
@@ -614,20 +623,23 @@ export class LyriaConnector implements Connector {
     this.reportTerminalFailure(failure, token, runId);
   }
 
+  /**
+   * Classify only the standard close codes, and pass the raw number through as
+   * `closeCode` regardless. An application code (4000-4999) belongs to whoever
+   * is serving the endpoint, so it is reported as a network failure and left for
+   * the host to interpret rather than guessed at here.
+   */
   private classifyClose(code: number | undefined, beforeSetup: boolean): ConnectorError {
-    if (code === HOSTED_CLOSE_CODE.auth) {
-      return connectorError('lyria-auth-rejected', 'auth', false);
+    // Google closes with 1007 for a malformed key and 1008 for a rejected one,
+    // both before setup completes. After setup the same codes are transport
+    // noise, not an authentication verdict.
+    if (beforeSetup && (code === 1007 || code === 1008)) {
+      return connectorError('lyria-auth-rejected', 'auth', false, code);
     }
-    if (code === HOSTED_CLOSE_CODE.quota) {
-      return connectorError('lyria-quota-exhausted', 'quota', true);
+    if (code === 1002 || code === 1011) {
+      return connectorError('lyria-provider-failure', 'provider', true, code);
     }
-    if (code === HOSTED_CLOSE_CODE.provider || code === 1002) {
-      return connectorError('lyria-provider-failure', 'provider', true);
-    }
-    if (this.settings?.accessMode === 'byok' && beforeSetup && code === 1008) {
-      return connectorError('lyria-auth-rejected', 'auth', false);
-    }
-    return connectorError('lyria-network-failure', 'network', true);
+    return connectorError('lyria-network-failure', 'network', true, code);
   }
 
   private emitWarning(
@@ -655,7 +667,8 @@ export class LyriaConnector implements Connector {
       message: LYRIA_FAILURE_MESSAGE,
       reason: failure.reason,
       runId,
-      retryable: failure.retryable
+      retryable: failure.retryable,
+      ...(failure.closeCode !== undefined ? { closeCode: failure.closeCode } : {})
     };
     this.finishSession(runId, false);
     this.state = 'stopped';

@@ -239,15 +239,108 @@ describe('playback lifecycle', () => {
     expect(session.getState().lifecycle).toBe('failed');
   });
 
-  it('applies the completion transition when the run ends on its own', async () => {
+  it('applies the completion transition when the piece finishes', async () => {
     const { wiring, session } = await loadedSession();
     await session.play();
     await session.setGlobalFlavor('warm');
-    wiring
-      .current()
-      .emitStatus({ lifecycle: 'ready', playback: 'stopped', runId: 'run-1', stream: 'ended' });
+    wiring.current().emitStatus({
+      lifecycle: 'ready',
+      playback: 'stopped',
+      runId: 'run-1',
+      completed: true
+    });
     expect(session.getState().playback).toBe('stopped');
     expect(session.getState().runId).toBeUndefined();
+    // Completion clears live overrides, so the next run starts from the document
+    // rather than inheriting what the last one was left holding.
+    await session.play();
+    expect(session.getState().playback).toBe('active');
+    await session.setGlobalFlavor('cool');
+    expect(wiring.current().updates.at(-1)?.live).toMatchObject([{ value: 'cool' }]);
+  });
+
+  it('leaves the session playing when a provider ends its stream early', async () => {
+    // A stream that stopped is not a piece that finished: the renderer decides
+    // when a run is complete, and it says so with `completed`.
+    const { wiring, session } = await loadedSession();
+    await session.play();
+    wiring
+      .current()
+      .emitStatus({ lifecycle: 'ready', playback: 'running', runId: 'run-1', stream: 'ended' });
+    expect(session.getState().playback).toBe('active');
+    expect(session.getState().runId).toBe('run-1');
+  });
+
+  it('ignores a completion that belongs to an earlier run', async () => {
+    const { wiring, session } = await loadedSession();
+    await session.play();
+    await session.stop();
+    await session.play();
+    expect(session.getState().runId).toBe('run-2');
+
+    wiring.current().emitStatus({
+      lifecycle: 'ready',
+      playback: 'stopped',
+      runId: 'run-1',
+      completed: true
+    });
+    expect(session.getState().playback).toBe('active');
+    expect(session.getState().runId).toBe('run-2');
+  });
+
+  it('carries a transport close code to the host', async () => {
+    const { wiring, session } = await loadedSession();
+    const errors: GasOperationError[] = [];
+    session.on('error', (error) => errors.push(error));
+    await session.play();
+
+    wiring.current().emitFailure({
+      code: 'lyria-network-failure',
+      message: 'The connector lost its connection.',
+      reason: 'network',
+      runId: 'run-1',
+      retryable: true,
+      closeCode: 4429
+    });
+    expect(errors.at(-1)).toMatchObject({ code: 'lyria-network-failure', closeCode: 4429 });
+  });
+
+  it('carries a transport close code out of a failed start', async () => {
+    // The thrown RendererError is read structurally, so its nested failure has to
+    // survive the trip without the API importing the Renderer.
+    const session = await createSession(
+      createFakeWiring((renderer) => {
+        renderer.startError = Object.assign(new Error('start rejected'), {
+          failure: {
+            code: 'lyria-auth-rejected',
+            message: 'ignored',
+            reason: 'auth',
+            retryable: false,
+            closeCode: 1008
+          }
+        });
+      })
+    );
+    await session.loadSource(SOURCE);
+    const caught = await session.play().catch((error: unknown) => error);
+    expect(caught).toMatchObject({ code: 'lyria-auth-rejected', closeCode: 1008 });
+  });
+
+  it('drops a close code no transport could have produced', async () => {
+    const { wiring, session } = await loadedSession();
+    const errors: GasOperationError[] = [];
+    session.on('error', (error) => errors.push(error));
+    await session.play();
+
+    wiring.current().emitFailure({
+      code: 'lyria-network-failure',
+      message: 'The connector lost its connection.',
+      reason: 'network',
+      runId: 'run-1',
+      retryable: true,
+      closeCode: 99_999
+    });
+    expect(errors.at(-1)).not.toHaveProperty('closeCode');
   });
 
   it('reports the settled phase on the lifecycle event when a run auto-ends', async () => {
@@ -256,13 +349,25 @@ describe('playback lifecycle', () => {
     session.on('lifecycle', (event) => playbacks.push(event.playback));
     await session.play();
     playbacks.length = 0; // ignore the start's lifecycle event
-    wiring
-      .current()
-      .emitStatus({ lifecycle: 'ready', playback: 'stopped', runId: 'run-1', stream: 'ended' });
+    const events: Array<{ playback: string; completed?: true }> = [];
+    session.on('lifecycle', (event) =>
+      events.push({
+        playback: event.playback,
+        ...(event.completed !== undefined ? { completed: event.completed } : {})
+      })
+    );
+    wiring.current().emitStatus({
+      lifecycle: 'ready',
+      playback: 'stopped',
+      runId: 'run-1',
+      completed: true
+    });
     // The completion transition runs before the lifecycle emit, so the event
     // agrees with the state event instead of claiming 'active' one tick before
-    // state lands on 'stopped'.
+    // state lands on 'stopped'. The flag rides along so a host can tell a piece
+    // that finished from one it stopped.
     expect(playbacks).toEqual(['stopped']);
+    expect(events).toEqual([{ playback: 'stopped', completed: true }]);
   });
 
   it('relays authoritative renderer playback and stream details', async () => {

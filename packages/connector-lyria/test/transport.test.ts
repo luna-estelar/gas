@@ -17,7 +17,7 @@ import {
   type LyriaSdkClient
 } from '../src/connector.js';
 import { DEFAULT_LYRIA_CONFIG } from '../src/config.js';
-import { HOSTED_SENTINEL, LYRIA_MODEL_ID } from '../src/constants.js';
+import { LYRIA_MODEL_ID } from '../src/constants.js';
 import { VirtualClock } from './support/virtual-clock.js';
 
 async function flushAsync(): Promise<void> {
@@ -151,7 +151,7 @@ function setup() {
 
 async function prepare(
   connector: Connector,
-  settings: Parameters<Connector['open']>[0] = { accessMode: 'byok', apiKey: 'test-key' },
+  settings: Parameters<Connector['open']>[0] = { apiKey: 'test-key' },
   state: EffectiveState = INITIAL_STATE,
   config: ConnectorConfig = IMMEDIATE_CONFIG
 ): Promise<void> {
@@ -213,13 +213,19 @@ describe('Lyria connector description and settings', () => {
 
   it.each([
     {},
-    { accessMode: 'byok', apiKey: '' },
-    { accessMode: 'byok', apiKey: 'x', extra: true },
-    { accessMode: 'hosted', proxyBaseUrl: 'http://proxy.example' },
-    { accessMode: 'hosted', proxyBaseUrl: 'https://user:pass@proxy.example' },
-    { accessMode: 'hosted', proxyBaseUrl: 'https://proxy.example/path' },
-    { accessMode: 'hosted', proxyBaseUrl: 'https://proxy.example?key=secret' },
-    { accessMode: 'hosted', proxyBaseUrl: 'https://proxy.example#fragment' }
+    { apiKey: '' },
+    { apiKey: '   ' },
+    { apiKey: 'x', extra: true },
+    { apiKey: 'x', accessMode: 'byok' },
+    { endpoint: 'https://proxy.example' },
+    { apiKey: 'x', endpoint: '' },
+    { apiKey: 'x', endpoint: 'not-a-url' },
+    { apiKey: 'x', endpoint: 'http://proxy.example' },
+    { apiKey: 'x', endpoint: 'wss://proxy.example' },
+    { apiKey: 'x', endpoint: 'https://user:pass@proxy.example' },
+    { apiKey: 'x', endpoint: 'https://proxy.example/path' },
+    { apiKey: 'x', endpoint: 'https://proxy.example?key=secret' },
+    { apiKey: 'x', endpoint: 'https://proxy.example#fragment' }
   ])('rejects invalid settings before connection: %j', async (settings) => {
     const { connector, sdk } = setup();
     await expect(connector.open(settings)).rejects.toMatchObject({
@@ -230,7 +236,7 @@ describe('Lyria connector description and settings', () => {
     expect(sdk.connectCount).toBe(0);
   });
 
-  it('constructs BYOK and hosted clients only at start', async () => {
+  it('constructs the client only at start, with an endpoint only when one was given', async () => {
     const direct = setup();
     await prepare(direct.connector);
     expect(direct.sdk.options).toEqual([]);
@@ -239,21 +245,49 @@ describe('Lyria connector description and settings', () => {
     direct.sdk.callbacks[0].onmessage({ setupComplete: {} });
     await directStart;
 
-    const hosted = setup();
-    await prepare(hosted.connector, {
-      accessMode: 'hosted',
-      proxyBaseUrl: 'https://proxy.example/'
-    });
-    const { started: hostedStart } = await beginStart(hosted.connector, hosted.sink, hosted.sdk);
-    expect(hosted.sdk.options).toEqual([
+    // A trailing slash is a path the origin does not need; the endpoint is
+    // normalised so two spellings of one origin cannot behave differently.
+    const routed = setup();
+    await prepare(routed.connector, { apiKey: 'test-key', endpoint: 'https://proxy.example/' });
+    const { started: routedStart } = await beginStart(routed.connector, routed.sink, routed.sdk);
+    expect(routed.sdk.options).toEqual([
       {
-        apiKey: HOSTED_SENTINEL,
+        apiKey: 'test-key',
         apiVersion: 'v1alpha',
         httpOptions: { baseUrl: 'https://proxy.example' }
       }
     ]);
-    hosted.sdk.callbacks[0].onmessage({ setupComplete: {} });
-    await hostedStart;
+    routed.sdk.callbacks[0].onmessage({ setupComplete: {} });
+    await routedStart;
+  });
+
+  it('reports every configuration problem at once, by JSON Pointer', async () => {
+    const { connector } = setup();
+    expect(connector.validateConfig?.(DEFAULT_LYRIA_CONFIG)).toEqual({ ok: true });
+    expect(connector.validateConfig?.({})).toEqual({ ok: true });
+
+    expect(connector.validateConfig?.({ generation: { temperature: 5 } })).toEqual({
+      ok: false,
+      problems: [
+        { path: '/generation/temperature', code: 'out-of-range', message: expect.any(String) }
+      ]
+    });
+    expect(connector.validateConfig?.({ tempo: 120 })).toMatchObject({
+      ok: false,
+      problems: [{ path: '/tempo', code: 'unknown-member' }]
+    });
+
+    const twoFaults = connector.validateConfig?.({
+      prompt: { transitionSteps: 0 },
+      generation: { mode: 'loud' }
+    });
+    expect(twoFaults).toMatchObject({
+      ok: false,
+      problems: [
+        { path: '/prompt/transitionSteps', code: 'out-of-range' },
+        { path: '/generation/mode', code: 'not-allowed' }
+      ]
+    });
   });
 });
 
@@ -325,7 +359,7 @@ describe('Lyria connector startup and model configuration', () => {
   it('clamps tempo and warns once for each distinct out-of-range value', async () => {
     const { connector, sdk, sink, warnings } = setup();
     const state = { ...INITIAL_STATE, globals: { ...INITIAL_STATE.globals, tempo: 240 } };
-    await prepare(connector, { accessMode: 'byok', apiKey: 'test-key' }, state);
+    await prepare(connector, { apiKey: 'test-key' }, state);
     await completeStart(connector, sink, sdk);
     expect(sdk.sessions[0].calls[0].value).toMatchObject({ bpm: 200 });
     expect(warnings.map((warning) => warning.code)).toEqual(['lyria-tempo-clamped']);
@@ -343,7 +377,7 @@ describe('Lyria connector startup and model configuration', () => {
 
   it('rejects invalid direct-call configuration without constructing a client', async () => {
     const { connector, sdk } = setup();
-    await connector.open({ accessMode: 'byok', apiKey: 'test-key' });
+    await connector.open({ apiKey: 'test-key' });
     await expect(
       connector.prepare(INITIAL_STATE, { generation: { topK: 0, vendorSecret: 'hidden' } })
     ).rejects.toMatchObject({ code: 'lyria-invalid-configuration' });
@@ -354,7 +388,7 @@ describe('Lyria connector startup and model configuration', () => {
 describe('Lyria connector prompts, flow control, and audio', () => {
   it('starts empty without play, resumes for prompts, and never sends an empty SDK prompt set', async () => {
     const { connector, sdk, sink } = setup();
-    await prepare(connector, { accessMode: 'byok', apiKey: 'test-key' }, EMPTY_STATE);
+    await prepare(connector, { apiKey: 'test-key' }, EMPTY_STATE);
     await completeStart(connector, sink, sdk);
     expect(sdk.sessions[0].calls.map((call) => call.kind)).toEqual(['config']);
 
@@ -439,27 +473,52 @@ describe('Lyria connector prompts, flow control, and audio', () => {
 
 describe('Lyria connector failure and lifecycle guards', () => {
   it.each([
-    [4401, 'auth', false],
-    [4429, 'quota', true],
-    [4500, 'provider', true],
-    [1002, 'provider', true],
-    [1006, 'network', true]
-  ] as const)('maps runtime close %i to %s', async (code, reason, retryable) => {
+    [1002, 'lyria-provider-failure', 'provider', true],
+    [1011, 'lyria-provider-failure', 'provider', true],
+    [1006, 'lyria-network-failure', 'network', true],
+    // After setup the policy codes are transport noise, not an auth verdict.
+    [1007, 'lyria-network-failure', 'network', true],
+    [1008, 'lyria-network-failure', 'network', true],
+    // An application code belongs to whoever served the endpoint: classified as a
+    // network failure, with the raw number left for the host to map.
+    [4429, 'lyria-network-failure', 'network', true],
+    [4500, 'lyria-network-failure', 'network', true]
+  ] as const)('maps runtime close %i to %s', async (closeCode, code, reason, retryable) => {
     const { connector, sdk, sink, failures } = setup();
-    await prepare(connector, { accessMode: 'hosted', proxyBaseUrl: 'https://proxy.example' });
+    await prepare(connector, { apiKey: 'test-key', endpoint: 'https://proxy.example' });
     await completeStart(connector, sink, sdk);
-    sdk.callbacks[0].onclose({ code });
+    sdk.callbacks[0].onclose({ code: closeCode });
     expect(failures).toHaveLength(1);
-    expect(failures[0]).toMatchObject({ reason, retryable, runId: 'run-1' });
+    expect(failures[0]).toMatchObject({ code, reason, retryable, runId: 'run-1', closeCode });
   });
 
-  it('maps direct pre-setup policy close to auth without leaking close detail', async () => {
-    const { connector, sdk, sink } = setup();
+  it('carries no close code when the transport reported none', async () => {
+    const { connector, sdk, sink, failures } = setup();
     await prepare(connector);
-    const { started } = await beginStart(connector, sink, sdk);
-    sdk.callbacks[0].onclose({ code: 1008 });
-    await expect(started).rejects.toMatchObject({ reason: 'auth', retryable: false });
+    await completeStart(connector, sink, sdk);
+    sdk.callbacks[0].onclose({});
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toMatchObject({ code: 'lyria-network-failure', reason: 'network' });
+    expect(failures[0]).not.toHaveProperty('closeCode');
   });
+
+  it.each([1007, 1008] as const)(
+    'maps pre-setup close %i to auth without leaking close detail',
+    async (closeCode) => {
+      const { connector, sdk, sink } = setup();
+      await prepare(connector);
+      const { started } = await beginStart(connector, sink, sdk);
+      sdk.callbacks[0].onclose({ code: closeCode });
+      const failure = await started.catch((error: unknown) => error);
+      expect(failure).toMatchObject({
+        code: 'lyria-auth-rejected',
+        reason: 'auth',
+        retryable: false,
+        closeCode
+      });
+      expect(JSON.stringify(failure)).not.toMatch(/test-key/);
+    }
+  );
 
   it('stops and closes idempotently, supports a later explicit run, and ignores stale callbacks', async () => {
     const { connector, sdk, sink, chunks } = setup();
@@ -480,9 +539,7 @@ describe('Lyria connector failure and lifecycle guards', () => {
     expect(sdk.connectCount).toBe(2);
     await connector.close();
     await connector.close();
-    await expect(connector.open({ accessMode: 'byok', apiKey: 'new-key' })).rejects.toBeInstanceOf(
-      ConnectorError
-    );
+    await expect(connector.open({ apiKey: 'new-key' })).rejects.toBeInstanceOf(ConnectorError);
   });
 
   it('maps arbitrary SDK send errors without carrying vendor text', async () => {
@@ -505,7 +562,7 @@ describe('Lyria connector failure and lifecycle guards', () => {
       createClient: sdk.createClient
     });
     const { sink, failures } = recordingSink();
-    await connector.open({ accessMode: 'byok', apiKey: 'test-key' });
+    await connector.open({ apiKey: 'test-key' });
     await connector.prepare(INITIAL_STATE, DEFAULT_LYRIA_CONFIG);
     await completeStart(connector, sink, sdk);
     sdk.sessions[0].promptFailure = new Error('vendor detail');

@@ -12,8 +12,8 @@ export interface SnippetVersion {
   readonly valid: boolean;
 }
 
-// Still BYOK-shaped, from when that was the only access mode. createBrowserSession
-// now takes an Access, so a surface wiring this up can widen the parameter.
+// A key is all a connector needs; a surface that also wants to choose an endpoint
+// can widen this to the Access that createBrowserSession takes.
 export type RuntimeFactory = (apiKey: string) => Promise<BrowserSession>;
 export type SnippetProvider = (id: BeatId) => SnippetVersion;
 type StateListener = (state: DemoState) => void;

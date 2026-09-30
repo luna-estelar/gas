@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ConnectorError } from '@luna-estelar/gas-protocol';
 import { DEFAULT_LYRIA_CONFIG, LYRIA_CONFIG_SCHEMA, resolveLyriaConfig } from '../src/index.js';
-import { validateAndResolveLyriaConfig } from '../src/config.js';
+import { validateAndResolveLyriaConfig, validateLyriaConfig } from '../src/config.js';
 
 describe('Lyria connector configuration schema', () => {
   it('declares a Draft 2020-12 object schema with closed members', () => {
@@ -130,15 +130,66 @@ describe('validateAndResolveLyriaConfig', () => {
   });
 
   it.each([
-    { unknown: true },
-    { prompt: [] },
-    { prompt: { trackWeight: 0 } },
-    { prompt: { transitionSteps: 1.5 } },
-    { generation: { temperature: Number.NaN } },
-    { generation: { topK: 1001 } },
-    { generation: { seed: -1 } },
-    { generation: { mode: 'vocalization' } }
-  ])('rejects schema-invalid direct input: %j', (config) => {
+    [{ unknown: true }, '/unknown', 'unknown-member'],
+    [{ prompt: [] }, '/prompt', 'wrong-type'],
+    [{ prompt: { trackWeight: 0 } }, '/prompt/trackWeight', 'out-of-range'],
+    [{ prompt: { transitionSteps: 1.5 } }, '/prompt/transitionSteps', 'wrong-type'],
+    [{ generation: { temperature: Number.NaN } }, '/generation/temperature', 'wrong-type'],
+    [{ generation: { topK: 1001 } }, '/generation/topK', 'out-of-range'],
+    [{ generation: { seed: -1 } }, '/generation/seed', 'out-of-range'],
+    [{ generation: { mode: 'vocalization' } }, '/generation/mode', 'not-allowed']
+  ] as const)('rejects schema-invalid direct input: %j', (config, path, code) => {
     expect(() => validateAndResolveLyriaConfig(config)).toThrow(ConnectorError);
+    expect(validateLyriaConfig(config)).toMatchObject({
+      ok: false,
+      problems: [{ path, code }]
+    });
+  });
+});
+
+describe('validateLyriaConfig', () => {
+  it('accepts the advertised defaults and an empty patch', () => {
+    expect(validateLyriaConfig(DEFAULT_LYRIA_CONFIG)).toEqual({ ok: true });
+    expect(validateLyriaConfig({})).toEqual({ ok: true });
+  });
+
+  it('reports the root itself when the configuration is not an object', () => {
+    // A non-object root has no members to inspect, so one problem is the whole answer.
+    expect(validateLyriaConfig([] as unknown as Record<string, never>)).toMatchObject({
+      ok: false,
+      problems: [{ path: '', code: 'wrong-type' }]
+    });
+  });
+
+  it('collects every problem rather than stopping at the first', () => {
+    const result = validateLyriaConfig({
+      unknown: 1,
+      prompt: { trackWeight: -1, transitionSteps: 0 },
+      generation: { guidance: 9, muteBass: 'yes' }
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.problems.map((problem) => problem.path)).toEqual([
+      '/unknown',
+      '/prompt/trackWeight',
+      '/prompt/transitionSteps',
+      '/generation/guidance',
+      '/generation/muteBass'
+    ]);
+    // Messages describe the rule, never the offending value.
+    for (const problem of result.problems) {
+      expect(problem.message).not.toMatch(/yes|-1/);
+      expect(Object.isFrozen(problem)).toBe(true);
+    }
+  });
+
+  it('names every unknown member, not just the first', () => {
+    expect(validateLyriaConfig({ tempo: 1, key: 'C' })).toMatchObject({
+      ok: false,
+      problems: [
+        { path: '/tempo', code: 'unknown-member' },
+        { path: '/key', code: 'unknown-member' }
+      ]
+    });
   });
 });

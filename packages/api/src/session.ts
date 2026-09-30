@@ -28,6 +28,7 @@ import type {
   RendererStatusEvent,
   Timeline
 } from '@luna-estelar/gas-protocol';
+import { isCloseCode } from '@luna-estelar/gas-protocol';
 
 export type { CompileResult, LoadResult } from '@luna-estelar/gas-protocol';
 
@@ -609,8 +610,10 @@ export class GasSession {
       this.acceptedRun.accept(status.runId);
     }
     // Apply completion before emitting lifecycle events so phase and state agree.
+    // Only the Renderer's own `completed` flag ends a session: a provider that
+    // ends its stream early is a stream that stopped, not a piece that finished.
     const endedThisRun =
-      status.stream === 'ended' &&
+      status.completed === true &&
       (status.runId === undefined || this.acceptedRun.accepts(status.runId));
     if (this.phase === 'active' && endedThisRun) {
       this.acceptedRun.clear();
@@ -624,7 +627,8 @@ export class GasSession {
       rendererPlayback: status.playback,
       ...(status.runId !== undefined ? { runId: status.runId } : {}),
       ...(status.stream !== undefined ? { stream: status.stream } : {}),
-      ...(status.throttled !== undefined ? { throttled: status.throttled } : {})
+      ...(status.throttled !== undefined ? { throttled: status.throttled } : {}),
+      ...(status.completed === true ? { completed: true } : {})
     });
   }
 }
@@ -633,11 +637,15 @@ function operationFailureFields(failure: RendererFailure): {
   readonly code: string;
   readonly retryable: boolean;
   readonly reason?: RendererFailure['reason'];
+  readonly closeCode?: number;
 } {
   return {
     code: failure.code,
     retryable: failure.retryable,
-    ...(failure.reason !== undefined ? { reason: failure.reason } : {})
+    ...(failure.reason !== undefined ? { reason: failure.reason } : {}),
+    // The Protocol's own range, so no gate here is looser than the one the
+    // structural guard and the JSON Schema apply.
+    ...(isCloseCode(failure.closeCode) ? { closeCode: failure.closeCode } : {})
   };
 }
 
@@ -671,6 +679,9 @@ function getRendererFailureFields(
     retryable: failure.retryable,
     ...('reason' in failure && failure.reason !== undefined
       ? { reason: failure.reason as NonNullable<RendererFailure['reason']> }
+      : {}),
+    ...('closeCode' in failure && isCloseCode(failure.closeCode)
+      ? { closeCode: failure.closeCode }
       : {})
   };
 }

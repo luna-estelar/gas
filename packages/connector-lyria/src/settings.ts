@@ -1,9 +1,18 @@
 import type { ConnectorSettings } from '@luna-estelar/gas-protocol';
 import { ConnectorError } from '@luna-estelar/gas-protocol';
 
-export type LyriaConnectorSettings =
-  | { readonly accessMode: 'byok'; readonly apiKey: string }
-  | { readonly accessMode: 'hosted'; readonly proxyBaseUrl: string };
+/**
+ * What the connector needs to reach Lyria: a key, and optionally somewhere other
+ * than Google to send it. How a host obtains the key is the host's concern; this
+ * package never stores, derives or forwards one anywhere but the transport.
+ */
+export type LyriaConnectorSettings = {
+  readonly apiKey: string;
+  /** An HTTPS origin that speaks the Lyria WebSocket protocol. Google's own by default. */
+  readonly endpoint?: string;
+};
+
+const ALLOWED_KEYS = ['apiKey', 'endpoint'];
 
 function invalidSettings(): never {
   throw new ConnectorError({
@@ -18,41 +27,44 @@ function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): b
   return Object.keys(value).every((key) => allowed.has(key));
 }
 
+/**
+ * Reduce an endpoint to its origin, rejecting anything that could carry a
+ * credential or a route: only an `https:` origin with no userinfo, query,
+ * fragment or path is a Lyria endpoint.
+ */
+function validateEndpoint(value: unknown): string {
+  if (typeof value !== 'string' || value.trim() === '') invalidSettings();
+  let url: URL;
+  try {
+    url = new URL(value as string);
+  } catch {
+    return invalidSettings();
+  }
+  if (
+    url.protocol !== 'https:' ||
+    url.username !== '' ||
+    url.password !== '' ||
+    url.search !== '' ||
+    url.hash !== '' ||
+    (url.pathname !== '' && url.pathname !== '/')
+  ) {
+    invalidSettings();
+  }
+  return url.origin;
+}
+
 export function validateLyriaSettings(settings: ConnectorSettings): LyriaConnectorSettings {
   if (settings === null || typeof settings !== 'object' || Array.isArray(settings)) {
     return invalidSettings();
   }
   const candidate = settings as Record<string, unknown>;
-
-  if (candidate.accessMode === 'byok') {
-    if (!hasOnlyKeys(candidate, ['accessMode', 'apiKey'])) invalidSettings();
-    if (typeof candidate.apiKey !== 'string' || candidate.apiKey.trim() === '') invalidSettings();
-    return Object.freeze({ accessMode: 'byok', apiKey: candidate.apiKey });
+  if (!hasOnlyKeys(candidate, ALLOWED_KEYS)) invalidSettings();
+  if (typeof candidate.apiKey !== 'string' || candidate.apiKey.trim() === '') invalidSettings();
+  if (candidate.endpoint === undefined) {
+    return Object.freeze({ apiKey: candidate.apiKey });
   }
-
-  if (candidate.accessMode === 'hosted') {
-    if (!hasOnlyKeys(candidate, ['accessMode', 'proxyBaseUrl'])) invalidSettings();
-    if (typeof candidate.proxyBaseUrl !== 'string' || candidate.proxyBaseUrl.trim() === '') {
-      invalidSettings();
-    }
-    let url: URL;
-    try {
-      url = new URL(candidate.proxyBaseUrl);
-    } catch {
-      return invalidSettings();
-    }
-    if (
-      url.protocol !== 'https:' ||
-      url.username !== '' ||
-      url.password !== '' ||
-      url.search !== '' ||
-      url.hash !== '' ||
-      (url.pathname !== '' && url.pathname !== '/')
-    ) {
-      invalidSettings();
-    }
-    return Object.freeze({ accessMode: 'hosted', proxyBaseUrl: url.origin });
-  }
-
-  return invalidSettings();
+  return Object.freeze({
+    apiKey: candidate.apiKey,
+    endpoint: validateEndpoint(candidate.endpoint)
+  });
 }

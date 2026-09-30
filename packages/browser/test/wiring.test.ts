@@ -92,31 +92,31 @@ describe('createBrowserSession', () => {
     const context = new FakeContext();
 
     await createBrowserSession({
-      access: { mode: 'byok', credentials: createCredentialCell('secret') },
+      access: { credentials: createCredentialCell('secret') },
       createContext: () => context as unknown as AudioContext
     });
 
     await createSession.mock.calls[0]![0].createRenderer();
-    expect(createRenderer.mock.calls[0]![0].settings).toEqual({
-      accessMode: 'byok',
-      apiKey: 'secret'
-    });
+    expect(createRenderer.mock.calls[0]![0].settings).toEqual({ apiKey: 'secret' });
     expect(context.resumes).toBe(1);
   });
 
-  it('passes a hosted proxy through the same path', async () => {
+  it('passes a chosen endpoint through the same path', async () => {
     createSession.mockResolvedValue(fakeSession());
     const context = new FakeContext();
 
     await createBrowserSession({
-      access: { mode: 'hosted', proxyBaseUrl: 'https://proxy.example' },
+      access: {
+        credentials: createCredentialCell('secret'),
+        endpoint: 'https://proxy.example'
+      },
       createContext: () => context as unknown as AudioContext
     });
 
     await createSession.mock.calls[0]![0].createRenderer();
     expect(createRenderer.mock.calls[0]![0].settings).toEqual({
-      accessMode: 'hosted',
-      proxyBaseUrl: 'https://proxy.example'
+      apiKey: 'secret',
+      endpoint: 'https://proxy.example'
     });
   });
 
@@ -125,13 +125,13 @@ describe('createBrowserSession', () => {
     createSession.mockResolvedValue(session);
 
     const withoutCapture = await createBrowserSession({
-      access: { mode: 'hosted', proxyBaseUrl: 'https://proxy.example' },
+      access: { credentials: createCredentialCell('secret') },
       createContext: () => new FakeContext() as unknown as AudioContext
     });
     expect(withoutCapture.capture).toBeUndefined();
 
     const withCapture = await createBrowserSession({
-      access: { mode: 'hosted', proxyBaseUrl: 'https://proxy.example' },
+      access: { credentials: createCredentialCell('secret') },
       capture: true,
       createContext: () => new FakeContext() as unknown as AudioContext
     });
@@ -145,7 +145,7 @@ describe('createBrowserSession', () => {
     const context = new FakeContext();
 
     const browser = await createBrowserSession({
-      access: { mode: 'hosted', proxyBaseUrl: 'https://proxy.example' },
+      access: { credentials: createCredentialCell('secret') },
       createContext: () => context as unknown as AudioContext
     });
     await browser.close();
@@ -161,7 +161,7 @@ describe('createBrowserSession', () => {
 
     await expect(
       createBrowserSession({
-        access: { mode: 'hosted', proxyBaseUrl: 'https://proxy.example' },
+        access: { credentials: createCredentialCell('secret') },
         createContext: () => context as unknown as AudioContext
       })
     ).rejects.toThrow('no credential');
