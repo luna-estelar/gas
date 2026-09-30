@@ -1,5 +1,5 @@
 // PCM decoding and WAV encoding for captured renderer audio. Pure byte work: no
-// AudioContext, no DOM. Scheduling and playback live in ./playback.ts.
+// AudioContext, no DOM. Scheduling and playback live in ./audio/.
 import type { AudioChunk } from '@luna-estelar/gas-protocol';
 
 export interface DecodedPcm {

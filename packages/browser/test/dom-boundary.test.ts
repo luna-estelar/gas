@@ -19,8 +19,12 @@ const FORBIDDEN = new Set([
   'self'
 ]);
 
-/** The one file allowed to touch a browser global, and nothing else. */
-const WINDOW_FILE = 'playback.ts';
+/**
+ * The one file allowed to touch a browser global, and the one global it may
+ * touch: the audio clock listens for the page becoming visible again.
+ */
+const ALLOWED_FILE = 'audio/clock.ts';
+const ALLOWED_GLOBAL = 'document';
 
 interface Violation {
   readonly line: number;
@@ -134,13 +138,18 @@ function domViolations(source: ts.SourceFile, relative: string): Violation[] {
   return violations;
 }
 
-/** Allow window member access in playback.ts, but reject bare references and shadowing. */
+/**
+ * Allow member access on document, and the `typeof document` guard, in the audio
+ * clock only. Bare references and shadowing stay rejected there too.
+ */
 function isAllowed(node: ts.Identifier, kind: Violation['kind'], relative: string): boolean {
-  if (relative !== WINDOW_FILE || node.text !== 'window' || kind !== 'reference') return false;
+  if (relative !== ALLOWED_FILE || node.text !== ALLOWED_GLOBAL || kind !== 'reference') {
+    return false;
+  }
   const parent = node.parent as ts.Node | undefined;
-  return (
-    parent !== undefined && ts.isPropertyAccessExpression(parent) && parent.expression === node
-  );
+  if (parent === undefined) return false;
+  if (ts.isTypeOfExpression(parent)) return true;
+  return ts.isPropertyAccessExpression(parent) && parent.expression === node;
 }
 
 function parse(text: string, name = 'probe.ts'): ts.SourceFile {
@@ -206,7 +215,7 @@ describe('browser-global boundary', () => {
   it('leaves member names, type positions and prose alone', () => {
     const source = parse(
       [
-        'void frame.contentWindow;', // the real bitsy/bridge.ts idiom
+        'void frame.contentWindow;',
         'void payload.document;',
         'void payload?.navigator;',
         'const config = { document: 1 }; void config;',
@@ -226,27 +235,27 @@ describe('browser-global boundary', () => {
     expect(domViolations(source, 'config.ts')).toEqual([]);
   });
 
-  it('confines the window allowance to playback.ts, and to member access', () => {
+  it('confines the document allowance to the audio clock, and to member access', () => {
     const source = parse(
       [
-        'window.setTimeout(cb, 0);',
-        'window.clearTimeout(0);',
-        'void window.requestAnimationFrame;', // not pinned to the timer methods
-        'const captured = window; void captured;',
-        'void document.title;'
+        'document.addEventListener("visibilitychange", cb);',
+        'void document.visibilityState;',
+        'if (typeof document !== "undefined") { void 1; }',
+        'const captured = document; void captured;',
+        'window.setTimeout(cb, 0);'
       ].join('\n')
     );
 
-    expect(domViolations(source, 'playback.ts')).toEqual([
-      { line: 4, name: 'window', kind: 'reference' },
-      { line: 5, name: 'document', kind: 'reference' }
+    expect(domViolations(source, 'audio/clock.ts')).toEqual([
+      { line: 4, name: 'document', kind: 'reference' },
+      { line: 5, name: 'window', kind: 'reference' }
     ]);
     expect(domViolations(source, 'config.ts')).toEqual([
-      { line: 1, name: 'window', kind: 'reference' },
-      { line: 2, name: 'window', kind: 'reference' },
-      { line: 3, name: 'window', kind: 'reference' },
-      { line: 4, name: 'window', kind: 'reference' },
-      { line: 5, name: 'document', kind: 'reference' }
+      { line: 1, name: 'document', kind: 'reference' },
+      { line: 2, name: 'document', kind: 'reference' },
+      { line: 3, name: 'document', kind: 'reference' },
+      { line: 4, name: 'document', kind: 'reference' },
+      { line: 5, name: 'window', kind: 'reference' }
     ]);
   });
 });

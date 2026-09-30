@@ -66,7 +66,7 @@ describe('check-boundaries', () => {
     const ordinary = findViolations([
       {
         package: 'browser',
-        path: 'src/playback.ts',
+        path: 'src/audio/engine.ts',
         content
       }
     ]);
@@ -75,7 +75,7 @@ describe('check-boundaries', () => {
     const wiring = findViolations([
       {
         package: 'browser',
-        path: 'src/wiring.ts',
+        path: 'src/session.ts',
         content
       }
     ]);
@@ -84,7 +84,7 @@ describe('check-boundaries', () => {
     const arbitraryPath = findViolations([
       {
         package: 'browser',
-        path: 'anywhere/at/all/wiring.ts',
+        path: 'anywhere/at/all/session.ts',
         content
       }
     ]);
@@ -113,7 +113,7 @@ describe('check-boundaries', () => {
       {
         package: 'browser',
         path: 'packages/browser/src/demo.astro',
-        content: "import { createLyriaConnector } from '@luna-estelar/gas-connector-lyria';"
+        content: "import { createRenderer } from '@luna-estelar/gas-renderer';"
       }
     ]);
     expect(page).toHaveLength(1);

@@ -29,7 +29,7 @@ const ENTRYPOINTS = [
   '@luna-estelar/gas-core',
   '@luna-estelar/gas-renderer',
   '@luna-estelar/gas-api',
-  '@luna-estelar/gas-browser/wiring'
+  '@luna-estelar/gas-browser/session'
 ];
 
 async function countGeneratedFunctions(specifier: string): Promise<number> {
@@ -50,8 +50,58 @@ async function countGeneratedFunctions(specifier: string): Promise<number> {
   return Number(stdout.trim());
 }
 
+// LE-87: importing cleanly is not enough if a later call compiles a schema. Every
+// renderer config path runs here under a Function constructor that throws, as
+// a strict CSP would. The connector validates its own configuration.
+const CONFIG_PATHS_SCRIPT = `
+  const { createRenderer } = await import('@luna-estelar/gas-renderer');
+  globalThis.Function = new Proxy(Function, {
+    construct() { throw new EvalError('Code generation from strings disallowed'); }
+  });
+  const validated = [];
+  const connector = {
+    async describe() {
+      return {
+        id: 'inline', displayName: 'Inline',
+        capabilities: { intents: {} },
+        model: {
+          connectorId: 'inline', modelId: 'inline', displayName: 'Inline', codec: 'pcm',
+          sampleFormat: 's16le', sampleRate: 48000, channels: 2, chunkDurationSeconds: 2
+        },
+        configSchema: { type: 'object', properties: { level: { type: 'number' } } },
+        defaultConfig: { level: 1 },
+        supportsFlowControl: false
+      };
+    },
+    validateConfig(config) {
+      validated.push(config);
+      return typeof config.level === 'number'
+        ? { ok: true }
+        : { ok: false, problems: [{ path: '/level', code: 'wrong-type', message: 'Level is a number.' }] };
+    },
+    async open() {}, async prepare() {}, async start() {}, async update(_u, at) { return at; },
+    async stop() {}, async close() {}
+  };
+  const clock = { now: () => 0, schedule: () => ({ token: 0 }), cancel() {} };
+  const renderer = await createRenderer({
+    clock, connector, connectorConfig: { level: 2 }, checkConnectorContract: true
+  });
+  await renderer.updateConnectorConfig({ level: 3 });
+  const rejected = await renderer.updateConnectorConfig({ level: 'loud' }).then(() => false, () => true);
+  console.log(JSON.stringify({ validated: validated.length, rejected, level: renderer.getConnectorConfig().level }));
+`;
+
 describe('runtime code generation', () => {
   it.each(ENTRYPOINTS)('does not generate code when importing %s', async (specifier) => {
     expect(await countGeneratedFunctions(specifier)).toBe(0);
+  });
+
+  it('validates connector configuration on every renderer path without generating code', async () => {
+    const { stdout } = await run(
+      process.execPath,
+      ['--input-type=module', '-e', CONFIG_PATHS_SCRIPT],
+      { cwd: resolveFrom }
+    );
+    expect(JSON.parse(stdout.trim())).toEqual({ validated: 4, rejected: true, level: 3 });
   });
 });
