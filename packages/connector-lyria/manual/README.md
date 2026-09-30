@@ -1,9 +1,9 @@
 # Manual listening and transport checks
 
-## BYOK listening comparison
+## Listening comparison
 
 This manual command is intentionally outside the automated test gate. It uses the pinned official
-Google SDK for a direct-BYOK comparison and requires an authorized `GEMINI_API_KEY` environment
+Google SDK directly and requires an authorized `GEMINI_API_KEY` environment
 variable. Never pass a key on the command line or place it in a fixture.
 
 ```sh
@@ -49,24 +49,13 @@ The transport smoke exercises the concrete connector lifecycle, prompt/config up
 resume, stop, and close. It makes real provider calls and must be run only with authorized settings.
 It accepts connection settings only through the environment and never records them.
 
-Direct BYOK:
-
 ```sh
-GAS_LYRIA_ACCESS_MODE=byok \
 GAS_LYRIA_API_KEY=... \
 GAS_LYRIA_SMOKE_OUTPUT=/absolute/path/to/ignored-smoke.wav \
 pnpm --filter @luna-estelar/gas-connector-lyria manual:smoke
 ```
 
-Hosted access through an already-deployed, allowlisted Worker:
-
-```sh
-GAS_LYRIA_ACCESS_MODE=hosted \
-GAS_LYRIA_PROXY_BASE_URL=https://music-proxy.example \
-GAS_LYRIA_SMOKE_OUTPUT=/absolute/path/to/ignored-smoke.wav \
-pnpm --filter @luna-estelar/gas-connector-lyria manual:smoke
-```
-
-`GAS_LYRIA_SMOKE_OUTPUT` is optional. The script otherwise retains chunks only in memory and reports
-their count and duration. Do not run either command in CI, deploy a Worker from this command, or
-attach the resulting audio to a public issue without reviewing it.
+`GAS_LYRIA_ENDPOINT` is optional and sends the same request to another HTTPS origin that speaks the
+Lyria WebSocket protocol, for checking a deployment of your own. `GAS_LYRIA_SMOKE_OUTPUT` is also
+optional; without it the script retains chunks only in memory and reports their count and duration.
+Do not run this command in CI or attach the resulting audio to a public issue without reviewing it.
