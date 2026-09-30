@@ -6,13 +6,16 @@ packages, pinned to one tested set of versions.
 
 [![npm](https://img.shields.io/npm/v/@luna-estelar/gas)](https://www.npmjs.com/package/@luna-estelar/gas)
 [![license](https://img.shields.io/npm/l/@luna-estelar/gas)](https://github.com/luna-estelar/gas/blob/main/LICENSE)
-[![CI](https://github.com/luna-estelar/gas/actions/workflows/ci.yml/badge.svg)](https://github.com/luna-estelar/gas/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/ci.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/ci.yml)
 
 ## Install
 
 ```bash
 npm install @luna-estelar/gas
 ```
+
+This is the whole of GAS in one package; the individual `@luna-estelar/gas-*` packages it
+re-exports are also published on their own.
 
 ## Example
 
@@ -40,7 +43,7 @@ In a browser, `@luna-estelar/gas/browser/session` composes the session, the rend
 Audio playback engine for you; see
 [`@luna-estelar/gas-browser`](https://github.com/luna-estelar/gas/tree/main/packages/browser).
 
-## Entry points
+## Exports
 
 The root re-exports [`@luna-estelar/gas-api`](https://github.com/luna-estelar/gas/tree/main/packages/api): sessions, source helpers,
 `GasOperationError`, and the protocol types a host handles. Every package is also available at a

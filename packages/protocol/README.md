@@ -1,7 +1,12 @@
-# GAS Protocol 1.0
+# @luna-estelar/gas-protocol
 
-`@luna-estelar/gas-protocol` is the canonical owner of the plain values shared by GAS Language,
-Core, API, Renderer, and connectors. It depends on no other GAS package.
+The Protocol 1.0 contracts shared by every stage of `document → language → timeline → session →
+renderer → connector → model`: timelines, commands, state, events, and the Renderer and
+connector interfaces, with the JSON Schemas that define them. It depends on no other GAS package.
+
+[![npm](https://img.shields.io/npm/v/@luna-estelar/gas-protocol)](https://www.npmjs.com/package/@luna-estelar/gas-protocol)
+[![license](https://img.shields.io/npm/l/@luna-estelar/gas-protocol)](https://github.com/luna-estelar/gas/blob/main/LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/ci.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/ci.yml)
 
 ## Install
 
@@ -9,10 +14,9 @@ Core, API, Renderer, and connectors. It depends on no other GAS package.
 npm install @luna-estelar/gas-protocol
 ```
 
-The package is ESM-only and requires Node.js 20 or newer when used in Node. Importing types from the
-root is runtime-free. The `validation` subpath carries a validator precompiled from the packaged
-JSON Schemas, so it generates no code at runtime and works under a Content Security Policy without
-`'unsafe-eval'`.
+Part of `@luna-estelar/gas`, which installs every package.
+
+## Example
 
 ```ts
 import { validateTimelinePayload } from '@luna-estelar/gas-protocol/validation';
@@ -21,11 +25,25 @@ const result = validateTimelinePayload(JSON.parse('{"formatVersion":{"major":1,"
 if (!result.ok) console.log(result.issues);
 ```
 
-## Contract families
+## Exports
 
-The package root exports the TypeScript contracts for timelines and musical positions, commands,
-session input and effective state, diagnostics and command outcomes, API session payloads,
-capabilities, Renderer/connector interfaces, configuration, and audio delivery.
+| Entry point    | Exports                                                                              | Purpose                                                         |
+| -------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
+| `.`            | `Timeline`, `TimelineEvent`, `MusicalPosition`, `BeatPosition`, …                    | Compiled timelines and musical positions (types only)           |
+| `.`            | `Command` and the `Set…` / `Clear…` / `…Track` command types                         | The canonical command set (types only)                          |
+| `.`            | `InputState`, `EffectiveState`, `SessionState`, `LifecycleEvent`, `CommandResult`, … | Session input, derived state and host-facing session payloads   |
+| `.`            | `Renderer`, `Connector`, `MonotonicClock`, `AudioChunk`, `RendererFailure`, …        | Renderer, connector, clock and audio contracts                  |
+| `.`            | `ConnectorConfigProblem`, `ConnectorConfigValidation`                                | Connector-owned configuration validation results                |
+| `.`            | `ConnectorError`, `isCloseCode`                                                      | The connector failure class, and the one close-code range check |
+| `.`            | `packageName`, `version`                                                             | This package's name and version                                 |
+| `./validation` | `validateTimelinePayload`, `PROTOCOL_SCHEMA_IDS`                                     | Structural timeline validation with a precompiled validator     |
+| `./schemas/*`  | `schemas/1.0/*.schema.json`                                                          | Draft 2020-12 JSON Schemas for every JSON-compatible value      |
+
+Importing types from the root is runtime-free. The `validation` subpath carries a validator
+precompiled from the packaged JSON Schemas, so it generates no code at runtime and works under a
+Content Security Policy without `'unsafe-eval'`.
+
+## Contract families
 
 The JSON-compatible value families have Draft 2020-12 schemas under `schemas/1.0/`:
 
@@ -78,6 +96,17 @@ Timelines themselves hold no seconds. `@luna-estelar/gas-core` owns the one conv
 a browser host agree on where a position falls in time without either owning the rule. A derived
 position is always a legal one: a whole bar, and a beat offset in whole ticks over 960.
 
+## Completion and the audible position
+
+A finite run that reaches its declared end produces a `RendererStatusEvent` carrying its `runId`
+and `completed: true`, and the API turns that into a `LifecycleEvent` with `completed: true`. A
+stop requested by the host never carries the flag, so a host can tell a piece that finished from
+one it stopped. `stream` describes only the provider's stream.
+
+`Renderer.positionAtSeconds(seconds)` is optional. It gives the musical position `seconds` after
+the current run's anchor, through the live tempo map, so a host can place a playhead against the
+audio it has actually played.
+
 ## Failures and close codes
 
 A connector reports a failure by throwing `ConnectorError`, whose message is fixed by its `reason`
@@ -85,20 +114,22 @@ so vendor text and credentials cannot leak into an event, log, or diagnostic. Th
 that into a `RendererFailure` carrying the connector's `code`, `reason` and `retryable` with the
 Renderer's own message.
 
-`ConnectorError` and `RendererFailure` support an optional `closeCode`: the raw transport close
-code, left unclassified for a host to interpret. `isCloseCode` accepts a whole number from 1000
-through 4999; the error constructor, structural guard and failure schema enforce that same range.
-A connector classifies the standard codes into a `reason`; the application range 4000-4999 means
-whatever the endpoint says it means. Forwarding the number through the Renderer and API is part
-of the subsequent runtime update.
+`ConnectorError` and `RendererFailure` carry an optional `closeCode`: the raw transport close code,
+left unclassified for a host to interpret. `isCloseCode` accepts a whole number from 1000 through
+4999; the error constructor, the structural guard, the failure schema and the API all enforce that
+same range. A connector classifies the standard codes into a `reason`; the application range
+4000-4999 means whatever the endpoint says it means. The Renderer copies `closeCode` into every
+failure it emits, and the API puts it on `GasOperationError.closeCode`, so it reaches the host
+unchanged.
 
 ## Connector obligations
 
-The optional `validateConfig` contract lets a connector validate its own configuration without
-compiling a schema. It takes a proposed `ConnectorConfig` and returns `ConnectorConfigValidation`
-— either `{ ok: true }` or `{ ok: false, problems }` containing a `ConnectorConfigProblem` list.
-Renderers can use it to validate configuration under a Content Security Policy without
-`'unsafe-eval'`.
+A connector validates its own configuration through the optional `validateConfig`. It takes a
+proposed `ConnectorConfig` and returns `ConnectorConfigValidation`, either `{ ok: true }` or
+`{ ok: false, problems }` with a list of `ConnectorConfigProblem`s. The Renderer calls it for the
+initial configuration and every edit, and, with `checkConnectorContract`, for the connector's own
+defaults. It never compiles a schema itself, which keeps it usable under a Content Security Policy
+without `'unsafe-eval'`.
 
 A `ConnectorConfigProblem` is a JSON Pointer `path` (the empty string for the root), a stable
 machine `code` such as `unknown-member` or `out-of-range`, and a fixed safe `message` that never
@@ -106,11 +137,9 @@ embeds provider or caller input. It is deliberately not shaped like a schema com
 hand-written validator should not have to invent a `schemaPath` and a `keyword` to say that a
 number is too large.
 
-`validateConfig` is optional because `Connector` is a published interface. The current Renderer
-still validates configuration with AJV and does not call this method; connector-owned validation
-is part of the subsequent runtime update. The optional `completed` event fields and
-`Renderer.positionAtSeconds` method likewise prepare contracts for that update; adding the types
-does not yet change finite-run completion or expose a runtime audible playhead.
+`validateConfig` is optional because `Connector` is a published interface. A connector that does
+not implement it has its configuration accepted unchecked, and the Renderer emits one
+`connector-config-unvalidated` warning.
 
 ## TypeScript-only contracts
 
@@ -122,3 +151,20 @@ not define a base64 audio envelope.
 Remote Renderer sessions, detached binary transport, versioned wire envelopes, canonical
 serialization, and cross-language compatibility policy remain deferred until a concrete transport
 requires them.
+
+## Runtime support
+
+- ESM-only.
+- Node.js 20 or newer; runs in browsers.
+- The root is types plus two small runtime values; `./validation` is precompiled and generates no
+  code at runtime.
+
+## Related packages
+
+Depends on no GAS package; `./validation` uses `ajv`'s runtime helpers only. Every other GAS
+package depends on it: `gas-language`, `gas-core`, `gas-api`, `gas-renderer`, `gas-notation`,
+`gas-connector-lyria` and `gas-browser`.
+
+## License
+
+MIT

@@ -1,7 +1,12 @@
-# GAS Lyria Connector
+# @luna-estelar/gas-connector-lyria
 
-`@luna-estelar/gas-connector-lyria` connects GAS to Google's Lyria RealTime through prompt
-translation, transport, chunk pacing and configuration.
+Connects GAS to Google's Lyria RealTime: prompt translation, transport, chunk pacing and
+configuration. It is the connector stage of `document → language → timeline → session → renderer
+→ connector → model`.
+
+[![npm](https://img.shields.io/npm/v/@luna-estelar/gas-connector-lyria)](https://www.npmjs.com/package/@luna-estelar/gas-connector-lyria)
+[![license](https://img.shields.io/npm/l/@luna-estelar/gas-connector-lyria)](https://github.com/luna-estelar/gas/blob/main/LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/ci.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/ci.yml)
 
 ## Install
 
@@ -9,16 +14,9 @@ translation, transport, chunk pacing and configuration.
 npm install @luna-estelar/gas-connector-lyria
 ```
 
-The package is ESM-only, requires Node.js 20 or newer when used in Node, and uses the official
-`@google/genai` transport. Opening a connector requires a key authorized for Lyria.
+Part of `@luna-estelar/gas`, which installs every package; there it is the `/lyria` subpath.
 
-The connector depends on GAS Protocol and the Google transport SDK. Public protocol contracts
-use vendor-independent types.
-
-The package root exports `createLyriaConnector`, `LYRIA_CAPABILITIES`, `translatePrompts`,
-`createPromptTransition`, `classifyKey`, `LYRIA_SCALES`, `resolveLyriaConfig`,
-`validateLyriaConfig`, `LYRIA_CONFIG_SCHEMA`, `DEFAULT_LYRIA_CONFIG`, and the
-`LyriaConnectorSettings` type.
+## Example
 
 ```ts
 import { createLyriaConnector } from '@luna-estelar/gas-connector-lyria';
@@ -27,6 +25,23 @@ const connector = createLyriaConnector();
 const description = await connector.describe();
 console.log(description.model.displayName);
 ```
+
+A host passes the connector to `createRenderer` (or to `@luna-estelar/gas-browser`'s
+`createBrowserSession`) together with its settings. Opening it requires a key authorized for Lyria.
+
+## Exports
+
+| Export                                                                               | Purpose                                                      |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| `createLyriaConnector`                                                               | Create a Lyria connector                                     |
+| `LYRIA_CAPABILITIES`                                                                 | What Lyria renders, approximates and cannot render           |
+| `LyriaConnectorSettings`                                                             | The settings type: `{ apiKey, endpoint? }`                   |
+| `validateLyriaConfig`, `resolveLyriaConfig`                                          | Check a configuration, or resolve one with defaults applied  |
+| `LYRIA_CONFIG_SCHEMA`, `DEFAULT_LYRIA_CONFIG`                                        | The configuration surface as JSON Schema, and its defaults   |
+| `translatePrompts`, `createPromptTransition`                                         | Turn effective state into weighted prompts and blend changes |
+| `classifyKey`, `LYRIA_SCALES`                                                        | Map a GAS key to the nearest Lyria scale                     |
+| `LyriaConnectorConfig`, `WeightedPrompt`, `PromptTransition`, `KeyClassification`, … | The type families above                                      |
+| `packageName`, `version`                                                             | This package's name and version                              |
 
 ## Settings
 
@@ -83,11 +98,26 @@ The connector reports these capability levels:
 Unsupported intents remain in the compiled timeline and session state. GAS reports capability
 warnings for intents the connector cannot render.
 
-## Dependencies
+## Manual checks
 
-Opening the Lyria transport requires a key and network access. Compilation and state
-derivation run locally. See the
+Opening the Lyria transport requires a key and network access; compilation and state derivation
+run locally. The
 [manual listening and transport guide](https://github.com/luna-estelar/gas/tree/main/packages/connector-lyria/manual)
-for provider checks.
+covers provider checks that the automated tests cannot make.
 
-The connector depends on `@google/genai`. Installing the browser host also installs this connector.
+## Runtime support
+
+- ESM-only.
+- Node.js 20 or newer; runs in browsers.
+- Uses the official `@google/genai` transport, which is the only dependency outside GAS. Import
+  this package only where a connector is needed, since that is where the SDK loads.
+
+## Related packages
+
+Depends on `@luna-estelar/gas-protocol` and `@google/genai`. Works with any host that accepts a
+`Connector`, such as `@luna-estelar/gas-renderer` or `@luna-estelar/gas-browser`, which takes the
+connector as an argument and does not depend on this package.
+
+## License
+
+MIT
