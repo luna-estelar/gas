@@ -12,9 +12,11 @@
 export type { ResolvedTiming, TempoSegment, TempoSegmentMap } from '@luna-estelar/gas-core';
 export {
   barToTime,
+  comparePositions,
   createTempoSegmentMap,
   DEFAULT_TEMPO,
   DEFAULT_TIME_SIGNATURE,
+  positionsEqual,
   positionToTime,
   reanchorTempo,
   resolveTiming,
@@ -24,9 +26,8 @@ export {
   timeToBarFraction,
   timeToPosition
 } from '@luna-estelar/gas-core';
-export type { RendererErrorCode } from './errors.js';
+export type { RendererErrorCode, RendererProblem } from './errors.js';
 export { RendererError } from './errors.js';
-export type { SanitizedSchemaProblem } from './connector-config.js';
 export type { CreateRendererOptions } from './renderer.js';
 export { createRenderer } from './renderer.js';
 export type { AudioAccounting } from './audio.js';
@@ -34,8 +35,11 @@ export { applyS16leGain, BufferLedger } from './audio.js';
 export {
   BUFFER_HARD_LIMIT_SECONDS,
   BUFFER_WARNING_SECONDS,
+  DEFAULT_FIRST_AUDIO_CHUNKS,
   LOOKAHEAD_CHUNKS,
-  MAX_LOOKAHEAD_SECONDS
+  MAX_FIRST_AUDIO_TIMEOUT_SECONDS,
+  MAX_LOOKAHEAD_SECONDS,
+  MIN_FIRST_AUDIO_TIMEOUT_SECONDS
 } from './constants.js';
 
 export const packageName = '@luna-estelar/gas-renderer';

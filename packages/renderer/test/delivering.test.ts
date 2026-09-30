@@ -114,7 +114,10 @@ describe('audio delivery', () => {
   });
 
   it('surfaces connector stream status and ignores stale callbacks', async () => {
-    const { connector, renderer } = await audioRenderer(infiniteTimeline());
+    const { connector, renderer } = await audioRenderer(
+      infiniteTimeline(),
+      new FakeConnector({ anchorOnStart: true })
+    );
     const statuses: Array<{ playback: string; stream?: string; throttled?: boolean }> = [];
     renderer.on('status', (status) =>
       statuses.push({

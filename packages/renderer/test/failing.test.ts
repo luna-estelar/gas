@@ -57,9 +57,81 @@ describe('renderer connector failure propagation', () => {
     );
   });
 
+  it.each([
+    ['a thrown ConnectorError', true],
+    ['a connector-reported failure', false]
+  ] as const)('carries a transport close code to the host through %s', async (_label, thrown) => {
+    // The renderer classifies nothing about a close code; a host maps the
+    // application range itself, so the raw number has to survive the trip.
+    const connector = new FakeConnector({
+      anchorOnStart: true,
+      ...(thrown
+        ? {
+            updateFailure: new ConnectorError({
+              code: 'x-closed',
+              reason: 'network',
+              retryable: true,
+              closeCode: 4429
+            })
+          }
+        : {})
+    });
+    const clock = new VirtualClock();
+    const renderer = await createRenderer({ clock, connector, runIdFactory: () => 'run-1' });
+    const timeline = testTimeline({ playback: { mode: 'infinite' } });
+    await renderer.load(timeline, createInputState(timeline));
+    const failures: RendererFailure[] = [];
+    renderer.on('failure', (failure) => failures.push(failure));
+    await renderer.start();
+
+    if (thrown) {
+      const state = applyActive(createInputState(timeline), {
+        kind: 'setTrackFlavor',
+        trackId: 'track.pad',
+        value: 'brighter'
+      });
+      const caught = await createRejects(renderer.updateState(state));
+      expect(caught).toMatchObject({ failure: { closeCode: 4429 } });
+    } else {
+      connector.sink!.failure({
+        code: 'x-closed',
+        message: 'ignored',
+        reason: 'network',
+        runId: 'run-1',
+        retryable: true,
+        closeCode: 4429
+      });
+      await flushAsync();
+    }
+    expect(failures.at(-1)).toMatchObject({ code: 'x-closed', closeCode: 4429 });
+  });
+
+  it('drops a close code the transport could not have produced', async () => {
+    const connector = new FakeConnector({ anchorOnStart: true });
+    const clock = new VirtualClock();
+    const renderer = await createRenderer({ clock, connector, runIdFactory: () => 'run-1' });
+    const timeline = testTimeline({ playback: { mode: 'infinite' } });
+    await renderer.load(timeline, createInputState(timeline));
+    const failures: RendererFailure[] = [];
+    renderer.on('failure', (failure) => failures.push(failure));
+    await renderer.start();
+
+    connector.sink!.failure({
+      code: 'x-closed',
+      message: 'ignored',
+      reason: 'network',
+      runId: 'run-1',
+      retryable: true,
+      closeCode: 99_999
+    });
+    await flushAsync();
+    expect(failures.at(-1)).not.toHaveProperty('closeCode');
+  });
+
   it('preserves a ConnectorError thrown from a running state update', async () => {
     const connector = new FakeConnector({
-      updateFailure: new ConnectorError({ code: 'x-update', reason: 'provider', retryable: true })
+      updateFailure: new ConnectorError({ code: 'x-update', reason: 'provider', retryable: true }),
+      anchorOnStart: true
     });
     const clock = new VirtualClock();
     const renderer = await createRenderer({ clock, connector, runIdFactory: () => 'run-1' });
@@ -81,7 +153,12 @@ describe('renderer connector failure propagation', () => {
 
   it('preserves a ConnectorError thrown from a scheduled boundary update', async () => {
     const connector = new FakeConnector({
-      updateFailure: new ConnectorError({ code: 'x-scheduled', reason: 'network', retryable: true })
+      updateFailure: new ConnectorError({
+        code: 'x-scheduled',
+        reason: 'network',
+        retryable: true
+      }),
+      anchorOnStart: true
     });
     const clock = new VirtualClock();
     const renderer = await createRenderer({ clock, connector, runIdFactory: () => 'run-1' });
@@ -104,7 +181,8 @@ describe('renderer connector failure propagation', () => {
 
   it('preserves a ConnectorError thrown from stop', async () => {
     const connector = new FakeConnector({
-      stopFailure: new ConnectorError({ code: 'x-stop', reason: 'quota', retryable: false })
+      stopFailure: new ConnectorError({ code: 'x-stop', reason: 'quota', retryable: false }),
+      anchorOnStart: true
     });
     const clock = new VirtualClock();
     const renderer = await createRenderer({ clock, connector, runIdFactory: () => 'run-1' });

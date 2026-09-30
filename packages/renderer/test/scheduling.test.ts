@@ -1,5 +1,10 @@
 import { createInputState } from '@luna-estelar/gas-core';
-import type { Renderer, Timeline, TimelineEvent } from '@luna-estelar/gas-protocol';
+import type {
+  Renderer,
+  RendererStatusEvent,
+  Timeline,
+  TimelineEvent
+} from '@luna-estelar/gas-protocol';
 import { describe, expect, it } from 'vitest';
 import { createRenderer } from '../src/index.js';
 import { FakeConnector } from './support/fake-connector.js';
@@ -10,7 +15,7 @@ describe('renderer scheduling and derivation', () => {
   it('anchors musical time after delayed connector startup', async () => {
     const clock = new VirtualClock();
     const gate = deferred();
-    const connector = new FakeConnector({ startGate: gate.promise });
+    const connector = new FakeConnector({ startGate: gate.promise, anchorOnStart: true });
     const renderer = await createRenderer({
       clock,
       connector,
@@ -85,7 +90,7 @@ describe('renderer scheduling and derivation', () => {
   it('emits position at the actual boundary rather than the lookahead deadline', async () => {
     const timeline = timelineWithBarThreeStop();
     const clock = new VirtualClock();
-    const connector = new FakeConnector();
+    const connector = new FakeConnector({ anchorOnStart: true });
     const renderer = await createRenderer({
       clock,
       connector,
@@ -108,21 +113,54 @@ describe('renderer scheduling and derivation', () => {
     ]);
   });
 
+  it.each([
+    ['4/4', { beatsPerBar: 4, beatUnit: 4 }],
+    // Tempo counts the meter's own beat, so an eighth-note beat at 120 BPM is
+    // half a second in 6/8 exactly as a quarter-note beat is in 4/4.
+    ['6/8', { beatsPerBar: 6, beatUnit: 8 }]
+  ] as const)(
+    'schedules an authored beat at its own instant in %s',
+    async (_meter, timeSignature) => {
+      const timeline = timelineWithBeatThreeStop(timeSignature);
+      const { clock, renderer } = await runningRenderer(timeline);
+      const positions: Array<{ position: unknown; seconds: number }> = [];
+      renderer.on('position', (event) =>
+        positions.push({ position: event.position, seconds: event.seconds })
+      );
+
+      clock.advanceTo(0.99);
+      await flushAsync();
+      expect(positions).toEqual([]);
+
+      clock.advanceTo(1);
+      await flushAsync();
+      expect(positions).toEqual([{ position: { bar: 1, beat: { index: 3 } }, seconds: 1 }]);
+      await renderer.stop();
+    }
+  );
+
   it('completes finite playback at the end boundary and clears every timer', async () => {
     const { clock, connector, renderer } = await runningRenderer(timelineWithBarThreeStop());
-    const statuses: string[] = [];
-    renderer.on('status', (event) => statuses.push(event.playback));
+    const statuses: RendererStatusEvent[] = [];
+    renderer.on('status', (event) => statuses.push(event));
     clock.advanceTo(8);
     await flushAsync();
     expect(connector.calls).toContain('stop:run-1');
-    expect(statuses.slice(-2)).toEqual(['stopping', 'stopped']);
+    // Reaching the declared end is its own event: a terminal status that still
+    // names the run and says it completed, then the ordinary stopped status.
+    expect(statuses.slice(-3)).toEqual([
+      { lifecycle: 'ready', playback: 'stopping', runId: 'run-1' },
+      { lifecycle: 'ready', playback: 'stopped', runId: 'run-1', completed: true },
+      { lifecycle: 'ready', playback: 'stopped' }
+    ]);
+    expect(connector.calls.filter((call) => call === 'stop:run-1')).toHaveLength(1);
     expect(clock.pendingDeadlines()).toEqual([]);
   });
 
   it('times finite completion from a delayed startup anchor', async () => {
     const clock = new VirtualClock();
     const gate = deferred();
-    const connector = new FakeConnector({ startGate: gate.promise });
+    const connector = new FakeConnector({ startGate: gate.promise, anchorOnStart: true });
     const renderer = await createRenderer({
       clock,
       connector,
@@ -159,7 +197,7 @@ describe('renderer scheduling and derivation', () => {
 
   it('isolates status listeners while starting playback', async () => {
     const clock = new VirtualClock();
-    const connector = new FakeConnector();
+    const connector = new FakeConnector({ anchorOnStart: true });
     const renderer = await createRenderer({ clock, connector, runIdFactory: () => 'run-listener' });
     const timeline = testTimeline();
     await renderer.load(timeline, createInputState(timeline));
@@ -202,7 +240,10 @@ describe('renderer scheduling and derivation', () => {
 
   it('fails terminally when an explicit connector stop is rejected', async () => {
     const secret = 'provider-stop-secret';
-    const connector = new FakeConnector({ stopFailure: new Error(`stop rejected ${secret}`) });
+    const connector = new FakeConnector({
+      stopFailure: new Error(`stop rejected ${secret}`),
+      anchorOnStart: true
+    });
     const clock = new VirtualClock();
     const renderer = await createRenderer({
       clock,
@@ -249,7 +290,8 @@ async function runningRenderer(timeline: Timeline): Promise<{
   renderer: Renderer;
 }> {
   const clock = new VirtualClock();
-  const connector = new FakeConnector();
+  // Musical time starts with the first chunk, so a running renderer needs audio.
+  const connector = new FakeConnector({ anchorOnStart: true });
   const renderer = await createRenderer({
     clock,
     connector,
@@ -258,6 +300,28 @@ async function runningRenderer(timeline: Timeline): Promise<{
   await renderer.load(timeline, createInputState(timeline));
   await renderer.start();
   return { clock, connector, renderer };
+}
+
+function timelineWithBeatThreeStop(timeSignature: {
+  readonly beatsPerBar: number;
+  readonly beatUnit: number;
+}): Timeline {
+  const base = testTimeline({ playback: { mode: 'infinite' } });
+  const stop: TimelineEvent = {
+    eventId: 'event.stop.beat',
+    type: 'track',
+    targetId: 'track.pad',
+    action: 'stop',
+    position: { bar: 1, beat: { index: 3 } },
+    sequence: 1,
+    scope: 'timed',
+    sectionInstanceId: 'section.main.0'
+  };
+  return {
+    ...base,
+    musicalContext: { tempo: 120, timeSignature },
+    events: [...base.events, stop]
+  };
 }
 
 function timelineWithBarThreeStop(): Timeline {

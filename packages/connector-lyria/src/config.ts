@@ -1,9 +1,12 @@
-// Connector configuration schema, defaults and typed reader. The renderer validates
-// edits; the transport derives bpm and scale from timing and effective state.
+// Connector configuration schema, defaults, typed reader and the connector-owned
+// validator the Renderer calls instead of compiling the schema. The transport
+// derives bpm and scale from timing and effective state.
 
 import type {
   ConnectorConfig,
+  ConnectorConfigProblem,
   ConnectorConfigSchema,
+  ConnectorConfigValidation,
   JsonObject,
   JsonValue
 } from '@luna-estelar/gas-protocol';
@@ -277,110 +280,206 @@ const GENERATION_KEYS = new Set([
   'brightness'
 ]);
 
-function invalidConfiguration(): never {
-  throw new ConnectorError({
-    code: 'lyria-invalid-configuration',
-    reason: 'internal',
-    retryable: false
-  });
+const PROMPT_STRATEGIES = ['per-track', 'global-plus-tracks'];
+const GENERATION_MODES = ['quality', 'diversity'];
+
+/**
+ * Collects every problem instead of stopping at the first, so a host editing
+ * several members at once learns about all of them. Messages are built from the
+ * rule's own bounds and never from the value under inspection, so a caller's own
+ * text can never ride back out through a problem.
+ */
+interface ProblemSink {
+  readonly problems: ConnectorConfigProblem[];
 }
 
-function requirePlainObject(value: unknown): Record<string, unknown> {
+type ProblemCode = 'wrong-type' | 'out-of-range' | 'not-allowed' | 'unknown-member';
+
+function record(sink: ProblemSink, path: string, code: ProblemCode, message: string): void {
+  sink.problems.push(Object.freeze({ path, code, message }));
+}
+
+interface NumberRule {
+  readonly minimum?: number;
+  readonly maximum?: number;
+  readonly exclusiveMinimum?: number;
+  readonly integer?: boolean;
+}
+
+function rangeMessage(rule: NumberRule): string {
+  const bounds: string[] = [];
+  if (rule.exclusiveMinimum !== undefined) bounds.push(`greater than ${rule.exclusiveMinimum}`);
+  if (rule.minimum !== undefined) bounds.push(`at least ${rule.minimum}`);
+  if (rule.maximum !== undefined) bounds.push(`at most ${rule.maximum}`);
+  return `The value must be ${bounds.join(' and ')}.`;
+}
+
+function plainObject(
+  sink: ProblemSink,
+  path: string,
+  value: unknown
+): Record<string, unknown> | undefined {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    return invalidConfiguration();
+    record(sink, path, 'wrong-type', 'The value must be a JSON object.');
+    return undefined;
   }
   const prototype = Object.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) return invalidConfiguration();
+  if (prototype !== Object.prototype && prototype !== null) {
+    record(sink, path, 'wrong-type', 'The value must be a plain JSON object.');
+    return undefined;
+  }
   return value as Record<string, unknown>;
 }
 
-function requireKnownKeys(value: Record<string, unknown>, allowed: ReadonlySet<string>): void {
-  if (Object.keys(value).some((key) => !allowed.has(key))) invalidConfiguration();
+function knownKeys(
+  sink: ProblemSink,
+  path: string,
+  value: Record<string, unknown>,
+  allowed: ReadonlySet<string>
+): void {
+  for (const key of Object.keys(value)) {
+    if (allowed.has(key)) continue;
+    record(
+      sink,
+      `${path}/${key}`,
+      'unknown-member',
+      'This member is not part of the Lyria configuration.'
+    );
+  }
 }
 
-function optionalObject(
-  value: Record<string, unknown>,
-  key: string,
+/** An absent member is legal; a present one must be a plain object with known keys. */
+function section(
+  sink: ProblemSink,
+  path: string,
+  value: unknown,
   allowed: ReadonlySet<string>
-): Record<string, unknown> {
-  const member = value[key];
-  if (member === undefined) return {};
-  const object = requirePlainObject(member);
-  requireKnownKeys(object, allowed);
+): Record<string, unknown> | undefined {
+  if (value === undefined) return undefined;
+  const object = plainObject(sink, path, value);
+  if (object === undefined) return undefined;
+  knownKeys(sink, path, object, allowed);
   return object;
 }
 
-function optionalFiniteNumber(
+function number(
+  sink: ProblemSink,
+  path: string,
   value: Record<string, unknown>,
   key: string,
-  options: {
-    readonly minimum?: number;
-    readonly maximum?: number;
-    readonly exclusiveMinimum?: number;
-    readonly integer?: boolean;
-  }
+  rule: NumberRule
 ): void {
   const member = value[key];
   if (member === undefined) return;
-  if (typeof member !== 'number' || !Number.isFinite(member)) invalidConfiguration();
-  if (options.integer === true && !Number.isInteger(member)) invalidConfiguration();
-  if (options.minimum !== undefined && member < options.minimum) invalidConfiguration();
-  if (options.maximum !== undefined && member > options.maximum) invalidConfiguration();
-  if (options.exclusiveMinimum !== undefined && member <= options.exclusiveMinimum) {
-    invalidConfiguration();
+  const memberPath = `${path}/${key}`;
+  if (typeof member !== 'number' || !Number.isFinite(member)) {
+    record(sink, memberPath, 'wrong-type', 'The value must be a finite number.');
+    return;
   }
+  if (rule.integer === true && !Number.isInteger(member)) {
+    record(sink, memberPath, 'wrong-type', 'The value must be a whole number.');
+    return;
+  }
+  const low = rule.minimum !== undefined && member < rule.minimum;
+  const high = rule.maximum !== undefined && member > rule.maximum;
+  const exclusive = rule.exclusiveMinimum !== undefined && member <= rule.exclusiveMinimum;
+  if (low || high || exclusive) record(sink, memberPath, 'out-of-range', rangeMessage(rule));
 }
 
-function optionalBooleanMember(value: Record<string, unknown>, key: string): void {
+function boolean(
+  sink: ProblemSink,
+  path: string,
+  value: Record<string, unknown>,
+  key: string
+): void {
   const member = value[key];
-  if (member !== undefined && typeof member !== 'boolean') invalidConfiguration();
+  if (member === undefined || typeof member === 'boolean') return;
+  record(sink, `${path}/${key}`, 'wrong-type', 'The value must be true or false.');
+}
+
+function choice(
+  sink: ProblemSink,
+  path: string,
+  value: Record<string, unknown>,
+  key: string,
+  allowed: readonly string[]
+): void {
+  const member = value[key];
+  if (member === undefined) return;
+  if (typeof member === 'string' && allowed.includes(member)) return;
+  record(sink, `${path}/${key}`, 'not-allowed', `The value must be one of: ${allowed.join(', ')}.`);
 }
 
 /**
- * Validate the same partial JSON surface advertised by `LYRIA_CONFIG_SCHEMA`,
- * then resolve omitted members to the connector defaults. Renderer callers
- * arrive pre-validated; this protects direct Connector users without adding a
- * second schema-engine dependency to the model boundary.
+ * Check the same partial JSON surface advertised by `LYRIA_CONFIG_SCHEMA`, by
+ * hand. The Renderer calls this through `Connector.validateConfig` rather than
+ * compiling the schema, because compiling one generates code at runtime, which a
+ * browser Content Security Policy without `'unsafe-eval'` blocks.
+ *
+ * Deliberately stricter than the schema in two places: a non-finite number is
+ * rejected where JSON Schema's `number` accepts it, and a value whose prototype
+ * is neither `Object.prototype` nor `null` is rejected where the schema has no
+ * equivalent. Both reject input that could never round-trip as JSON.
+ */
+function collectProblems(config: ConnectorConfig): readonly ConnectorConfigProblem[] {
+  const sink: ProblemSink = { problems: [] };
+  const root = plainObject(sink, '', config);
+  if (root === undefined) return sink.problems;
+  knownKeys(sink, '', root, ROOT_KEYS);
+
+  const prompt = section(sink, '/prompt', root.prompt, PROMPT_KEYS);
+  if (prompt !== undefined) {
+    choice(sink, '/prompt', prompt, 'strategy', PROMPT_STRATEGIES);
+    number(sink, '/prompt', prompt, 'trackWeight', { exclusiveMinimum: 0 });
+    number(sink, '/prompt', prompt, 'globalWeight', { exclusiveMinimum: 0 });
+    number(sink, '/prompt', prompt, 'minimumPositiveWeight', { exclusiveMinimum: 0 });
+    number(sink, '/prompt', prompt, 'transitionDurationMs', { minimum: 0, integer: true });
+    number(sink, '/prompt', prompt, 'transitionSteps', { minimum: 1, integer: true });
+  }
+
+  const generation = section(sink, '/generation', root.generation, GENERATION_KEYS);
+  if (generation !== undefined) {
+    number(sink, '/generation', generation, 'temperature', { minimum: 0, maximum: 3 });
+    number(sink, '/generation', generation, 'guidance', { minimum: 0, maximum: 6 });
+    number(sink, '/generation', generation, 'topK', { minimum: 1, maximum: 1000, integer: true });
+    choice(sink, '/generation', generation, 'mode', GENERATION_MODES);
+    boolean(sink, '/generation', generation, 'muteBass');
+    boolean(sink, '/generation', generation, 'muteDrums');
+    boolean(sink, '/generation', generation, 'onlyBassAndDrums');
+    number(sink, '/generation', generation, 'seed', {
+      minimum: 0,
+      maximum: 2147483647,
+      integer: true
+    });
+    number(sink, '/generation', generation, 'density', { minimum: 0, maximum: 1 });
+    number(sink, '/generation', generation, 'brightness', { minimum: 0, maximum: 1 });
+  }
+
+  return sink.problems;
+}
+
+const CONFIG_OK: ConnectorConfigValidation = Object.freeze({ ok: true });
+
+/** The `Connector.validateConfig` implementation: reports problems without throwing. */
+export function validateLyriaConfig(config: ConnectorConfig): ConnectorConfigValidation {
+  const problems = collectProblems(config);
+  if (problems.length === 0) return CONFIG_OK;
+  return Object.freeze({ ok: false, problems: Object.freeze(problems) });
+}
+
+/**
+ * Validate, then resolve omitted members to the connector defaults. Renderer
+ * callers arrive pre-validated through {@link validateLyriaConfig}; this protects
+ * direct Connector users, and collects every problem before failing so the throw
+ * is not decided by member order.
  */
 export function validateAndResolveLyriaConfig(config: ConnectorConfig): LyriaConnectorConfig {
-  const root = requirePlainObject(config);
-  requireKnownKeys(root, ROOT_KEYS);
-  const prompt = optionalObject(root, 'prompt', PROMPT_KEYS);
-  const generation = optionalObject(root, 'generation', GENERATION_KEYS);
-
-  if (
-    prompt.strategy !== undefined &&
-    prompt.strategy !== 'per-track' &&
-    prompt.strategy !== 'global-plus-tracks'
-  ) {
-    invalidConfiguration();
+  if (collectProblems(config).length > 0) {
+    throw new ConnectorError({
+      code: 'lyria-invalid-configuration',
+      reason: 'internal',
+      retryable: false
+    });
   }
-  optionalFiniteNumber(prompt, 'trackWeight', { exclusiveMinimum: 0 });
-  optionalFiniteNumber(prompt, 'globalWeight', { exclusiveMinimum: 0 });
-  optionalFiniteNumber(prompt, 'minimumPositiveWeight', { exclusiveMinimum: 0 });
-  optionalFiniteNumber(prompt, 'transitionDurationMs', { minimum: 0, integer: true });
-  optionalFiniteNumber(prompt, 'transitionSteps', { minimum: 1, integer: true });
-
-  optionalFiniteNumber(generation, 'temperature', { minimum: 0, maximum: 3 });
-  optionalFiniteNumber(generation, 'guidance', { minimum: 0, maximum: 6 });
-  optionalFiniteNumber(generation, 'topK', { minimum: 1, maximum: 1000, integer: true });
-  if (
-    generation.mode !== undefined &&
-    generation.mode !== 'quality' &&
-    generation.mode !== 'diversity'
-  ) {
-    invalidConfiguration();
-  }
-  optionalBooleanMember(generation, 'muteBass');
-  optionalBooleanMember(generation, 'muteDrums');
-  optionalBooleanMember(generation, 'onlyBassAndDrums');
-  optionalFiniteNumber(generation, 'seed', {
-    minimum: 0,
-    maximum: 2147483647,
-    integer: true
-  });
-  optionalFiniteNumber(generation, 'density', { minimum: 0, maximum: 1 });
-  optionalFiniteNumber(generation, 'brightness', { minimum: 0, maximum: 1 });
-
   return deepFreeze(resolveLyriaConfig(config));
 }

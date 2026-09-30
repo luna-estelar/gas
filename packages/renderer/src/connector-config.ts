@@ -1,11 +1,7 @@
-import { Ajv2020, type ErrorObject, type SchemaObject } from 'ajv/dist/2020.js';
-import addFormatsImport, { type FormatsPlugin } from 'ajv-formats';
-import type { ConnectorConfigSchema, JsonObject, JsonValue } from '@luna-estelar/gas-protocol';
-
-// Node exposes the CJS module.exports as the default import, while NodeNext
-// models that binding as the module namespace. Keep the runtime value intact
-// and narrow only its type to the package's callable plugin interface.
-const addFormats = addFormatsImport as unknown as FormatsPlugin;
+// Plain-JSON handling for connector configuration: cloning, merge patching and
+// freezing. Validation itself belongs to the connector, through
+// `Connector.validateConfig`, so nothing here compiles a schema.
+import type { JsonObject, JsonValue } from '@luna-estelar/gas-protocol';
 
 /**
  * Raised when a value that must be plain JSON contains something that JSON
@@ -22,19 +18,6 @@ export class NonJsonValueError extends Error {
     this.name = 'NonJsonValueError';
     this.path = path === '' ? '/' : path;
   }
-}
-
-export interface SanitizedSchemaProblem {
-  readonly instancePath: string;
-  readonly schemaPath: string;
-  readonly keyword: string;
-  readonly message: string;
-  readonly params: JsonObject;
-}
-
-export interface ConfigValidator {
-  /** An empty array means valid. Returned problems are deeply frozen. */
-  validate(candidate: JsonObject): readonly SanitizedSchemaProblem[];
 }
 
 export function isPlainJsonObject(value: unknown): value is JsonObject {
@@ -96,48 +79,6 @@ export function applyMergePatch(base: JsonObject, patch: JsonObject): JsonObject
     }
   }
   return result;
-}
-
-/**
- * Compiles a connector's advertised config schema with the repo-canonical
- * Draft 2020-12 setup. Any failure (non-JSON schema, invalid schema, or an async
- * schema) throws; callers treat every throw as a connector contract failure and
- * never surface the schema text.
- */
-export function compileConfigSchema(schema: ConnectorConfigSchema): ConfigValidator {
-  const schemaClone = cloneJsonObject(schema);
-  const ajv = new Ajv2020({ allErrors: true, strict: false });
-  addFormats(ajv);
-  const validate = ajv.compile(schemaClone as SchemaObject);
-  if ((validate as { $async?: boolean }).$async === true) {
-    throw new Error('Async connector configuration schemas are not supported.');
-  }
-  return {
-    validate(candidate: JsonObject): readonly SanitizedSchemaProblem[] {
-      if (validate(candidate)) return Object.freeze([]);
-      const problems = (validate.errors ?? []).map(sanitizeProblem);
-      return Object.freeze(problems);
-    }
-  };
-}
-
-function sanitizeProblem(error: ErrorObject): SanitizedSchemaProblem {
-  return Object.freeze({
-    instancePath: error.instancePath,
-    schemaPath: error.schemaPath,
-    keyword: error.keyword,
-    message: error.message ?? '',
-    params: freezeJson(cloneParams(error.params))
-  });
-}
-
-function cloneParams(params: unknown): JsonObject {
-  if (!isPlainJsonObject(params)) return {};
-  try {
-    return cloneJsonObject(params);
-  } catch {
-    return {};
-  }
 }
 
 /** Deep-clones and deep-freezes a JSON object graph. */
