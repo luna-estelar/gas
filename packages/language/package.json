@@ -39,7 +39,8 @@
   },
   "files": [
     "out",
-    "src"
+    "src",
+    "syntaxes"
   ],
   "scripts": {
     "build": "pnpm langium:generate && tsc -b",

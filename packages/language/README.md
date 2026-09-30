@@ -26,6 +26,12 @@ const result = compileSource('tempo 88\nlength bars 4\n');
 if (result.ok) console.log(result.timeline.compilerVersion);
 ```
 
+## Editor grammar
+
+The tarball ships `syntaxes/gas.tmLanguage.json`, the TextMate grammar generated from
+`src/gas.langium`. Editors and static highlighters can point at it directly; it is not
+reachable through `exports`, so resolve it as a file within the package.
+
 ## Dependencies
 
 Importing the package root loads Langium and Chevrotain along with the parser.

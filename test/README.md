@@ -7,8 +7,8 @@ own package. Cross-package integration tests live in the root `test/` directory.
 pnpm test
 ```
 
-This runs formatting, the TypeScript build, schema validation, boundary and publication
-checks, then Vitest. For a shorter test loop after building, use `pnpm exec vitest run`.
+This runs formatting, language regeneration, the TypeScript build, schema validation,
+boundary and publication checks, then Vitest. For a shorter test loop after building, use `pnpm exec vitest run`.
 
 Integration suites cover compiled examples through Core, Renderer, browser helpers and
 notation; protocol contracts; consumer command paths; and connector configuration.
