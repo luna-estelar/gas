@@ -96,7 +96,7 @@ describe('underruns', () => {
 });
 
 describe('frame accounting', () => {
-  it('chains 48 kHz chunks on a 44.1 kHz context by whole output frames, without drift', () => {
+  it('chains 48 kHz chunks on a 44.1 kHz context without drift', () => {
     const { context, at } = setup({ sampleRate: 44_100 });
     for (let sequence = 0; sequence < 100; sequence++) at(0, pcmChunk(sequence));
     const frames = starts(context).map((when) => Math.round(when * 44_100));
@@ -105,6 +105,17 @@ describe('frame accounting', () => {
     frames.forEach((frame, index) => expect(frame - frames[0]!).toBe(index * step));
     // Buffers keep the chunk's own rate; the graph resamples.
     expect(context.buffers.every((buffer) => buffer.sampleRate === 48_000)).toBe(true);
+  });
+
+  // 128 frames at 48 kHz is 117.6 frames at 44.1 kHz. Rounding each chunk to
+  // 118 would put the 1000th start about 9 ms late.
+  it('carries fractional output frames across chunks instead of rounding each one', () => {
+    const { context, at } = setup({ sampleRate: 44_100, prebufferSeconds: 0.25 });
+    const seconds = 128 / 48_000;
+    for (let sequence = 0; sequence < 1000; sequence++) at(0, pcmChunk(sequence, { seconds }));
+    const when = starts(context);
+    expect(when).toHaveLength(1000);
+    expect(when[999]! - when[0]!).toBeCloseTo(999 * seconds, 9);
   });
 
   it('keeps the start time of the last 64 chunks', () => {
@@ -249,5 +260,40 @@ describe('playhead', () => {
     expect(engine.playheadSeconds()).toBeCloseTo(4.5, 9);
     context.advanceTo(20);
     expect(engine.playheadSeconds()).toBeCloseTo(6.0, 9);
+  });
+
+  // Resuming subtracts the start lead and the output latency from the new
+  // segment; without a clamp the playhead stepped from 4.0 back to 3.85.
+  it('never moves backwards across an underrun', () => {
+    const { context, engine, at } = setup();
+    context.outputLatency = 0.1;
+    at(0, pcmChunk(0));
+    at(2.0, pcmChunk(1));
+    at(6.3, pcmChunk(2));
+    let last = -Infinity;
+    for (let time = 6.3; time <= 12; time += 0.01) {
+      context.advanceTo(time);
+      const seconds = engine.playheadSeconds()!;
+      expect(seconds).toBeGreaterThanOrEqual(last);
+      last = seconds;
+    }
+    expect(last).toBeCloseTo(6.0, 9);
+  });
+
+  // A burst resumes before the old segment has finished reaching the listener,
+  // so the playhead keeps following the old audio until it runs out.
+  it('finishes the old segment through the output latency after an early resume', () => {
+    const { context, engine, at } = setup();
+    context.outputLatency = 0.3;
+    at(0, pcmChunk(0));
+    at(2.0, pcmChunk(1));
+    // Chunk 1 ends at 6.05 and is heard until 6.35; the resume starts at 6.15.
+    at(6.1, pcmChunk(2));
+    at(6.1, pcmChunk(3));
+    expect(starts(context)[2]).toBeCloseTo(6.15, 9);
+    context.advanceTo(6.2);
+    expect(engine.playheadSeconds()).toBeCloseTo(3.85, 9);
+    context.advanceTo(6.5);
+    expect(engine.playheadSeconds()).toBeCloseTo(4.05, 9);
   });
 });

@@ -1,5 +1,5 @@
 // Plays renderer chunks as a gapless chain of AudioBufferSourceNodes, each
-// started at an exact frame on the device clock.
+// started at the exact time the previous one ends on the device clock.
 //
 // A real-time model delivers each chunk at about the moment the previous one
 // has to start, so the only margin against a late chunk is how long playback
@@ -31,9 +31,21 @@ const FRAME_TOLERANCE = 1e-6;
 
 interface Pending {
   readonly buffer: AudioBuffer;
-  /** Length in output frames, which is what the chain advances by. */
+  /** Length in frames at the run's own sample rate. */
   readonly frames: number;
   readonly sequence: number;
+}
+
+/**
+ * One stretch of gapless playback: from a start, or from the resume after an
+ * underrun, to the next underrun. Only its start is rounded to an output frame.
+ * Inside it every start time comes from the source frames scheduled so far, so
+ * a chunk length that does not convert to whole output frames cannot drift.
+ */
+interface Segment {
+  readonly startFrame: number;
+  /** Source frames the run had delivered when the segment began. */
+  readonly baseFrames: number;
 }
 
 export class ChainedSourceEngine implements PlaybackEngine {
@@ -53,11 +65,12 @@ export class ChainedSourceEngine implements PlaybackEngine {
   private format: { readonly sampleRate: number; readonly channels: number } | undefined;
   private queue: Pending[] = [];
   private prebufferTimer: ClockTimer | undefined;
-  // Positions are whole output frames so a long run cannot accumulate rounding.
-  private runStartFrame: number | undefined;
-  private nextStartFrame = 0;
+  private segment: Segment | undefined;
+  // Kept after a resume so the playhead can finish the audio it was still
+  // playing out through the output latency.
+  private previousSegment: Segment | undefined;
+  // Source frames, at the run's rate, handed to the graph so far.
   private deliveredFrames = 0;
-  private pausedFrames = 0;
   private underruns = 0;
   private gainRestored = false;
   private suspendedReported = false;
@@ -109,21 +122,14 @@ export class ChainedSourceEngine implements PlaybackEngine {
     const buffer = this.context.createBuffer(chunk.channels, decoded.frames, decoded.sampleRate);
     decoded.channels.forEach((samples, channel) => buffer.getChannelData(channel).set(samples));
     this.capture?.append(chunk);
-    const pending: Pending = {
-      buffer,
-      frames: Math.round((decoded.frames * this.context.sampleRate) / decoded.sampleRate),
-      sequence: chunk.sequence
-    };
+    const pending: Pending = { buffer, frames: decoded.frames, sequence: chunk.sequence };
 
     switch (this.state) {
       case 'playing':
       case 'stopped':
         // Stopped with the run still set means the chain ran dry, so this chunk
         // is late however the arithmetic below would read.
-        if (
-          this.state === 'stopped' ||
-          this.nextStartFrame / this.rate < this.context.currentTime
-        ) {
+        if (this.state === 'stopped' || this.nextStartTime() < this.context.currentTime) {
           this.underruns++;
           this.setState('underrun');
           this.queue = [pending];
@@ -176,11 +182,9 @@ export class ChainedSourceEngine implements PlaybackEngine {
   }
 
   status(): AudioStatus {
-    const queued = this.queue.reduce((sum, pending) => sum + pending.frames, 0) / this.rate;
+    const queued = this.sourceSeconds(this.queue.reduce((sum, pending) => sum + pending.frames, 0));
     const scheduledAhead =
-      this.runStartFrame === undefined
-        ? 0
-        : Math.max(0, this.nextStartFrame / this.rate - this.context.currentTime);
+      this.segment === undefined ? 0 : Math.max(0, this.nextStartTime() - this.context.currentTime);
     return {
       state: this.state,
       bufferedSeconds: queued + scheduledAhead,
@@ -205,19 +209,23 @@ export class ChainedSourceEngine implements PlaybackEngine {
     return this.startTimes.get(sequence);
   }
 
+  // Each segment's reading is capped at the audio it holds, so the silence of a
+  // rebuffer is never counted. Until a resumed segment is audible, the reading
+  // comes from the one before it, which has either reached its end or is still
+  // playing out through the output latency; subtracting the start lead and the
+  // latency from the new segment instead would step the playhead backwards.
   playheadSeconds(): number | undefined {
-    if (this.runStartFrame === undefined) return undefined;
-    const delivered = this.deliveredFrames / this.rate;
-    // Rebuffering after an underrun: the listener has heard everything delivered
-    // and is hearing silence, which is not music.
-    if (this.state === 'buffering' || this.state === 'underrun') return delivered;
-    const latency = Number.isFinite(this.context.outputLatency) ? this.context.outputLatency : 0;
-    const heard =
-      this.context.currentTime -
-      latency -
-      this.runStartFrame / this.rate -
-      this.pausedFrames / this.rate;
-    return Math.min(delivered, Math.max(0, heard));
+    const segment = this.segment;
+    if (segment === undefined) return undefined;
+    const base = this.sourceSeconds(segment.baseFrames);
+    const heard = this.heardIn(segment, this.deliveredFrames);
+    if (heard >= base) return heard;
+    const previous = this.previousSegment;
+    if (previous === undefined) return base;
+    return Math.max(
+      this.sourceSeconds(previous.baseFrames),
+      this.heardIn(previous, segment.baseFrames)
+    );
   }
 
   async close(): Promise<void> {
@@ -244,6 +252,26 @@ export class ChainedSourceEngine implements PlaybackEngine {
     return this.context.sampleRate;
   }
 
+  private sourceSeconds(frames: number): number {
+    return this.format === undefined ? 0 : frames / this.format.sampleRate;
+  }
+
+  private nextStartTime(): number {
+    const segment = this.segment;
+    if (segment === undefined) return 0;
+    return (
+      segment.startFrame / this.rate + this.sourceSeconds(this.deliveredFrames - segment.baseFrames)
+    );
+  }
+
+  /** Run seconds heard through `segment`, capped at `endFrames` but not floored. */
+  private heardIn(segment: Segment, endFrames: number): number {
+    const latency = Number.isFinite(this.context.outputLatency) ? this.context.outputLatency : 0;
+    const base = this.sourceSeconds(segment.baseFrames);
+    const heard = base + this.context.currentTime - latency - segment.startFrame / this.rate;
+    return Math.min(this.sourceSeconds(endFrames), heard);
+  }
+
   private beginRun(runId: string): void {
     this.resetRun(runId);
     this.capture?.reset();
@@ -254,9 +282,9 @@ export class ChainedSourceEngine implements PlaybackEngine {
     this.runId = runId;
     this.format = undefined;
     this.queue = [];
-    this.runStartFrame = undefined;
+    this.segment = undefined;
+    this.previousSegment = undefined;
     this.deliveredFrames = 0;
-    this.pausedFrames = 0;
     this.underruns = 0;
     this.gainRestored = false;
     this.suspendedReported = false;
@@ -280,7 +308,7 @@ export class ChainedSourceEngine implements PlaybackEngine {
     let beyondFirst = 0;
     for (let index = 1; index < this.queue.length; index++)
       beyondFirst += this.queue[index]!.frames;
-    return beyondFirst / this.rate >= this.prebufferSeconds - EPSILON_SECONDS;
+    return this.sourceSeconds(beyondFirst) >= this.prebufferSeconds - EPSILON_SECONDS;
   }
 
   private startPlayback(): void {
@@ -290,9 +318,8 @@ export class ChainedSourceEngine implements PlaybackEngine {
     const startFrame = Math.ceil(
       (this.context.currentTime + START_LEAD_SECONDS) * this.rate - FRAME_TOLERANCE
     );
-    if (this.runStartFrame === undefined) this.runStartFrame = startFrame;
-    else this.pausedFrames += startFrame - this.nextStartFrame;
-    this.nextStartFrame = startFrame;
+    this.previousSegment = this.segment;
+    this.segment = { startFrame, baseFrames: this.deliveredFrames };
     const queued = this.queue;
     this.queue = [];
     for (const pending of queued) this.schedule(pending);
@@ -300,7 +327,7 @@ export class ChainedSourceEngine implements PlaybackEngine {
   }
 
   private schedule(pending: Pending): void {
-    const when = this.nextStartFrame / this.rate;
+    const when = this.nextStartTime();
     // A flush or fade left the gain at 0. The first chunk of a new run brings it
     // back at its own start, after the old run's ramp has finished.
     if (!this.gainRestored) {
@@ -318,7 +345,6 @@ export class ChainedSourceEngine implements PlaybackEngine {
     if (this.startTimes.size > START_TIMES_KEPT) {
       this.startTimes.delete(this.startTimes.keys().next().value!);
     }
-    this.nextStartFrame += pending.frames;
     this.deliveredFrames += pending.frames;
   }
 

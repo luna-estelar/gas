@@ -248,6 +248,42 @@ describe('lifecycle', () => {
     await browser.close();
   });
 
+  // Real-time delivery: the renderer completes at 4 s, but the listener is two
+  // seconds of prebuffer behind and hears the piece until 6.05 s.
+  it('keeps placing the playhead while a finished piece plays out', async () => {
+    const { context, browser, deliver } = await harness({ declaredBars: 2 });
+    await browser.session.play();
+    deliver(0);
+    await advanceTo(context, 2);
+    deliver(1);
+    await advanceTo(context, 4.01);
+    expect(browser.session.getState().playback).toBe('stopped');
+
+    await advanceTo(context, 5.05);
+    expect(browser.audiblePosition()).toEqual({
+      position: { bar: 2, beat: { index: 3 } },
+      seconds: expect.closeTo(3, 6)
+    });
+    await advanceTo(context, 6.1);
+    expect(browser.audio.status().state).toBe('stopped');
+    expect(browser.audiblePosition()?.position).toEqual({ bar: 3 });
+    await browser.close();
+  });
+
+  it('silences the tail of a finished piece when the host stops', async () => {
+    const { context, browser, deliver } = await harness({ declaredBars: 2 });
+    await browser.session.play();
+    deliver(0);
+    await advanceTo(context, 2);
+    deliver(1);
+    await advanceTo(context, 5);
+    await browser.session.stop();
+    // Chunk 0 finished at 4.05; chunk 1 was still playing.
+    expect(context.started[1]!.stoppedAt).toBeCloseTo(5.02, 9);
+    expect(browser.audiblePosition()).toBeUndefined();
+    await browser.close();
+  });
+
   it('flushes when the renderer fails mid-run', async () => {
     const { context, browser, connector, deliver } = await harness();
     await browser.session.play();

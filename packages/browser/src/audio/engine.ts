@@ -45,9 +45,10 @@ export interface PlaybackEngine {
   startTimeOf(sequence: number): number | undefined;
   /**
    * Seconds of the current run's audio that have reached the listener, from actual
-   * scheduled playback: undefined before the first chunk is scheduled; frozen at the end
-   * of the last scheduled audio while rebuffering after an underrun; otherwise
-   * (currentTime − outputLatency − runStart − pausedSeconds), clamped to [0, delivered].
+   * scheduled playback: undefined before the first chunk is scheduled; held at the end
+   * of the last scheduled audio while rebuffering after an underrun, and until the
+   * resumed audio is audible; otherwise (currentTime − outputLatency − runStart −
+   * pausedSeconds), clamped to [0, delivered]. It never moves backwards within a run.
    */
   playheadSeconds(): number | undefined;
   /** Stops and disconnects. Never closes the AudioContext; the owner does. */

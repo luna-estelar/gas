@@ -11,7 +11,7 @@ helpers, with no connector dependency and no key handling.
   `positionAtSeconds`. The session flushes audio on a host stop or renderer failure and plays out
   the tail of a completed piece. It exports `version`.
 - `./audio`: `PlaybackEngine` and `ChainedSourceEngine`, which chains `AudioBufferSourceNode`s on
-  exact output frames behind a prebuffer (one chunk duration by default) and counts underruns.
+  exact, drift-free start times behind a prebuffer (one chunk duration by default) and counts underruns.
   This fixes the dropout on every chunk boundary (LE-89). Also `AudioClock`, `openAudioContext`
   and `detectSupport`.
 - `./capture`: `PcmCapture`, `decodeS16lePcm` and `encodeWave`, moved from `./audio`.

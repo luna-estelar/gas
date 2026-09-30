@@ -66,8 +66,9 @@ import it dynamically when compilation can wait.
 
 ### Playback
 
-`ChainedSourceEngine` plays each chunk as an `AudioBufferSourceNode` started on an exact output
-frame, so consecutive chunks join without a gap or a click at any output sample rate.
+`ChainedSourceEngine` plays each chunk as an `AudioBufferSourceNode` started at the exact time
+the previous chunk ends, so consecutive chunks join without a gap, a click or accumulated drift at
+any output sample rate.
 
 `prebufferSeconds` (default: one chunk duration of the connector's model, clamped to 0.25–4 s)
 is the delay between a chunk's arrival and its playback. It is not the amount of audio in a
