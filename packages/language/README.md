@@ -1,7 +1,12 @@
-# GAS Language
+# @luna-estelar/gas-language
 
-`@luna-estelar/gas-language` parses, validates, and compiles GAS documents and live fragments
-into model-independent timelines in musical time.
+Parses, validates and compiles GAS documents and live fragments into model-independent timelines
+in musical time. It is the language stage of `document → language → timeline → session → renderer
+→ connector → model`.
+
+[![npm](https://img.shields.io/npm/v/@luna-estelar/gas-language)](https://www.npmjs.com/package/@luna-estelar/gas-language)
+[![license](https://img.shields.io/npm/l/@luna-estelar/gas-language)](https://github.com/luna-estelar/gas/blob/main/LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/ci.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/ci.yml)
 
 ## Install
 
@@ -9,38 +14,59 @@ into model-independent timelines in musical time.
 npm install @luna-estelar/gas-language
 ```
 
-The package is ESM-only and requires Node.js 22 or newer when used in Node. It also runs in modern
-browsers, with the bundle-cost consideration below.
+Part of `@luna-estelar/gas`, which installs every package.
 
-The package root exports `compileSource`, `parseGasDocument`, `analyzeGasDocument`,
-`parseLiveCommands`, `highlightSource`, and `slugify`, plus the `GasDocument` AST types,
-`GasDiagnostic`, and the compile/parse result unions. No Langium types, CST nodes, or service
-objects leak through that surface.
-
-## Compile source
+## Example
 
 ```ts
 import { compileSource } from '@luna-estelar/gas-language';
 
 const result = compileSource('tempo 88\nlength bars 4\n');
 if (result.ok) console.log(result.timeline.compilerVersion);
+else console.log(result.diagnostics);
 ```
+
+## Exports
+
+| Export                                                                        | Purpose                                                   |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `compileSource`                                                               | Compile a document into a Protocol 1.0 timeline           |
+| `parseGasDocument`                                                            | Check syntax only                                         |
+| `analyzeGasDocument`                                                          | Parse and validate into a `GasDocument` without compiling |
+| `parseLiveCommands`                                                           | Parse a live fragment into an ordered statement list      |
+| `highlightSource`                                                             | Highlight tokens and symbol occurrences for editors       |
+| `slugify`                                                                     | The track-id slug the compiler uses, for hosts            |
+| `GasDocument`, `Track`, `Section`, … and `LiveStatement`                      | The document and live-statement AST                       |
+| `GasCompileResult`, `GasAnalyzeResult`, `GasParseResult`, `LiveCommandResult` | Result unions                                             |
+| `GasDiagnostic`, `Timeline`, `MusicalPosition`, …                             | Protocol types, re-exported                               |
+| `packageName`, `version`                                                      | This package's name and version                           |
+
+No Langium types, CST nodes, or service objects leak through that surface.
+
+Timelines carry a `compilerVersion` field recording this package's version, and a `formatVersion`
+of `{ major: 1, minor: 0 }` recording the Protocol contract they satisfy. The two move
+independently.
 
 ## Editor grammar
 
 The tarball ships `syntaxes/gas.tmLanguage.json`, the TextMate grammar generated from
-`src/gas.langium`. Editors and static highlighters can point at it directly; it is not
-reachable through `exports`, so resolve it as a file within the package.
+`src/gas.langium`. Editors and static highlighters can point at it directly; it is not reachable
+through `exports`, so resolve it as a file within the package.
 
-## Dependencies
+## Runtime support
 
-Importing the package root loads Langium and Chevrotain along with the parser.
+- ESM-only.
+- Node.js 22 or newer (Chevrotain's floor); runs in browsers.
+- Importing the root loads Langium and Chevrotain along with the parser. Browser applications can
+  defer that with a dynamic import of `@luna-estelar/gas-browser/compile`.
 
-Browser applications can defer compilation with a dynamic import of
-`@luna-estelar/gas-browser/compile`. For token presentation alone,
-`@luna-estelar/gas-highlight` has no dependencies at all: it declares a structurally
-identical token type, so `highlightSource` output passes straight into it.
+## Related packages
 
-Timelines carry a `compilerVersion` field recording this package's version, and a
-`formatVersion` of `{ major: 1, minor: 0 }` recording the Protocol contract they satisfy. The two
-move independently.
+Depends on `@luna-estelar/gas-protocol`, `langium` and `chevrotain`. Used by `gas-api`, `gas-cli`
+and `gas-browser`. For token presentation alone, `@luna-estelar/gas-highlight` has no dependencies:
+it declares a structurally identical token type, so `highlightSource` output passes straight into
+it.
+
+## License
+
+MIT

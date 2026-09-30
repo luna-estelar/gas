@@ -17,9 +17,13 @@ CI runs the live npm advisory check separately with `pnpm check:security`.
 
 ## Generated files
 
-`packages/protocol/generated/` holds the precompiled timeline validator. Browsers run these
-packages under a Content Security Policy without `'unsafe-eval'`, so no validator may be
-compiled at runtime: AJV builds its validators with `new Function`. Run `pnpm build:validators`
+Browsers run these packages under a Content Security Policy without `'unsafe-eval'`, so no
+package compiles a validator, or any other code, at runtime. Full stop. Schema validation is
+precompiled at build time, and connector configuration is checked by hand-written connector code
+(see [Writing a connector](#writing-a-connector)).
+
+`packages/protocol/generated/` holds the precompiled timeline validator; AJV would otherwise build
+it with `new Function`. Run `pnpm build:validators`
 after changing `packages/protocol/schemas/1.0` or upgrading AJV, and commit the result.
 `pnpm check:validators`, part of `pnpm test`, fails when the committed file is stale. Never
 edit it by hand.
@@ -50,6 +54,29 @@ beyond those dependencies belong in the root `test/` directory. See
 The renderer and connector keep separate virtual-clock test helpers because package test
 boundaries prohibit sharing them. The browser package confines concrete runtime composition
 to its session module and exports explicit subpaths to control parser loading.
+
+## Writing a connector
+
+A connector implements the Protocol `Connector` interface. Beyond transport, it owns two
+contracts that the Renderer and the host rely on:
+
+- **Configuration validation.** Implement `validateConfig(config)`, returning `{ ok: true }` or
+  `{ ok: false, problems }` with a `ConnectorConfigProblem` per fault: a JSON Pointer `path`, a
+  stable `code` such as `out-of-range` or `unknown-member`, and a fixed `message` that never
+  echoes the offending value. Write it by hand, reporting every problem at once; never compile
+  the connector's JSON Schema at runtime. The Renderer calls it for the initial configuration and
+  every edit. A connector without it has its configuration accepted unchecked, with a
+  `connector-config-unvalidated` warning. Run connector tests with `checkConnectorContract: true`
+  so the connector's own defaults pass through its own validator.
+  `packages/connector-lyria/src/config.ts` is the reference implementation, and
+  `test/lyria-config.test.ts` checks that it agrees with an AJV compile of its schema.
+- **Failures.** Throw `ConnectorError` with a `reason` and a stable `code`; its message is fixed
+  by the reason, so provider text and credentials never leak. When a connection closes, pass the
+  raw number as `closeCode`. Classify the standard codes into a reason, and never give an
+  application code (4000-4999) a meaning of your own: it belongs to whoever serves the endpoint,
+  and the host maps it.
+
+Settings carry what the transport needs and nothing more. Key provisioning is the host's concern.
 
 ## Package contents and examples
 

@@ -29,10 +29,11 @@ piano.flavor "busier, left hand walking"
 GAS controls arrangement, timing and intent. The model chooses the notes, phrasing and
 sound; the same document does not guarantee the same performance on every render.
 
-[Documentation](https://gas.lunaestelar.com/docs) ·
-[Getting started](https://gas.lunaestelar.com/docs/getting-started) ·
-[Playground](https://gas.lunaestelar.com/demos/playground) ·
-[Architecture](https://gas.lunaestelar.com/docs/building/architecture)
+[Language](./packages/language/README.md) ·
+[Sessions](./packages/api/README.md) ·
+[Browser hosting](./packages/browser/README.md) ·
+[Lyria connector](./packages/connector-lyria/README.md) ·
+[Examples](./examples/README.md)
 
 ## Try it
 
@@ -42,10 +43,8 @@ Compile a document without model credentials:
 npx @luna-estelar/gas compile song.gas
 ```
 
-The CLI prints timeline JSON. Use `--out timeline.json` to write a file. The
-[playground](https://gas.lunaestelar.com/demos/playground) also compiles documents in your
-browser. Audio generation requires model access; see the
-[Lyria manual guide](./packages/connector-lyria/manual/README.md).
+The CLI prints timeline JSON. Use `--out timeline.json` to write a file. Audio generation
+requires model access; see the [Lyria manual guide](./packages/connector-lyria/manual/README.md).
 
 ## Install
 
@@ -104,14 +103,20 @@ document → language → timeline → session → renderer → connector → mo
 
 Language compilation is independent of playback. Core derives session state, the renderer
 schedules changes against a supplied clock, and the connector translates them into model
-controls. The [architecture guide](https://gas.lunaestelar.com/docs/building/architecture)
-describes the package boundaries.
+controls. Each stage is its own package:
+[language](./packages/language/README.md), [protocol](./packages/protocol/README.md) (the
+timeline and every other shared contract), [core](./packages/core/README.md) and
+[api](./packages/api/README.md) (the session), [renderer](./packages/renderer/README.md) and
+[connector-lyria](./packages/connector-lyria/README.md). [browser](./packages/browser/README.md)
+composes them for a web page. `scripts/check-boundaries.mjs` enforces which package may import
+which.
 
 ## Status
 
-`0.1.0` is the first public preview. Package APIs may change in a minor release before
-1.0; breaking changes will be recorded in each package's changelog. The packages implement
-**Protocol 1.0**, which is distinct from the npm release version.
+0.2.0 is the launch release. Packages are versioned independently, so each has its own version
+and changelog; APIs may change in a minor release before 1.0, and breaking changes are recorded in
+the changelog of the package they affect. The packages implement **Protocol 1.0**, which is
+distinct from any npm release version.
 
 Lyria is currently the only connector:
 
@@ -120,10 +125,8 @@ Lyria is currently the only connector:
 - `time_signature`, `notes` and `motif` compile and remain in session state, but Lyria
   cannot render them. GAS reports capability warnings.
 
-See [model support](https://gas.lunaestelar.com/docs/reference/model-support) for details.
-The [Way Back Home demo](https://gas.lunaestelar.com/demos/game) visualizes game-driven GAS
-commands; audible session mounting in that demo remains in progress. The game and website
-are maintained separately from this library.
+See [what Lyria can and cannot do](./packages/connector-lyria/README.md#what-lyria-can-and-cannot-do)
+for details. The GAS website and its demos are maintained separately from this library.
 
 ## Repository and development
 
@@ -141,17 +144,22 @@ pnpm install --frozen-lockfile
 pnpm test
 ```
 
-| Command                 | Purpose                                                             |
-| ----------------------- | ------------------------------------------------------------------- |
-| `pnpm build`            | Build all packages                                                  |
-| `pnpm test`             | Check formatting, build, schemas, boundaries, publication and tests |
-| `pnpm format`           | Format tracked and nonignored source files                          |
-| `pnpm format:check`     | Check the same files without editing                                |
-| `pnpm check:schemas`    | Validate Protocol 1.0 schema fixtures                               |
-| `pnpm check:boundaries` | Enforce package dependency boundaries                               |
-| `pnpm check:publish`    | Check packed manifests and declaration entrypoints                  |
-| `pnpm check:security`   | Query npm production dependency advisories                          |
-| `pnpm clean`            | Remove TypeScript build outputs                                     |
+| Command                         | Purpose                                                                              |
+| ------------------------------- | ------------------------------------------------------------------------------------ |
+| `pnpm build`                    | Build all packages                                                                   |
+| `pnpm test`                     | Check formatting, generated files, build, schemas, boundaries, publication and tests |
+| `pnpm format`                   | Format tracked and nonignored source files                                           |
+| `pnpm format:check`             | Check the same files without editing                                                 |
+| `pnpm check:language-generated` | Check the committed parser and TextMate grammar match `gas.langium`                  |
+| `pnpm check:schemas`            | Validate Protocol 1.0 schema fixtures                                                |
+| `pnpm build:validators`         | Regenerate the precompiled timeline validator                                        |
+| `pnpm check:validators`         | Check the committed validator matches the schemas                                    |
+| `pnpm check:boundaries`         | Enforce package dependency boundaries                                                |
+| `pnpm check:publish`            | Check packed manifests and declaration entrypoints                                   |
+| `pnpm check:security`           | Query npm production dependency advisories                                           |
+| `pnpm changeset`                | Record a release note and version bump for changed packages                          |
+| `pnpm version-packages`         | Apply pending changesets (run by the release workflow)                               |
+| `pnpm clean`                    | Remove TypeScript build outputs                                                      |
 
 The automated gate does not make model calls. Manual transport and listening checks are
 kept in the Lyria connector's manual guide.

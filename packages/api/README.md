@@ -1,7 +1,12 @@
-# GAS API
+# @luna-estelar/gas-api
 
-`@luna-estelar/gas-api` provides sessions for loading GAS source, issuing programmatic and live
-commands, controlling playback, and observing state, warnings, positions, and audio.
+The application-facing GAS session: load source, issue programmatic and live commands, control
+playback, and observe state, warnings, positions and audio. It is the session stage of
+`document → language → timeline → session → renderer → connector → model`.
+
+[![npm](https://img.shields.io/npm/v/@luna-estelar/gas-api)](https://www.npmjs.com/package/@luna-estelar/gas-api)
+[![license](https://img.shields.io/npm/l/@luna-estelar/gas-api)](https://github.com/luna-estelar/gas/blob/main/LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/ci.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/ci.yml)
 
 ## Install
 
@@ -9,26 +14,73 @@ commands, controlling playback, and observing state, warnings, positions, and au
 npm install @luna-estelar/gas-api
 ```
 
-The package is ESM-only and requires Node.js 22 or newer when used in Node. Its source helpers also
-accept browser `Blob` and `File` values when those globals are available.
+Part of `@luna-estelar/gas`, which installs every package.
 
-The package root exports `createSession` and the `GasSession` class, the `sourceText` /
-`sourceBytes` / `sourceBlob` / `sourceFile` / `sourceUrl` / `sourcePath` input helpers,
-`GasOperationError`, and the `SessionWiring`, `SessionState`, `TrackView`, `SessionEvent` and
-`CommandResult` type families.
+## Example
 
-## Create a session
+The session takes a factory for its renderer. Here the renderer drives a connector the host
+supplies, against the host's clock.
 
 ```ts
-import { createSession, sourceText, type SessionWiring } from '@luna-estelar/gas-api';
+import { createSession, GasOperationError, sourceText } from '@luna-estelar/gas-api';
+import type { Connector, MonotonicClock } from '@luna-estelar/gas-protocol';
+import { createRenderer } from '@luna-estelar/gas-renderer';
 
-declare const wiring: SessionWiring;
+declare const clock: MonotonicClock;
+declare const connector: Connector;
 
-const session = await createSession(wiring);
-await session.loadSource(sourceText('tempo 88\nlength bars 4\n'));
+const session = await createSession({
+  createRenderer: () => createRenderer({ clock, connector })
+});
+
+session.on('lifecycle', (event) => {
+  if (event.playback === 'stopped') console.log(event.completed ? 'finished' : 'stopped');
+});
+
+try {
+  await session.loadSource(sourceText('tempo 88\nlength bars 4\n'));
+  await session.play();
+} catch (error) {
+  if (error instanceof GasOperationError) console.log(error.kind, error.reason, error.closeCode);
+}
 ```
 
-## Dependencies
+## Exports
 
-Supply a renderer and connector through the protocol-based wiring factory passed to
-`createSession`. Browser hosts can use `@luna-estelar/gas-browser` for this composition.
+| Export                                                                                    | Purpose                                                                 |
+| ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `createSession`, `GasSession`                                                             | Create and drive a session                                              |
+| `sourceText`, `sourceBytes`, `sourceBlob`, `sourceFile`, `sourceUrl`, `sourcePath`        | Describe where GAS source comes from                                    |
+| `GasOperationError`                                                                       | The one error every rejecting operation throws                          |
+| `SessionWiring`, `RendererControl`                                                        | The renderer factory a host supplies, and the control the session keeps |
+| `SessionState`, `TrackView`, `CommandResult`, `LiveCommandResult`, `LoadResult`, …        | Results and state the session hands back                                |
+| `SessionEvent`, `SessionEventMap`, `LifecycleEvent`, `DiagnosticEvent`, `WarningEvent`, … | Event names and payloads                                                |
+| `packageName`, `version`                                                                  | This package's name and version                                         |
+
+## Completion and failures
+
+A finite piece that reaches its declared end stops the session on the renderer's own terminal
+event. The `lifecycle` event for it carries `completed: true`; a `stop()` from the host does not.
+Either way the session is `stopped` afterwards and `play()` starts a new run.
+
+Every rejecting operation throws `GasOperationError`, and renderer failures during playback also
+arrive on the `error` event. It carries `kind`, and, for connector failures, a safe `code`, a
+`reason`, `retryable` and, when the failure came from a closed connection, the raw `closeCode`. A
+connector classifies the standard close codes; the application range 4000-4999 belongs to the
+service behind the endpoint, so the host maps it.
+
+## Runtime support
+
+- ESM-only.
+- Node.js 22 or newer when used in Node; runs in browsers.
+- The source helpers accept browser `Blob` and `File` values when those globals exist.
+
+## Related packages
+
+Depends on `@luna-estelar/gas-protocol`, `gas-language` (to compile source) and `gas-core`. A host
+supplies a renderer such as `@luna-estelar/gas-renderer`; `@luna-estelar/gas-browser` composes the
+session, renderer and audio for browsers. The root of `@luna-estelar/gas` re-exports this package.
+
+## License
+
+MIT
