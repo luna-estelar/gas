@@ -91,6 +91,22 @@ describe('check-boundaries', () => {
     expect(arbitraryPath).toHaveLength(0);
   });
 
+  // The umbrella is the one unit that reaches both concrete runtimes, each from
+  // the facade module that re-exports it.
+  it('confines each concrete runtime to its own module in a facade unit', () => {
+    const renderer = "export * from '@luna-estelar/gas-renderer';";
+    const lyria = "export * from '@luna-estelar/gas-connector-lyria';";
+    expect(
+      findViolations([
+        { package: 'gas', path: 'src/renderer.ts', content: renderer },
+        { package: 'gas', path: 'src/lyria.ts', content: lyria }
+      ])
+    ).toHaveLength(0);
+    expect(findViolations([{ package: 'gas', path: 'src/index.ts', content: lyria }])).toHaveLength(
+      1
+    );
+  });
+
   it('forbids every workspace unit from importing the umbrella package', () => {
     const violations = findViolations([
       {

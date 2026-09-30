@@ -17,19 +17,19 @@ import { describe, expect, it } from 'vitest';
 const run = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-// The browser package depends on every entrypoint below, so its directory
-// resolves each workspace specifier, and Node's self-reference resolves the
-// browser's own name from inside it. The root devDependency on gas-browser is
-// not what makes that work; it stays until the meta package becomes the
-// resolution root for these entrypoints.
-const resolveFrom = path.join(root, 'packages', 'browser');
+// The umbrella depends on every package, so its directory resolves each
+// workspace specifier, and Node's self-reference resolves the umbrella's own
+// name and subpaths from inside it.
+const resolveFrom = path.join(root, 'packages', 'gas');
 
 const ENTRYPOINTS = [
   '@luna-estelar/gas-protocol/validation',
   '@luna-estelar/gas-core',
   '@luna-estelar/gas-renderer',
   '@luna-estelar/gas-api',
-  '@luna-estelar/gas-browser/session'
+  '@luna-estelar/gas-browser/session',
+  '@luna-estelar/gas',
+  '@luna-estelar/gas/browser/session'
 ];
 
 async function countGeneratedFunctions(specifier: string): Promise<number> {

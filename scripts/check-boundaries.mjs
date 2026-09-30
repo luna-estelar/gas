@@ -14,7 +14,19 @@ export const ALLOW_MAP = {
   renderer: ['protocol', 'core', 'notation'],
   'connector-lyria': ['protocol'],
   cli: ['language'],
-  browser: ['protocol', 'language', 'core', 'api', 'renderer']
+  browser: ['protocol', 'language', 'core', 'api', 'renderer'],
+  gas: [
+    'protocol',
+    'language',
+    'core',
+    'api',
+    'renderer',
+    'notation',
+    'highlight',
+    'connector-lyria',
+    'cli',
+    'browser'
+  ]
 };
 
 // Fixture helpers must not import GAS packages: package tests share these helpers.
@@ -29,7 +41,7 @@ const CONCRETE_RUNTIME = new Set(['renderer', 'connector-lyria']);
  * that may import a concrete runtime. A facade that re-exports several of them
  * lists one module per runtime.
  */
-export const WIRING_MODULES = { browser: 'session.ts' };
+export const WIRING_MODULES = { browser: 'session.ts', gas: ['renderer.ts', 'lyria.ts'] };
 
 // Units allowed to contain no scannable source files.
 const EXPECTED_EMPTY = new Set();
