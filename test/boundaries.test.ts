@@ -1,6 +1,18 @@
-import { describe, expect, it } from 'vitest';
+import { execFile } from 'node:child_process';
+import { copyFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
+import { afterAll, describe, expect, it } from 'vitest';
 // @ts-expect-error -- plain ESM script without type declarations
 import { assertCoverage, collectAll, findViolations } from '../scripts/check-boundaries.mjs';
+// @ts-expect-error -- plain ESM script without type declarations
+import { ALLOW_MAP, EXAMPLE_ALLOW_MAP, WIRING_MODULES } from '../scripts/check-boundaries.mjs';
+
+const run = promisify(execFile);
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const script = path.join(root, 'scripts', 'check-boundaries.mjs');
 
 describe('check-boundaries', () => {
   it('flags a forbidden cross-package import', () => {
@@ -200,5 +212,63 @@ describe('check-boundaries', () => {
   it('covers every declared unit in the real workspace tree', async () => {
     const counts = await assertCoverage(await collectAll());
     expect(counts.filter(({ count }) => count === 0).map(({ unit }) => unit)).toEqual([]);
+  });
+});
+
+// The exported helpers cannot tell whether main() ever runs, so a guard that
+// never fires leaves `pnpm check:boundaries` silent and green. These cases
+// assert the summary line the script prints only after a real scan.
+describe('check-boundaries as a program', () => {
+  const SUMMARY = /^Import boundaries OK: scanned [1-9]\d* files \(/;
+  let scratch: string | undefined;
+
+  afterAll(() => {
+    if (scratch !== undefined) rmSync(scratch, { recursive: true, force: true });
+  });
+
+  function writeSource(file: string): void {
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, 'export {};\n', 'utf8');
+  }
+
+  it('prints the scan summary for the real workspace', async () => {
+    const { stdout } = await run(process.execPath, [script], { cwd: root });
+    expect(stdout).toMatch(SUMMARY);
+  });
+
+  // The guard compared import.meta.url, which percent-encodes, against a raw
+  // `file://${argv[1]}`. Under a path holding a space the two never matched, and
+  // the check reported success without scanning a single file.
+  it('prints the scan summary under a path containing a space', async () => {
+    // Canonical, because Node resolves import.meta.url through symlinks while
+    // argv[1] keeps the spelling it was given: on macOS the temporary directory
+    // is itself a symlink, which would mask the case under test.
+    scratch = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'gas-boundaries-')));
+    const tree = path.join(scratch, 'check out');
+    const copy = path.join(tree, 'scripts', 'check-boundaries.mjs');
+    mkdirSync(path.dirname(copy), { recursive: true });
+    copyFileSync(script, copy);
+
+    // The script takes its root from its own location, so it scans this fixture.
+    // Building the fixture from the script's own maps keeps it correct when a
+    // later phase adds a unit or renames a wiring module. It does mirror
+    // assertCoverage's requirements, so a new rule there surfaces here first.
+    for (const unit of Object.keys(ALLOW_MAP)) {
+      writeSource(path.join(tree, 'packages', unit, 'src', 'index.ts'));
+    }
+    for (const [unit, wiringModule] of Object.entries(WIRING_MODULES)) {
+      writeSource(path.join(tree, 'packages', unit, 'src', wiringModule));
+    }
+    for (const unit of Object.keys(EXAMPLE_ALLOW_MAP)) {
+      // Loose files directly under examples/ make up the shared-fixture unit.
+      writeSource(
+        unit === 'examples'
+          ? path.join(tree, 'examples', 'support.ts')
+          : path.join(tree, 'examples', unit, 'index.ts')
+      );
+    }
+
+    const { stdout } = await run(process.execPath, [copy], { cwd: tree });
+    expect(stdout).toMatch(SUMMARY);
   });
 });

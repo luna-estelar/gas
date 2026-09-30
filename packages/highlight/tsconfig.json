@@ -4,6 +4,5 @@
     "rootDir": "src",
     "outDir": "out"
   },
-  "include": ["src/**/*.ts"],
-  "references": [{ "path": "../language" }]
+  "include": ["src/**/*.ts"]
 }

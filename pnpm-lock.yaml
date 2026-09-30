@@ -80,15 +80,9 @@ importers:
 
   packages/cli:
     dependencies:
-      '@luna-estelar/gas-core':
-        specifier: workspace:^
-        version: link:../core
       '@luna-estelar/gas-language':
         specifier: workspace:^
         version: link:../language
-      '@luna-estelar/gas-protocol':
-        specifier: workspace:^
-        version: link:../protocol
 
   packages/connector-lyria:
     dependencies:
@@ -112,11 +106,7 @@ importers:
         specifier: workspace:^
         version: link:../protocol
 
-  packages/highlight:
-    dependencies:
-      '@luna-estelar/gas-language':
-        specifier: workspace:^
-        version: link:../language
+  packages/highlight: {}
 
   packages/language:
     dependencies:
