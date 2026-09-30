@@ -53,6 +53,7 @@ jobs:
         run: pnpm test
 
       - name: Version or publish
+        id: changesets
         uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
           version-script: pnpm version-packages
@@ -62,5 +63,15 @@ jobs:
           create-github-releases: true
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          # `changeset publish` has no provenance flag; npm reads it from here.
-          NPM_CONFIG_PROVENANCE: true
+          # `changeset publish` runs `pnpm publish` without a provenance flag, so
+          # the setting comes from the environment. pnpm 11 reads only
+          # PNPM_CONFIG_*; NPM_CONFIG_PROVENANCE was ignored and the 0.2.0
+          # release went out without attestations.
+          PNPM_CONFIG_PROVENANCE: true
+
+      # A missing attestation does not fail the publish, so check for one.
+      - name: Verify provenance
+        if: steps.changesets.outputs.published == 'true'
+        env:
+          PUBLISHED: ${{ steps.changesets.outputs.publishedPackages }}
+        run: node scripts/check-provenance.mjs
