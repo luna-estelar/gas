@@ -7,7 +7,7 @@ import { PcmCapture } from './audio.js';
 import { AudioContextClock, PcmPlayback } from './playback.js';
 
 export interface BrowserSessionOptions {
-  /** BYOK or hosted — one path, chosen by the caller, invisible to the surface. */
+  /** The key to open the connector with, and optionally where to send it. */
   readonly access: Access;
   /** Record each run so it can be offered as a WAV download. Off by default. */
   readonly capture?: boolean;

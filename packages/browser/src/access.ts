@@ -1,14 +1,22 @@
-// Resolve hosted access and the optional BYOK fallback independently of runtime composition.
+// Turn a held credential into connector settings, independently of runtime composition.
 import type { ConnectorSettings } from '@luna-estelar/gas-protocol';
 
-export type Access =
-  | { readonly mode: 'byok'; readonly credentials: CredentialCell }
-  | { readonly mode: 'hosted'; readonly proxyBaseUrl: string };
+/**
+ * A key to send, and optionally somewhere other than the provider to send it. How
+ * a site obtains the key is the site's own business: a key it asks the person for
+ * and a key it fetches from its own endpoint arrive here the same way.
+ */
+export interface Access {
+  readonly credentials: CredentialCell;
+  /** An HTTPS origin that speaks the connector's protocol. The provider's own by default. */
+  readonly endpoint?: string;
+}
 
 export function accessSettings(access: Access): ConnectorSettings {
-  return access.mode === 'byok'
-    ? { accessMode: 'byok', apiKey: access.credentials.read() }
-    : { accessMode: 'hosted', proxyBaseUrl: access.proxyBaseUrl };
+  return {
+    apiKey: access.credentials.read(),
+    ...(access.endpoint !== undefined ? { endpoint: access.endpoint } : {})
+  };
 }
 
 /**
