@@ -1,11 +1,12 @@
-# GAS Renderer
+# @luna-estelar/gas-renderer
 
-`@luna-estelar/gas-renderer` turns a loaded timeline into a played session. It owns the
-musical-to-clock conversion, the scheduler running against a host-supplied monotonic clock, the
-current input state with effective-state derivation through `@luna-estelar/gas-core`, and one
-active connector instance per session.
+Turns a loaded timeline into a played session. It schedules changes against a host-supplied
+monotonic clock and drives one connector per session, which is the renderer stage of
+`document → language → timeline → session → renderer → connector → model`.
 
-The renderer accepts a connector through the Protocol interface and does not parse GAS source.
+[![npm](https://img.shields.io/npm/v/@luna-estelar/gas-renderer)](https://www.npmjs.com/package/@luna-estelar/gas-renderer)
+[![license](https://img.shields.io/npm/l/@luna-estelar/gas-renderer)](https://github.com/luna-estelar/gas/blob/main/LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/ci.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/ci.yml)
 
 ## Install
 
@@ -13,16 +14,9 @@ The renderer accepts a connector through the Protocol interface and does not par
 npm install @luna-estelar/gas-renderer
 ```
 
-The package is ESM-only and requires Node.js 20 or newer when used in Node. Hosts supply both the
-clock and connector; the renderer does not choose environment-specific implementations.
+Part of `@luna-estelar/gas`, which installs every package.
 
-The package root exports `createRenderer`, the buffer, lookahead and first-audio constants,
-`RendererError`, the `applyS16leGain` / `BufferLedger` audio helpers, and the musical-time helpers
-(`barToTime`, `timeToBarFraction`, `positionToTime`, `timeToPosition`, `comparePositions`,
-`positionsEqual`, `secondsPerBar`, `secondsPerBeat`, `resolveTiming`, `createTempoSegmentMap`,
-`reanchorTempo`) with the `DEFAULT_TEMPO`, `DEFAULT_TIME_SIGNATURE` and `TICKS_PER_BEAT` constants.
-Those conversions are owned by `@luna-estelar/gas-core` and re-exported here, so a host that only
-needs to place a position in time can take them from Core without pulling in the Renderer.
+## Example
 
 ```ts
 import { createRenderer } from '@luna-estelar/gas-renderer';
@@ -34,6 +28,24 @@ declare const connector: Connector;
 const renderer = await createRenderer({ clock, connector });
 console.log(renderer.getCapabilities());
 ```
+
+Hosts supply both the clock and the connector; the renderer does not choose environment-specific
+implementations and does not parse GAS source. Most applications hand `createRenderer` to
+`@luna-estelar/gas-api`'s `createSession` rather than calling the renderer directly.
+
+## Exports
+
+| Export                                                                             | Purpose                                                          |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `createRenderer`, `CreateRendererOptions`                                          | Create a renderer around a clock and a connector                 |
+| `RendererError`, `RendererErrorCode`, `RendererProblem`                            | Renderer errors, with connector configuration problems unchanged |
+| `applyS16leGain`, `BufferLedger`, `AudioAccounting`                                | Audio gain and buffered-audio accounting                         |
+| `BUFFER_WARNING_SECONDS`, `BUFFER_HARD_LIMIT_SECONDS`, `LOOKAHEAD_CHUNKS`, …       | Buffer, lookahead and first-audio timeout limits                 |
+| `positionToTime`, `timeToPosition`, `comparePositions`, `createTempoSegmentMap`, … | Musical-time helpers, re-exported from `@luna-estelar/gas-core`  |
+| `packageName`, `version`                                                           | This package's name and version                                  |
+
+The musical-time conversions are owned by `@luna-estelar/gas-core` and re-exported here, so a host
+that only needs to place a position in time can take them from Core without the Renderer.
 
 ## When musical time starts
 
@@ -65,15 +77,31 @@ given rather than treating that as "no position". After a finite piece completes
 answering for that run, capped at the declared end, until the next `start()` or a `stop()`, so a
 playhead can follow the buffered tail.
 
-## Dependencies
+Every failure the renderer emits carries the connector's `closeCode` when there was one.
 
-Hosts supply a monotonic clock. Tests use a virtual clock to check scheduling.
-Browser applications can use `@luna-estelar/gas-browser` to compose the runtime.
+## Configuration
 
 This package compiles nothing at runtime, which is what keeps it usable under a Content Security
 Policy without `'unsafe-eval'`. Configuration edits are checked by the connector, through the
-optional `Connector.validateConfig`; a connector that does not implement it gets its configuration
-through unchecked, with one `connector-config-unvalidated` warning the first time a host edits it.
-(The two startup paths cannot warn, because no listener exists until `createRenderer` resolves.)
-Pass `checkConnectorContract` to also check a connector's own defaults through its own validator at
+optional `Connector.validateConfig`, and its problems are reported unchanged. A connector that
+does not implement it gets its configuration through unchecked, with one
+`connector-config-unvalidated` warning the first time a host edits it. (The two startup paths
+cannot warn, because no listener exists until `createRenderer` resolves.) Pass
+`checkConnectorContract` to also check a connector's own defaults through its own validator at
 startup; connector test suites turn it on.
+
+## Runtime support
+
+- ESM-only.
+- Node.js 20 or newer; runs in browsers.
+- Tests use a virtual clock to check scheduling; any `MonotonicClock` works.
+
+## Related packages
+
+Depends on `@luna-estelar/gas-protocol`, `gas-core` and `gas-notation`. Works with any connector,
+such as `@luna-estelar/gas-connector-lyria`. `@luna-estelar/gas-browser` composes it with a session
+and Web Audio playback.
+
+## License
+
+MIT
