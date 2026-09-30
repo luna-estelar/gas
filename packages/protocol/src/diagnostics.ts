@@ -34,11 +34,7 @@ export interface ValidateTimelineResult {
 }
 
 export type CommandFailureCode =
-  | 'duplicate-track'
-  | 'unknown-track'
-  | 'invalid-level'
-  | 'invalid-tempo'
-  | 'invalid-value';
+  'duplicate-track' | 'unknown-track' | 'invalid-level' | 'invalid-tempo' | 'invalid-value';
 
 export interface CommandFailure {
   readonly code: CommandFailureCode;

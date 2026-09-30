@@ -26,13 +26,7 @@ export type {
 } from '@luna-estelar/gas-protocol';
 
 export type OperationErrorKind =
-  | 'compile'
-  | 'validate'
-  | 'command'
-  | 'live'
-  | 'playback'
-  | 'renderer'
-  | 'lifecycle';
+  'compile' | 'validate' | 'command' | 'live' | 'playback' | 'renderer' | 'lifecycle';
 
 export interface OperationErrorInit {
   readonly kind: OperationErrorKind;
