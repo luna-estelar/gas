@@ -21,6 +21,16 @@ The package root exports `createInputState`, `applyCommand`, `defineTrack`, `val
 `applyStop` / `applyCompletion` / `applyLoopBoundary` / `applyRetry` transitions, along with the
 `Command`, `InputState` and `EffectiveState` type families.
 
+It also owns musical time: `comparePositions` and `positionsEqual` order absolute positions, and
+`positionToTime` / `timeToPosition` convert between a position and clock seconds through a tempo
+map built with `createTempoSegmentMap`, `reanchorTempo` and `resolveTiming`. Tempo is beats per
+minute where a beat is the meter's `beatUnit` note, so `secondsPerBeat` is `60 / tempo` in every
+meter. `timeToPosition` always returns a legal position — a whole bar, and an offset in whole ticks
+over `TICKS_PER_BEAT` — while `timeToBarFraction` gives the continuous bar coordinate that callers
+doing bar arithmetic need, above all to re-anchor a tempo change at the exact current instant.
+These live here rather than in the Renderer so a browser host can place the audible playhead
+without depending on the Renderer.
+
 ```ts
 import { createInputState, effectiveStateAt } from '@luna-estelar/gas-core';
 import type { Timeline } from '@luna-estelar/gas-protocol';
