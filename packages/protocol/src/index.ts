@@ -138,4 +138,4 @@ export type { ConnectorErrorOptions } from './errors.js';
 export { ConnectorError, isCloseCode } from './errors.js';
 
 export const packageName = '@luna-estelar/gas-protocol';
-export const version = '0.1.1';
+export const version = '0.2.0';
