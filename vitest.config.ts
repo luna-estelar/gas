@@ -7,6 +7,11 @@ export default defineConfig({
   // Resolve browser subpaths to source for direct test runs.
   resolve: {
     alias: [
+      // The one subpath whose module is a directory index.
+      {
+        find: /^@luna-estelar\/gas-browser\/audio$/,
+        replacement: `${browserSource}audio/index.ts`
+      },
       {
         find: /^@luna-estelar\/gas-browser\/(.+)$/,
         replacement: `${browserSource}$1.ts`

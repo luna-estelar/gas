@@ -62,9 +62,6 @@ importers:
       '@luna-estelar/gas-api':
         specifier: workspace:^
         version: link:../api
-      '@luna-estelar/gas-connector-lyria':
-        specifier: workspace:^
-        version: link:../connector-lyria
       '@luna-estelar/gas-core':
         specifier: workspace:^
         version: link:../core

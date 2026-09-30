@@ -61,7 +61,9 @@ that finished from one it stopped.
 against audio the host has actually played. It answers `undefined` for an instant the live tempo map
 cannot place — a loop boundary rebuilds that map from bar one, so a host whose audio still lags the
 rollover is asking about an iteration the map no longer describes. Hold the last position you were
-given rather than treating that as "no position".
+given rather than treating that as "no position". After a finite piece completes, it keeps
+answering for that run, capped at the declared end, until the next `start()` or a `stop()`, so a
+playhead can follow the buffered tail.
 
 ## Dependencies
 

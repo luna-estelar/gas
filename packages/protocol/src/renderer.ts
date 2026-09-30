@@ -203,7 +203,9 @@ export interface Renderer {
   getConfigSchema(): ConnectorConfigSchema;
   /**
    * The musical position `seconds` after the current run's anchor, through the
-   * live tempo map; `undefined` when nothing is loaded or playing. Hosts use it
+   * live tempo map; `undefined` when nothing is loaded or playing. After a finite
+   * run completes it may keep answering for that run, capped at its declared
+   * end, until the next run starts or playback is stopped. Hosts use it
    * to place what a listener is actually hearing, which lags the Renderer's last
    * position event by whatever the audio path buffers.
    */

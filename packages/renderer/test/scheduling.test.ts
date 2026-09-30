@@ -157,6 +157,31 @@ describe('renderer scheduling and derivation', () => {
     expect(clock.pendingDeadlines()).toEqual([]);
   });
 
+  // A host that buffers audio is still playing the piece after the renderer is
+  // done with it, so the mapping has to outlive the run.
+  it('keeps placing a completed run until the next start or a stop', async () => {
+    const { clock, renderer } = await runningRenderer(timelineWithBarThreeStop());
+    clock.advanceTo(8);
+    await flushAsync();
+    expect(renderer.positionAtSeconds?.(7)).toEqual({ bar: 4, beat: { index: 3 } });
+    // Audio past the declared end is the last chunk's tail, not bar five.
+    expect(renderer.positionAtSeconds?.(9)).toEqual({ bar: 5 });
+
+    // A new run is placed from its own anchor, not the finished one's end.
+    await renderer.start();
+    expect(renderer.positionAtSeconds?.(9)).toEqual({ bar: 5, beat: { index: 3 } });
+    await renderer.stop();
+    expect(renderer.positionAtSeconds?.(1)).toBeUndefined();
+  });
+
+  it('forgets a completed run when playback is stopped', async () => {
+    const { clock, renderer } = await runningRenderer(timelineWithBarThreeStop());
+    clock.advanceTo(8);
+    await flushAsync();
+    await renderer.stop();
+    expect(renderer.positionAtSeconds?.(7)).toBeUndefined();
+  });
+
   it('times finite completion from a delayed startup anchor', async () => {
     const clock = new VirtualClock();
     const gate = deferred();

@@ -49,7 +49,7 @@ beyond those dependencies belong in the root `test/` directory. See
 
 The renderer and connector keep separate virtual-clock test helpers because package test
 boundaries prohibit sharing them. The browser package confines concrete runtime composition
-to its wiring module and exports explicit subpaths to control parser loading.
+to its session module and exports explicit subpaths to control parser loading.
 
 ## Package contents and examples
 

@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, test } from 'vitest';
 import { version as apiVersion } from '../packages/api/src/index.js';
+import { version as browserVersion } from '../packages/browser/src/session.js';
 import { version as cliVersion } from '../packages/cli/src/index.js';
 import { version as connectorVersion } from '../packages/connector-lyria/src/index.js';
 import { version as coreVersion } from '../packages/core/src/index.js';
@@ -23,6 +24,7 @@ function manifestVersion(pkg: string): string {
 
 const EXPORTED: ReadonlyArray<readonly [string, string]> = [
   ['api', apiVersion],
+  ['browser', browserVersion],
   ['cli', cliVersion],
   ['connector-lyria', connectorVersion],
   ['core', coreVersion],
@@ -44,10 +46,10 @@ describe('exported version constants', () => {
     expect(result.timeline.compilerVersion).toBe(manifestVersion('language'));
   });
 
-  // Highlight and browser expose no version constant.
+  // Highlight exposes no version constant.
   test('the packages that export one are the packages that have one', () => {
     const declared = EXPORTED.map(([pkg]) => pkg);
     expect(declared).toEqual([...declared].sort());
-    expect(declared).toHaveLength(8);
+    expect(declared).toHaveLength(9);
   });
 });

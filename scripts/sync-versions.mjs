@@ -16,6 +16,8 @@ const packagesRoot = path.join(root, 'packages');
 // equal the owning package's version.
 const LITERALS = [
   { file: 'src/index.ts', pattern: /^(export const version = ')([^']*)(';)$/m },
+  // The browser package has no root entry; its session module carries the literal.
+  { pkg: 'browser', file: 'src/session.ts', pattern: /^(export const version = ')([^']*)(';)$/m },
   // The language compiler stamps this into every timeline it emits.
   {
     pkg: 'language',
