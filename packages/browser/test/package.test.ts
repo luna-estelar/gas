@@ -15,9 +15,15 @@ function sourceFiles(directory = sourceRoot): string[] {
   });
 }
 
-function subpathFor(file: string): string {
-  return `./${path.relative(sourceRoot, file).replace(/\.ts$/, '').split(path.sep).join('/')}`;
-}
+/** Each public subpath and the source module behind it. Everything else is internal. */
+const ENTRIES: Readonly<Record<string, string>> = {
+  './session': 'session',
+  './audio': 'audio/index',
+  './capture': 'capture',
+  './compile': 'compile',
+  './timeline': 'timeline',
+  './inspect': 'inspect'
+};
 
 function importHasValue(clause: ts.ImportClause | undefined): boolean {
   if (clause === undefined) return true;
@@ -92,19 +98,34 @@ describe('browser package surface', () => {
     expect('.' in manifest.exports).toBe(false);
   });
 
-  it('exports every source module explicitly and no others', () => {
-    const files = sourceFiles();
-    const sourceSubpaths = files.map(subpathFor).sort();
-    expect(Object.keys(manifest.exports).sort()).toEqual(sourceSubpaths);
-
-    for (const file of files) {
-      const subpath = subpathFor(file);
-      const output = subpath.slice(2);
+  it('exports exactly the entry modules, each from its own source file', () => {
+    expect(Object.keys(manifest.exports).sort()).toEqual(Object.keys(ENTRIES).sort());
+    for (const [subpath, module] of Object.entries(ENTRIES)) {
       expect(manifest.exports[subpath]).toEqual({
-        types: `./out/${output}.d.ts`,
-        default: `./out/${output}.js`
+        types: `./out/${module}.d.ts`,
+        default: `./out/${module}.js`
       });
+      expect(sourceFiles()).toContain(path.join(sourceRoot, `${module}.ts`));
     }
+  });
+
+  // A module outside the entries is reachable only through the audio index, so
+  // a new top-level module cannot ship unexported by accident.
+  it('keeps every non-entry module under audio/', () => {
+    const entryFiles = new Set(
+      Object.values(ENTRIES).map((module) => path.join(sourceRoot, `${module}.ts`))
+    );
+    const internal = sourceFiles()
+      .filter((file) => !entryFiles.has(file))
+      .map((file) => path.relative(sourceRoot, file).split(path.sep).join('/'));
+    expect(internal.every((file) => file.startsWith('audio/'))).toBe(true);
+  });
+
+  it('does not depend on a connector', () => {
+    const dependencies = Object.keys(
+      (manifest as { dependencies?: Record<string, string> }).dependencies ?? {}
+    );
+    expect(dependencies.filter((name) => name.includes('connector'))).toEqual([]);
   });
 
   it('keeps gas-language as a value dependency of compile only', () => {

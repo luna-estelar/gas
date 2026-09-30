@@ -112,6 +112,9 @@ function typecheckSnippets(items: readonly Snippet[]): Map<number, string> {
   paths['@luna-estelar/gas-protocol/validation'] = [
     path.join(repoRoot, 'packages', 'protocol', 'out', 'validation.d.ts')
   ];
+  paths['@luna-estelar/gas-browser/audio'] = [
+    path.join(repoRoot, 'packages', 'browser', 'out', 'audio', 'index.d.ts')
+  ];
   paths['@luna-estelar/gas-browser/*'] = [
     path.join(repoRoot, 'packages', 'browser', 'out', '*.d.ts')
   ];

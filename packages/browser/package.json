@@ -1,7 +1,7 @@
 {
   "name": "@luna-estelar/gas-browser",
   "version": "0.1.1",
-  "description": "Browser-host composition, Web Audio playback, and framework-free UI view models for GAS sessions.",
+  "description": "Browser host for GAS sessions: prebuffered Web Audio playback, session composition, and timeline view models.",
   "keywords": [
     "gas",
     "generative-audio",
@@ -29,21 +29,21 @@
     "node": ">=22.0.0"
   },
   "exports": {
-    "./access": {
-      "types": "./out/access.d.ts",
-      "default": "./out/access.js"
+    "./session": {
+      "types": "./out/session.d.ts",
+      "default": "./out/session.js"
     },
     "./audio": {
-      "types": "./out/audio.d.ts",
-      "default": "./out/audio.js"
+      "types": "./out/audio/index.d.ts",
+      "default": "./out/audio/index.js"
     },
-    "./config": {
-      "types": "./out/config.d.ts",
-      "default": "./out/config.js"
+    "./capture": {
+      "types": "./out/capture.d.ts",
+      "default": "./out/capture.js"
     },
-    "./playback": {
-      "types": "./out/playback.d.ts",
-      "default": "./out/playback.js"
+    "./compile": {
+      "types": "./out/compile.d.ts",
+      "default": "./out/compile.js"
     },
     "./timeline": {
       "types": "./out/timeline.d.ts",
@@ -52,30 +52,6 @@
     "./inspect": {
       "types": "./out/inspect.d.ts",
       "default": "./out/inspect.js"
-    },
-    "./wiring": {
-      "types": "./out/wiring.d.ts",
-      "default": "./out/wiring.js"
-    },
-    "./compile": {
-      "types": "./out/compile.d.ts",
-      "default": "./out/compile.js"
-    },
-    "./bitsy/types": {
-      "types": "./out/bitsy/types.d.ts",
-      "default": "./out/bitsy/types.js"
-    },
-    "./bitsy/bridge": {
-      "types": "./out/bitsy/bridge.d.ts",
-      "default": "./out/bitsy/bridge.js"
-    },
-    "./bitsy/score": {
-      "types": "./out/bitsy/score.d.ts",
-      "default": "./out/bitsy/score.js"
-    },
-    "./bitsy/controller": {
-      "types": "./out/bitsy/controller.d.ts",
-      "default": "./out/bitsy/controller.js"
     }
   },
   "files": [
@@ -87,7 +63,6 @@
   },
   "dependencies": {
     "@luna-estelar/gas-api": "workspace:^",
-    "@luna-estelar/gas-connector-lyria": "workspace:^",
     "@luna-estelar/gas-core": "workspace:^",
     "@luna-estelar/gas-language": "workspace:^",
     "@luna-estelar/gas-protocol": "workspace:^",

@@ -1,10 +1,12 @@
 // Timeline calculations with synthetic inputs. Root corpus tests cover compiled GAS documents.
 import { describe, expect, it } from 'vitest';
 import type { Diagnostic } from '../src/compile.js';
+import { testTimeline } from './support/timeline.js';
 import {
   countDiagnostics,
   diagnosticOffsets,
   formatClock,
+  positionSeconds,
   timelinePositionSeconds,
   timelineProgressPercent
 } from '../src/timeline.js';
@@ -57,5 +59,25 @@ describe('transport clock', () => {
   it('formats a clock read-out', () => {
     expect(formatClock(68.9)).toBe('1:08');
     expect(formatClock(-5)).toBe('0:00');
+  });
+});
+
+describe('positions', () => {
+  // A beat is the meter's beatUnit note, so beat 3 is 1.0 s into the bar at 120
+  // BPM whether that beat is a quarter (4/4) or an eighth (6/8).
+  it('places a beat by the tempo alone, whatever the beat unit', () => {
+    const position = { bar: 2, beat: { index: 3 } };
+    const common = testTimeline();
+    const compound = testTimeline({
+      musicalContext: { tempo: 120, timeSignature: { beatsPerBar: 6, beatUnit: 8 } }
+    });
+    expect(positionSeconds(common, position)).toBe(2 + 1);
+    expect(positionSeconds(compound, position)).toBe(3 + 1);
+    expect(
+      positionSeconds(compound, {
+        bar: 1,
+        beat: { index: 1, offset: { numerator: 1, denominator: 2 } }
+      })
+    ).toBe(0.25);
   });
 });

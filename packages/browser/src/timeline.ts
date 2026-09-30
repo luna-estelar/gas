@@ -1,4 +1,5 @@
 // Musical-time calculations and timeline view models shared by browser controls.
+import { createTempoSegmentMap, positionToTime } from '@luna-estelar/gas-core';
 import type { Diagnostic, CompiledTimeline } from './compile.js';
 
 export const DEFAULT_TEMPO = 120;
@@ -58,19 +59,17 @@ export function secondsPerBar(timeline: CompiledTimeline): number {
   return (meterOf(timeline).beatsPerBar * 60) / tempoOf(timeline);
 }
 
+/** Seconds from bar one to `position` at the document's tempo and meter. */
 export function positionSeconds(
   timeline: CompiledTimeline,
   position: CompiledTimeline['events'][number]['position']
 ): number {
   const meter = meterOf(timeline);
-  const wholeBars = Math.max(0, position.bar - 1) * secondsPerBar(timeline);
-  if (position.beat === undefined) return wholeBars;
-  const offset =
-    position.beat.offset === undefined
-      ? 0
-      : position.beat.offset.numerator / position.beat.offset.denominator;
-  const beats = Math.max(0, position.beat.index - 1) + offset;
-  return wholeBars + beats * (60 / tempoOf(timeline)) * (4 / meter.beatUnit);
+  const map = createTempoSegmentMap({
+    tempo: tempoOf(timeline),
+    timeSignature: { beatsPerBar: meter.beatsPerBar, beatUnit: meter.beatUnit }
+  });
+  return positionToTime(map, position);
 }
 
 export function totalBars(timeline: CompiledTimeline): number | null {

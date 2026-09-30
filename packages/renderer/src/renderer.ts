@@ -112,6 +112,13 @@ interface LoadedDocument {
   tempoMap: TempoSegmentMap;
 }
 
+interface CompletedTail {
+  readonly startTime: number;
+  /** Clock time of the declared end, where the playhead stops. */
+  readonly endTime: number;
+  readonly tempoMap: TempoSegmentMap;
+}
+
 interface ActiveRun {
   readonly id: string;
   startTime: number;
@@ -166,6 +173,9 @@ class RendererSession implements Renderer {
   private warnedConfigUnvalidated = false;
   private loaded: LoadedDocument | undefined;
   private run: ActiveRun | undefined;
+  // A finished piece is still playing for a host that buffers audio, so its
+  // mapping outlives the run until another run starts or playback is stopped.
+  private completedTail: CompletedTail | undefined;
   private readonly listeners: ListenerMap = {
     status: new Set(),
     position: new Set(),
@@ -354,6 +364,7 @@ class RendererSession implements Renderer {
     this.assertReady();
     this.assertStopped('start playback');
     const loaded = this.requireLoaded();
+    this.completedTail = undefined;
     const runId = this.createRunId();
     const run: ActiveRun = {
       id: runId,
@@ -443,6 +454,7 @@ class RendererSession implements Renderer {
   async stop(): Promise<void> {
     if (this.lifecycle === 'closed') return;
     this.assertReady();
+    this.completedTail = undefined;
     const run = this.run;
     if (run === undefined || run.ended) {
       this.playback = 'stopped';
@@ -479,6 +491,7 @@ class RendererSession implements Renderer {
   async close(): Promise<void> {
     if (this.lifecycle === 'closed') return;
     if (this.lifecycle === 'closing') return;
+    this.completedTail = undefined;
     if (this.lifecycle === 'failed') {
       await this.closeConnectorBestEffort();
       this.lifecycle = 'closed';
@@ -894,6 +907,15 @@ class RendererSession implements Renderer {
     this.rejectHeldAudio(run, 'Buffered audio was rejected when the finite run completed.');
     await this.stopConnector(run, false);
     run.ended = true;
+    const loaded = this.loaded;
+    const playback = loaded?.timeline.playback;
+    if (run.anchored && loaded !== undefined && playback?.mode === 'finite') {
+      this.completedTail = {
+        startTime: run.startTime,
+        endTime: barToTime(loaded.tempoMap, playback.declaredBars + 1),
+        tempoMap: loaded.tempoMap
+      };
+    }
     this.playback = 'stopped';
     this.emitStatus({ completed: true });
     if (this.run === run) this.run = undefined;
@@ -963,17 +985,22 @@ class RendererSession implements Renderer {
    * rollover is asking about an iteration the map no longer describes; saying so
    * is better than answering bar one and walking its playhead backwards. A tempo
    * change keeps its earlier segments, so it does not have this effect.
+   *
+   * A completed finite run keeps answering, capped at its declared end, until the
+   * next run starts or playback is stopped: the host is still playing the audio
+   * it buffered after the renderer finished.
    */
   positionAtSeconds(seconds: number): MusicalPosition | undefined {
+    if (!Number.isFinite(seconds)) return undefined;
     const loaded = this.loaded;
     const run = this.run;
-    if (loaded === undefined || run === undefined) return undefined;
-    if (!run.anchored || run.ended) return undefined;
-    if (!Number.isFinite(seconds)) return undefined;
-    const time = run.startTime + seconds;
-    const origin = loaded.tempoMap[0]?.startTime;
-    if (origin === undefined || time < origin) return undefined;
-    return timeToPosition(loaded.tempoMap, time);
+    if (loaded !== undefined && run !== undefined && run.anchored && !run.ended) {
+      return placeOnMap(loaded.tempoMap, run.startTime + seconds);
+    }
+    // Audio past the declared end is the tail of the last chunk, not more music.
+    const tail = this.completedTail;
+    if (tail === undefined) return undefined;
+    return placeOnMap(tail.tempoMap, Math.min(tail.startTime + seconds, tail.endTime));
   }
 
   private async enterHolding(
@@ -1282,6 +1309,12 @@ class RendererSession implements Renderer {
       // A failed renderer is already terminal; closing remains best effort.
     }
   }
+}
+
+function placeOnMap(tempoMap: TempoSegmentMap, time: number): MusicalPosition | undefined {
+  const origin = tempoMap[0]?.startTime;
+  if (origin === undefined || time < origin) return undefined;
+  return timeToPosition(tempoMap, time);
 }
 
 function normalizeDefaults(defaults: RendererDefaults): RendererDefaults {

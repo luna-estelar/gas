@@ -14,7 +14,7 @@ export const ALLOW_MAP = {
   renderer: ['protocol', 'core', 'notation'],
   'connector-lyria': ['protocol'],
   cli: ['language'],
-  browser: ['protocol', 'language', 'core', 'api', 'renderer', 'connector-lyria']
+  browser: ['protocol', 'language', 'core', 'api', 'renderer']
 };
 
 // Fixture helpers must not import GAS packages: package tests share these helpers.
@@ -25,7 +25,7 @@ export const EXAMPLE_ALLOW_MAP = {
 const CONCRETE_RUNTIME = new Set(['renderer', 'connector-lyria']);
 
 /** Runtime composition modules, keyed by package. */
-export const WIRING_MODULES = { browser: 'wiring.ts' };
+export const WIRING_MODULES = { browser: 'session.ts' };
 
 // Units allowed to contain no scannable source files.
 const EXPECTED_EMPTY = new Set();
