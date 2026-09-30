@@ -18,7 +18,8 @@ const run = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // The browser package depends on every entrypoint below, so its directory
-// resolves each workspace specifier.
+// resolves each workspace specifier, and Node's self-reference resolves the
+// browser's own name from inside it without help from the root manifest.
 const resolveFrom = path.join(root, 'packages', 'browser');
 
 const ENTRYPOINTS = [
