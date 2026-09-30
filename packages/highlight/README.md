@@ -10,8 +10,9 @@ flat token ranges into per-line spans, and owns the supported GAS documentation-
 npm install @luna-estelar/gas-highlight
 ```
 
-The package is ESM-only and requires Node.js 22 or newer when used in Node. It has no
-dependencies, and both the declarations and the emitted JavaScript are pure and browser-safe.
+The package is ESM-only and requires Node.js 22 or newer when used in Node, matching the
+baseline across these packages. It has no dependencies, and both the declarations and the emitted
+JavaScript are pure and browser-safe.
 
 The package root exports `TOKEN_CLASS`, `toLines`, `Span`, `HighlightToken`,
 `GAS_FENCE_LABELS`, `GAS_LANGS`, and `hasCodeFence`. It declares `HighlightToken` itself

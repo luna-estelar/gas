@@ -19,7 +19,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // The browser package depends on every entrypoint below, so its directory
 // resolves each workspace specifier, and Node's self-reference resolves the
-// browser's own name from inside it without help from the root manifest.
+// browser's own name from inside it. The root devDependency on gas-browser is
+// not what makes that work; it stays until the meta package becomes the
+// resolution root for these entrypoints.
 const resolveFrom = path.join(root, 'packages', 'browser');
 
 const ENTRYPOINTS = [

@@ -219,7 +219,7 @@ describe('check-boundaries', () => {
 // never fires leaves `pnpm check:boundaries` silent and green. These cases
 // assert the summary line the script prints only after a real scan.
 describe('check-boundaries as a program', () => {
-  const SUMMARY = /^Import boundaries OK: scanned \d+ files \(/;
+  const SUMMARY = /^Import boundaries OK: scanned [1-9]\d* files \(/;
   let scratch: string | undefined;
 
   afterAll(() => {
@@ -251,7 +251,8 @@ describe('check-boundaries as a program', () => {
 
     // The script takes its root from its own location, so it scans this fixture.
     // Building the fixture from the script's own maps keeps it correct when a
-    // later phase adds a unit or renames a wiring module.
+    // later phase adds a unit or renames a wiring module. It does mirror
+    // assertCoverage's requirements, so a new rule there surfaces here first.
     for (const unit of Object.keys(ALLOW_MAP)) {
       writeSource(path.join(tree, 'packages', unit, 'src', 'index.ts'));
     }
