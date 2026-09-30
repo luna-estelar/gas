@@ -56,7 +56,9 @@ async function renderScript(timeline: Timeline): Promise<{
 }> {
   const clock = new VirtualClock();
   const connector = new FakeConnector({
-    description: { capabilities: allSupportedCapabilities() }
+    // Musical time starts with the first chunk, so a run needs audio to begin.
+    description: { capabilities: allSupportedCapabilities() },
+    anchorOnStart: true
   });
   const renderer = await createRenderer({
     clock,
@@ -85,7 +87,7 @@ async function renderScript(timeline: Timeline): Promise<{
   const eventLog = [
     ...statuses.map(
       (event) =>
-        `status:${event.lifecycle}:${event.playback}:${event.runId ?? '-'}:${event.throttled ?? false}`
+        `status:${event.lifecycle}:${event.playback}:${event.runId ?? '-'}:${event.throttled ?? false}:${event.completed ?? false}`
     ),
     ...positions.map(
       (event) =>

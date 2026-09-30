@@ -15,15 +15,17 @@ import { VirtualClock } from './support/virtual-clock.js';
 describe('running renderer changes', () => {
   it('re-anchors live tempo without moving the current position', async () => {
     const timeline = testTimeline();
-    const connector = new FakeConnector({ appliedBoundary: { bar: 3 } });
+    const connector = new FakeConnector({ appliedBoundary: { bar: 3 }, anchorOnStart: true });
     const { clock, renderer } = await runningRenderer(timeline, connector);
     clock.advanceTo(2);
 
     const state = applyActive(createInputState(timeline), { kind: 'setTempo', bpm: 60 });
     const result = await renderer.updateState(state);
 
+    // Two bars in, the tempo halves, so the lookahead lands two of the new
+    // four-second bar's beats later: beat three, not a fractional bar.
     expect(result).toEqual({
-      requestedPosition: { bar: 2.5 },
+      requestedPosition: { bar: 2, beat: { index: 3 } },
       appliedPosition: { bar: 3 }
     });
     expect(connector.updates.at(-1)?.update.state.globals.tempo).toBe(60);
@@ -143,7 +145,8 @@ describe('running renderer changes', () => {
     const secret = 'connector-secret-value';
     const timeline = testTimeline();
     const connector = new FakeConnector({
-      updateFailure: new Error(`provider rejected ${secret}`)
+      updateFailure: new Error(`provider rejected ${secret}`),
+      anchorOnStart: true
     });
     const { renderer } = await runningRenderer(timeline, connector);
     const state = applyActive(createInputState(timeline), {
@@ -168,7 +171,8 @@ describe('running renderer changes', () => {
 
 async function runningRenderer(
   timeline: Timeline,
-  connector = new FakeConnector()
+  // Musical time starts with the first chunk, so a running renderer needs audio.
+  connector = new FakeConnector({ anchorOnStart: true })
 ): Promise<{ clock: VirtualClock; connector: FakeConnector; renderer: Renderer }> {
   const clock = new VirtualClock();
   const renderer = await createRenderer({ clock, connector, runIdFactory: () => 'run-1' });
@@ -188,7 +192,8 @@ function applyActive(state: InputState, command: Parameters<typeof applyCommand>
 
 function notationConnector(): FakeConnector {
   return new FakeConnector({
-    description: { capabilities: allSupportedCapabilities() }
+    description: { capabilities: allSupportedCapabilities() },
+    anchorOnStart: true
   });
 }
 

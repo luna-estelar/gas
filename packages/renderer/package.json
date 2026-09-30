@@ -48,8 +48,6 @@
   "dependencies": {
     "@luna-estelar/gas-core": "workspace:^",
     "@luna-estelar/gas-notation": "workspace:^",
-    "@luna-estelar/gas-protocol": "workspace:^",
-    "ajv": "^8.20.0",
-    "ajv-formats": "^3.0.1"
+    "@luna-estelar/gas-protocol": "workspace:^"
   }
 }

@@ -4,10 +4,12 @@ import {
   barToTime,
   createTempoSegmentMap,
   effectiveStateAt,
+  positionToTime,
   reanchorTempo,
   resolveTiming,
   sectionInstanceAt,
   timeToBarFraction,
+  timeToPosition,
   validateTimeline,
   type ResolvedTiming,
   type TempoSegmentMap
@@ -21,6 +23,7 @@ import type {
   Connector,
   ConnectorAudioChunk,
   ConnectorConfig,
+  ConnectorConfigProblem,
   ConnectorConfigSchema,
   ConnectorDescription,
   ConnectorFailureReason,
@@ -43,6 +46,7 @@ import type {
   RendererUpdateResult,
   Timeline
 } from '@luna-estelar/gas-protocol';
+import { isCloseCode } from '@luna-estelar/gas-protocol';
 import { applyS16leGain, BufferLedger } from './audio.js';
 import {
   BUFFER_HARD_LIMIT_SECONDS,
@@ -53,13 +57,16 @@ import {
 import {
   applyMergePatch,
   cloneJsonObject,
-  compileConfigSchema,
   freezeJson,
   isPlainJsonObject,
-  NonJsonValueError,
-  type ConfigValidator
+  NonJsonValueError
 } from './connector-config.js';
-import { classifyConnectorFailure, RendererError } from './errors.js';
+import { classifyConnectorFailure, RendererError, type RendererProblem } from './errors.js';
+import {
+  DEFAULT_FIRST_AUDIO_CHUNKS,
+  MAX_FIRST_AUDIO_TIMEOUT_SECONDS,
+  MIN_FIRST_AUDIO_TIMEOUT_SECONDS
+} from './constants.js';
 
 export interface CreateRendererOptions {
   readonly clock: MonotonicClock;
@@ -69,13 +76,27 @@ export interface CreateRendererOptions {
   readonly connectorConfig?: ConnectorConfig;
   readonly runIdFactory?: () => string;
   /**
-   * Check the connector's own `defaultConfig` against its own `configSchema` at
+   * Check the connector's own `defaultConfig` through its own `validateConfig` at
    * startup. Off by default: the answer is fixed by the connector's build and
-   * belongs in its test suite, while compiling a schema generates code at
-   * runtime, which a browser Content Security Policy without `'unsafe-eval'`
-   * blocks. Connector and renderer tests turn it on.
+   * belongs in its test suite. Connector and renderer tests turn it on.
    */
   readonly checkConnectorContract?: boolean;
+  /**
+   * When musical time starts. `'first-audio'`, the default, anchors bar one to
+   * the arrival of the first audio chunk, so the musical clock and the audible
+   * clock agree. `'connector-start'` anchors when `connector.start()` resolves,
+   * which for a connector whose start means "session established" begins musical
+   * time before any audio exists and leaves every later chunk that much closer to
+   * being late.
+   */
+  readonly anchor?: 'first-audio' | 'connector-start';
+  /**
+   * How long to wait for the first chunk before failing the run, timed from the
+   * moment anchoring becomes possible. Covers a connector that connects and then
+   * stays silent; connector setup has its own timeout. Defaults to three chunk
+   * durations, clamped to 2-15 seconds.
+   */
+  readonly firstAudioTimeoutSeconds?: number;
 }
 
 type RendererRuntimeOptions = Omit<CreateRendererOptions, 'settings'>;
@@ -95,6 +116,9 @@ interface ActiveRun {
   readonly id: string;
   startTime: number;
   anchored: boolean;
+  /** `connector.start()` and the initial notation update have both settled. */
+  startSettled: boolean;
+  firstAudioTimer: ClockTimer | undefined;
   readonly timers: Set<ClockTimer>;
   readonly audioTimers: Set<ClockTimer>;
   loopIteration: number;
@@ -133,7 +157,7 @@ class RendererSession implements Renderer {
   private description: ConnectorDescription | undefined;
   private defaults: RendererDefaults;
   private connectorConfig: ConnectorConfig = Object.freeze({});
-  private configValidator: ConfigValidator | undefined;
+  private warnedConfigUnvalidated = false;
   private loaded: LoadedDocument | undefined;
   private run: ActiveRun | undefined;
   private readonly listeners: ListenerMap = {
@@ -167,8 +191,7 @@ class RendererSession implements Renderer {
     try {
       const defaults = cloneJsonObject(description.defaultConfig);
       if (this.options.checkConnectorContract === true) {
-        const validator = this.ensureValidator(description.configSchema);
-        const defaultProblems = validator.validate(defaults);
+        const defaultProblems = this.checkConfig(defaults);
         if (defaultProblems.length > 0) {
           throw new RendererError(
             'connector-unavailable',
@@ -191,8 +214,7 @@ class RendererSession implements Renderer {
 
     if (this.options.connectorConfig !== undefined) {
       try {
-        const validator = this.ensureValidator(description.configSchema);
-        candidate = this.buildConnectorConfig(candidate, this.options.connectorConfig, validator);
+        candidate = this.buildConnectorConfig(candidate, this.options.connectorConfig);
       } catch (error) {
         this.lifecycle = 'failed';
         this.playback = 'failed';
@@ -223,7 +245,7 @@ class RendererSession implements Renderer {
 
   private failInitialization(
     failure: RendererFailure,
-    problems?: readonly unknown[]
+    problems?: readonly RendererProblem[]
   ): RendererError {
     this.lifecycle = 'failed';
     this.playback = 'failed';
@@ -268,29 +290,40 @@ class RendererSession implements Renderer {
       loaded.inputState = inputState;
       return {};
     }
-    if (this.playback !== 'running' && this.playback !== 'holding') {
+    if (
+      this.playback !== 'running' &&
+      this.playback !== 'holding' &&
+      this.playback !== 'starting'
+    ) {
       throw new RendererError(
         'renderer-state-conflict',
-        'Renderer state can change only while stopped, running, or holding.'
+        'Renderer state can change only while stopped, starting, running, or holding.'
       );
     }
     const run = this.run!;
     try {
       return await this.serialize(run, async () => {
-        const currentPosition = this.currentPosition(loaded);
+        // Before the anchor there is no musical clock to read, so the whole run is
+        // still at bar one. A host that changes something in the moment between
+        // start() resolving and the first chunk arriving is answered, not refused.
+        const anchored = run.anchored;
+        const currentPosition = anchored ? this.currentPosition(loaded) : { bar: 1 };
         loaded.inputState = inputState;
         const state = this.deriveAt(loaded, currentPosition, run.loopIteration);
         run.gain = globalGain(state);
-        this.applyDerivedTempo(loaded, run, state, currentPosition.bar);
+        if (anchored) {
+          // A tempo change re-anchors at the exact current instant, which is a
+          // fractional bar; rounding it to a position would move the change.
+          this.applyDerivedTempo(loaded, run, state, this.currentBarFraction(loaded));
+        } else {
+          // The tempo map is rebuilt from run.tempo when the anchor lands, so
+          // recording the tempo is enough here.
+          run.tempo = state.globals.tempo ?? run.tempo;
+        }
         const requestedPosition =
-          this.playback === 'holding'
+          !anchored || this.playback === 'holding'
             ? currentPosition
-            : {
-                bar: timeToBarFraction(
-                  loaded.tempoMap,
-                  this.options.clock.now() + this.lookaheadSeconds()
-                )
-              };
+            : timeToPosition(loaded.tempoMap, this.options.clock.now() + this.lookaheadSeconds());
         const appliedPosition = await this.options.connector.update(
           this.buildConnectorUpdate(state, run),
           requestedPosition
@@ -319,6 +352,8 @@ class RendererSession implements Renderer {
       id: runId,
       startTime: this.options.clock.now(),
       anchored: false,
+      startSettled: false,
+      firstAudioTimer: undefined,
       timers: new Set(),
       audioTimers: new Set(),
       loopIteration: 1,
@@ -367,12 +402,15 @@ class RendererSession implements Renderer {
         await this.options.connector.update(initialUpdate, initialPosition);
       }
       if (run.ended) return runId;
-      this.anchorRun(loaded, run);
-      this.playback = 'running';
-      this.emitStatus();
-      this.emitPosition(initialPosition, run);
-      this.releaseHeldAudio(run);
-      this.scheduleRun(loaded, run);
+      // A timeline with no notation sends no initial update, so "both settled"
+      // includes the case where there was nothing to send.
+      run.startSettled = true;
+      if (this.options.anchor === 'connector-start') {
+        this.commitAnchor(loaded, run);
+        return runId;
+      }
+      this.armFirstAudioTimeout(run);
+      this.maybeAnchor(loaded, run);
       return runId;
     } catch (error) {
       run.ended = true;
@@ -505,39 +543,41 @@ class RendererSession implements Renderer {
   async updateConnectorConfig(patch: ConnectorConfig): Promise<ConnectorConfig> {
     this.assertReady();
     this.assertStopped('update connector configuration');
-    const validator = this.ensureValidator(this.requireDescription().configSchema);
-    const candidate = this.buildConnectorConfig(this.connectorConfig, patch, validator);
+    const candidate = this.buildConnectorConfig(this.connectorConfig, patch);
     this.connectorConfig = freezeJson(candidate);
     return this.connectorConfig;
   }
 
   /**
-   * Compiles the connector's advertised schema on first use and keeps it. Config
-   * edits are the only path that needs a validator, so a session that never
-   * edits its configuration never generates code — which is what keeps the
-   * renderer usable under a Content Security Policy without `'unsafe-eval'`.
+   * Asks the connector to check a configuration. An empty result means valid.
+   *
+   * The renderer never compiles the advertised `configSchema`: AJV builds its
+   * validators with `new Function`, which a browser Content Security Policy
+   * without `'unsafe-eval'` blocks. A connector that does not implement
+   * `validateConfig` gets its configuration through unchecked, with one warning —
+   * which a host can only hear after initialization, since no listener exists
+   * before `createRenderer` resolves.
    */
-  private ensureValidator(schema: ConnectorConfigSchema): ConfigValidator {
-    const existing = this.configValidator;
-    if (existing !== undefined) return existing;
-    let validator: ConfigValidator;
-    try {
-      validator = compileConfigSchema(schema);
-    } catch {
-      throw new RendererError(
-        'invalid-configuration',
-        'The connector configuration could not be checked in this environment.'
-      );
+  private checkConfig(candidate: ConnectorConfig): readonly ConnectorConfigProblem[] {
+    const validate = this.options.connector.validateConfig;
+    if (validate === undefined) {
+      if (this.lifecycle === 'ready' && !this.warnedConfigUnvalidated) {
+        this.warnedConfigUnvalidated = true;
+        this.emit(
+          'warning',
+          Object.freeze({
+            code: 'connector-config-unvalidated',
+            message: 'The connector cannot check its own configuration, so it was not checked.'
+          })
+        );
+      }
+      return [];
     }
-    this.configValidator = validator;
-    return validator;
+    const result = validate.call(this.options.connector, candidate);
+    return result.ok ? [] : result.problems;
   }
 
-  private buildConnectorConfig(
-    base: ConnectorConfig,
-    patch: ConnectorConfig,
-    validator: ConfigValidator
-  ): ConnectorConfig {
+  private buildConnectorConfig(base: ConnectorConfig, patch: ConnectorConfig): ConnectorConfig {
     if (!isPlainJsonObject(patch)) {
       throw new RendererError(
         'invalid-configuration',
@@ -557,7 +597,7 @@ class RendererSession implements Renderer {
       throw error;
     }
     const candidate = applyMergePatch(base, patchClone);
-    const problems = validator.validate(candidate);
+    const problems = this.checkConfig(candidate);
     if (problems.length > 0) {
       throw new RendererError('invalid-configuration', 'The connector configuration is invalid.', {
         problems
@@ -582,7 +622,7 @@ class RendererSession implements Renderer {
     }
   }
 
-  private emitStatus(): void {
+  private emitStatus(extra: { readonly completed?: true } = {}): void {
     const status: RendererStatusEvent = Object.freeze({
       lifecycle: this.lifecycle,
       playback: this.playback,
@@ -592,7 +632,8 @@ class RendererSession implements Renderer {
             ...(this.run.stream !== undefined ? { stream: this.run.stream } : {}),
             ...(this.run.throttled || this.run.stream === 'throttled' ? { throttled: true } : {})
           }
-        : {})
+        : {}),
+      ...(extra.completed === true ? { completed: true } : {})
     });
     this.emit('status', status);
   }
@@ -634,21 +675,34 @@ class RendererSession implements Renderer {
     });
   }
 
-  private scheduleRun(loaded: LoadedDocument, run: ActiveRun, afterBar = 1): void {
-    const lookahead = Math.min(
-      this.requireDescription().model.chunkDurationSeconds * LOOKAHEAD_CHUNKS,
-      MAX_LOOKAHEAD_SECONDS
-    );
+  /**
+   * Arms every authored boundary and the run's own end.
+   *
+   * `afterTime` is where to resume from, as a clock instant rather than a bar: a
+   * live tempo change re-arms the schedule from the exact instant it took effect,
+   * which is part-way through a bar, and an authored event can sit on a beat. Both
+   * compare exactly as times and neither survives being rounded to a bar.
+   */
+  private scheduleRun(
+    loaded: LoadedDocument,
+    run: ActiveRun,
+    afterTime = barToTime(loaded.tempoMap, 1)
+  ): void {
+    const lookahead = this.lookaheadSeconds();
     for (const position of authoredEventSchedule(loaded.timeline)) {
-      if (position.bar <= afterBar) continue;
-      const boundaryTime = barToTime(loaded.tempoMap, position.bar);
+      const boundaryTime = positionToTime(loaded.tempoMap, position);
+      if (boundaryTime <= afterTime) continue;
       this.schedule(run, Math.max(run.startTime, boundaryTime - lookahead), () => {
         this.enqueue(run, async () => {
           const state = this.deriveAt(loaded, position, run.loopIteration);
           run.gain = globalGain(state);
-          const tempoChanged = this.applyDerivedTempo(loaded, run, state, position.bar);
+          const eventBar = timeToBarFraction(
+            loaded.tempoMap,
+            positionToTime(loaded.tempoMap, position)
+          );
+          const tempoChanged = this.applyDerivedTempo(loaded, run, state, eventBar);
           if (tempoChanged) {
-            this.schedule(run, barToTime(loaded.tempoMap, position.bar), () =>
+            this.schedule(run, positionToTime(loaded.tempoMap, position), () =>
               this.emitPosition(position, run)
             );
           }
@@ -659,29 +713,93 @@ class RendererSession implements Renderer {
     }
 
     if (loaded.timeline.playback.mode === 'finite') {
-      const completion = { bar: loaded.timeline.playback.declaredBars + 1 };
-      if (completion.bar > afterBar) {
-        this.schedule(run, barToTime(loaded.tempoMap, completion.bar), () => {
+      const completionTime = barToTime(loaded.tempoMap, loaded.timeline.playback.declaredBars + 1);
+      if (completionTime > afterTime) {
+        this.schedule(run, completionTime, () => {
           this.enqueue(run, () => this.completeFiniteRun(run));
         });
       }
     } else if (loaded.timeline.playback.mode === 'loop') {
-      const boundary = { bar: loaded.timeline.playback.declaredBars + 1 };
-      if (boundary.bar > afterBar) {
-        this.schedule(run, barToTime(loaded.tempoMap, boundary.bar), () => {
+      const boundaryTime = barToTime(loaded.tempoMap, loaded.timeline.playback.declaredBars + 1);
+      if (boundaryTime > afterTime) {
+        this.schedule(run, boundaryTime, () => {
           this.enqueue(run, () => this.applyLoop(loaded, run));
         });
       }
     } else {
       const holding = { bar: Math.max(1, loaded.timeline.arrangedBars + 1) };
+      const holdingTime = barToTime(loaded.tempoMap, holding.bar);
       if (loaded.timeline.arrangedBars === 0) {
         this.enqueue(run, () => this.enterHolding(loaded, run, holding));
-      } else if (holding.bar > afterBar) {
-        this.schedule(run, barToTime(loaded.tempoMap, holding.bar), () => {
+      } else if (holdingTime > afterTime) {
+        this.schedule(run, holdingTime, () => {
           this.enqueue(run, () => this.enterHolding(loaded, run, holding));
         });
       }
     }
+  }
+
+  /**
+   * Commits bar one to now and starts the run: releases whatever audio was held
+   * while waiting, and only then arms the authored schedule, so no boundary can
+   * fire against a musical clock that has not started yet.
+   */
+  private commitAnchor(loaded: LoadedDocument, run: ActiveRun): void {
+    this.cancelFirstAudioTimer(run);
+    this.anchorRun(loaded, run);
+    this.playback = 'running';
+    this.emitStatus();
+    this.emitPosition({ bar: 1 }, run);
+    this.releaseHeldAudio(run);
+    this.scheduleRun(loaded, run);
+  }
+
+  /**
+   * Anchors once both halves are true: startup has settled and audio has arrived.
+   * Either can happen first — a connector may push a chunk from inside `start()` —
+   * so both entry points call this and the anchor lands at whichever came last.
+   * Anchoring earlier than that would credit musical time no listener heard, since
+   * nothing is delivered before the anchor exists.
+   */
+  private maybeAnchor(loaded: LoadedDocument, run: ActiveRun): void {
+    if (run.anchored || run.ended || !run.startSettled) return;
+    if (run.heldAudio.length === 0) return;
+    this.commitAnchor(loaded, run);
+  }
+
+  private armFirstAudioTimeout(run: ActiveRun): void {
+    if (run.anchored || run.ended) return;
+    const deadline = this.options.clock.now() + this.firstAudioTimeoutSeconds();
+    run.firstAudioTimer = this.options.clock.schedule(deadline, () => {
+      run.firstAudioTimer = undefined;
+      if (run.ended || run.anchored) return;
+      this.enqueue(run, () =>
+        this.failRun(run, {
+          code: 'generation-failed',
+          message: 'The connector produced no audio before the renderer timeout.',
+          reason: 'provider',
+          retryable: true
+        })
+      );
+    });
+  }
+
+  private cancelFirstAudioTimer(run: ActiveRun): void {
+    const timer = run.firstAudioTimer;
+    if (timer === undefined) return;
+    run.firstAudioTimer = undefined;
+    this.options.clock.cancel(timer);
+  }
+
+  private firstAudioTimeoutSeconds(): number {
+    const requested =
+      this.options.firstAudioTimeoutSeconds ??
+      this.requireDescription().model.chunkDurationSeconds * DEFAULT_FIRST_AUDIO_CHUNKS;
+    if (!Number.isFinite(requested)) return MIN_FIRST_AUDIO_TIMEOUT_SECONDS;
+    return Math.min(
+      MAX_FIRST_AUDIO_TIMEOUT_SECONDS,
+      Math.max(MIN_FIRST_AUDIO_TIMEOUT_SECONDS, requested)
+    );
   }
 
   private anchorRun(loaded: LoadedDocument, run: ActiveRun): void {
@@ -738,34 +856,54 @@ class RendererSession implements Renderer {
       reason: 'internal',
       retryable: true
     });
-    await this.failRun(
-      run,
-      failure.code,
-      failure.message,
-      failure.reason ?? 'internal',
-      failure.retryable
-    );
+    await this.failRun(run, {
+      code: failure.code,
+      message: failure.message,
+      reason: failure.reason ?? 'internal',
+      retryable: failure.retryable,
+      ...(failure.closeCode !== undefined ? { closeCode: failure.closeCode } : {})
+    });
   }
 
+  /**
+   * A finite piece reaching its declared length is not the same event as a host
+   * stopping playback, so it is reported as one: a terminal status carrying both
+   * the run id and `completed`, which is what lets a session tell a piece that
+   * finished from one that was stopped. The ordinary `stopped` status follows.
+   *
+   * `run.ended` is set before the connector is stopped, so a chunk generated
+   * during that round trip is rejected rather than accepted into a run that is
+   * over.
+   */
   private async completeFiniteRun(run: ActiveRun): Promise<void> {
     if (run.ended) return;
     this.playback = 'stopping';
     this.emitStatus();
+    run.ended = true;
     this.cancelTimers(run);
     this.rejectHeldAudio(run, 'Buffered audio was rejected when the finite run completed.');
     await this.stopConnector(run, false);
-    run.ended = true;
-    if (this.run === run) this.run = undefined;
     this.playback = 'stopped';
+    this.emitStatus({ completed: true });
+    if (this.run === run) this.run = undefined;
     this.emitStatus();
   }
 
   private async failRun(
     run: ActiveRun,
-    code = 'generation-failed',
-    message = 'Audio generation failed during playback.',
-    reason: ConnectorFailureReason = 'internal',
-    retryable = true
+    {
+      code = 'generation-failed',
+      message = 'Audio generation failed during playback.',
+      reason = 'internal',
+      retryable = true,
+      closeCode
+    }: {
+      readonly code?: string;
+      readonly message?: string;
+      readonly reason?: ConnectorFailureReason;
+      readonly retryable?: boolean;
+      readonly closeCode?: number;
+    } = {}
   ): Promise<void> {
     if (run.ended) return;
     run.ended = true;
@@ -779,7 +917,8 @@ class RendererSession implements Renderer {
       message,
       reason,
       runId: run.id,
-      retryable
+      retryable,
+      ...(closeCode !== undefined ? { closeCode } : {})
     });
     this.emit('failure', failure);
     this.emitStatus();
@@ -803,6 +942,20 @@ class RendererSession implements Renderer {
     this.scheduleRun(loaded, run);
   }
 
+  /**
+   * The musical position `seconds` after this run's anchor, through the live tempo
+   * map. A host uses it to place what a listener is hearing, which lags the last
+   * position event by whatever its own audio path buffers.
+   */
+  positionAtSeconds(seconds: number): MusicalPosition | undefined {
+    const loaded = this.loaded;
+    const run = this.run;
+    if (loaded === undefined || run === undefined) return undefined;
+    if (!run.anchored || run.ended) return undefined;
+    if (!Number.isFinite(seconds)) return undefined;
+    return timeToPosition(loaded.tempoMap, run.startTime + seconds);
+  }
+
   private async enterHolding(
     loaded: LoadedDocument,
     run: ActiveRun,
@@ -823,7 +976,17 @@ class RendererSession implements Renderer {
     if (this.playback === 'holding') {
       return { bar: Math.max(1, loaded.timeline.arrangedBars + 1) };
     }
-    return { bar: Math.max(1, timeToBarFraction(loaded.tempoMap, this.options.clock.now())) };
+    return timeToPosition(loaded.tempoMap, this.options.clock.now());
+  }
+
+  /**
+   * The continuous bar coordinate of this instant. Not a `MusicalPosition`: it is
+   * for bar arithmetic, above all re-anchoring a tempo change exactly where it
+   * happened rather than at the start of the bar it happened in.
+   */
+  private currentBarFraction(loaded: LoadedDocument): number {
+    if (this.playback === 'holding') return Math.max(1, loaded.timeline.arrangedBars + 1);
+    return Math.max(1, timeToBarFraction(loaded.tempoMap, this.options.clock.now()));
   }
 
   private applyDerivedTempo(
@@ -842,7 +1005,9 @@ class RendererSession implements Renderer {
     );
     run.tempo = tempo;
     this.cancelBoundaryTimers(run);
-    if (this.playback !== 'holding') this.scheduleRun(loaded, run, anchorBar);
+    if (this.playback !== 'holding') {
+      this.scheduleRun(loaded, run, barToTime(loaded.tempoMap, anchorBar));
+    }
     return true;
   }
 
@@ -905,6 +1070,7 @@ class RendererSession implements Renderer {
   }
 
   private cancelTimers(run: ActiveRun): void {
+    this.cancelFirstAudioTimer(run);
     for (const timer of run.timers) this.options.clock.cancel(timer);
     run.timers.clear();
     for (const timer of run.audioTimers) this.options.clock.cancel(timer);
@@ -955,13 +1121,15 @@ class RendererSession implements Renderer {
       failure: (failure) => {
         if (failure.runId !== undefined && failure.runId !== this.run?.id) return;
         this.enqueue(run, () =>
-          this.failRun(
-            run,
-            failure.code,
-            'The connector reported an audio generation failure.',
-            failure.reason,
-            failure.retryable
-          )
+          this.failRun(run, {
+            code: failure.code,
+            message: 'The connector reported an audio generation failure.',
+            ...(failure.reason !== undefined ? { reason: failure.reason } : {}),
+            retryable: failure.retryable,
+            // A connector calls this directly, so the range is enforced here
+            // rather than trusted.
+            ...(isCloseCode(failure.closeCode) ? { closeCode: failure.closeCode } : {})
+          })
         );
       }
     };
@@ -986,6 +1154,8 @@ class RendererSession implements Renderer {
     run.audioCursor += chunk.durationSeconds;
     run.heldAudio.push(buffered);
     if (run.anchored) this.scheduleAudioDelivery(run, buffered);
+    // commitAnchor releases everything held, including the chunk just pushed.
+    else if (this.loaded !== undefined) this.maybeAnchor(this.loaded, run);
     this.checkBackpressure(run);
   }
 
@@ -1054,11 +1224,10 @@ class RendererSession implements Renderer {
       return;
     }
     this.enqueue(run, () =>
-      this.failRun(
-        run,
-        'audio-backpressure-overflow',
-        'Generated audio exceeded the renderer buffer limit.'
-      )
+      this.failRun(run, {
+        code: 'audio-backpressure-overflow',
+        message: 'Generated audio exceeded the renderer buffer limit.'
+      })
     );
   }
 
