@@ -72,6 +72,9 @@ export interface LifecycleEvent {
   readonly runId?: string;
   readonly stream?: ConnectorStreamStatus;
   readonly throttled?: boolean;
+  // Set on the event that ends a finite piece, so a host can tell a piece that
+  // finished from one the host stopped.
+  readonly completed?: true;
 }
 
 export interface DiagnosticEvent {

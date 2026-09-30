@@ -106,7 +106,9 @@ export type {
   Connector,
   ConnectorAudioChunk,
   ConnectorConfig,
+  ConnectorConfigProblem,
   ConnectorConfigSchema,
+  ConnectorConfigValidation,
   ConnectorDescription,
   ConnectorFailureReason,
   ConnectorNotation,
@@ -133,7 +135,7 @@ export type {
 } from './renderer.js';
 
 export type { ConnectorErrorOptions } from './errors.js';
-export { ConnectorError } from './errors.js';
+export { ConnectorError, isCloseCode } from './errors.js';
 
 export const packageName = '@luna-estelar/gas-protocol';
 export const version = '0.1.1';

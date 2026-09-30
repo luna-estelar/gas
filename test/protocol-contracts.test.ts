@@ -30,7 +30,11 @@ import type {
   CommandFailure as ProtocolCommandFailure,
   CommandWarning as ProtocolCommandWarning,
   CompileResult as ProtocolCompileResult,
+  ConnectorConfigProblem,
+  ConnectorConfigValidation,
   GasDiagnostic as ProtocolGasDiagnostic,
+  LifecycleEvent,
+  RendererFailure,
   RendererPositionEvent,
   RendererStatusEvent,
   SessionState as ProtocolSessionState,
@@ -222,6 +226,54 @@ describe('landed values match canonical protocol schemas', () => {
       expect(schema(`${base}/session.schema.json#/$defs/SessionState`)(sessionState)).toBe(true);
     }
     await session.close();
+  });
+
+  it('validates the 0.2 additions: close codes, completion, and config problems', () => {
+    // A finite piece that reached its declared length: the run id is still on the
+    // status, and `stream` is absent because completion is not a stream state.
+    const completed: RendererStatusEvent = {
+      lifecycle: 'ready',
+      playback: 'stopped',
+      runId: 'run.1',
+      completed: true
+    };
+    const lifecycle: LifecycleEvent = {
+      lifecycle: 'ready',
+      playback: 'stopped',
+      rendererPlayback: 'stopped',
+      runId: 'run.1',
+      completed: true
+    };
+    // An application close code the connector classified only as a network
+    // failure; the raw number rides along for the host to map.
+    const failure: RendererFailure = {
+      code: 'lyria-network-failure',
+      message: 'The connector lost its connection to the model.',
+      reason: 'network',
+      runId: 'run.1',
+      retryable: true,
+      closeCode: 4429
+    };
+    const problem: ConnectorConfigProblem = {
+      path: '/generation/temperature',
+      code: 'out-of-range',
+      message: 'The temperature must be between 0 and 3.'
+    };
+    const validation: ConnectorConfigValidation = { ok: false, problems: [problem] };
+
+    expect(schema(`${base}/renderer.schema.json#/$defs/RendererStatusEvent`)(completed)).toBe(true);
+    expect(schema(`${base}/session.schema.json#/$defs/LifecycleEvent`)(lifecycle)).toBe(true);
+    expect(schema(`${base}/diagnostics.schema.json#/$defs/RendererFailure`)(failure)).toBe(true);
+    expect(schema(`${base}/renderer.schema.json#/$defs/ConnectorConfigProblem`)(problem)).toBe(
+      true
+    );
+    // The root pointer is the whole configuration, so an empty path is legal.
+    expect(
+      schema(`${base}/renderer.schema.json#/$defs/ConnectorConfigProblem`)({ ...problem, path: '' })
+    ).toBe(true);
+    expect(validation.ok).toBe(false);
+    if (validation.ok) return;
+    expect(validation.problems).toEqual([problem]);
   });
 
   it('keeps schema validation before Core reference validation', () => {
