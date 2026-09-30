@@ -91,6 +91,25 @@ describe('check-boundaries', () => {
     expect(arbitraryPath).toHaveLength(0);
   });
 
+  it('forbids every workspace unit from importing the umbrella package', () => {
+    const violations = findViolations([
+      {
+        package: 'api',
+        path: 'src/index.ts',
+        content: "import { version } from '@luna-estelar/gas';"
+      },
+      {
+        package: 'browser',
+        path: 'src/session.ts',
+        content: "import { createSession } from '@luna-estelar/gas/api';"
+      },
+      { package: 'examples', path: 'support.ts', content: "import '@luna-estelar/gas/core';" }
+    ]);
+    expect(
+      violations.map((violation: { importedPackage: string }) => violation.importedPackage)
+    ).toEqual(['@luna-estelar/gas', '@luna-estelar/gas', '@luna-estelar/gas']);
+  });
+
   // Exercise scanner configuration independently of the packages present in this checkout.
   it('allows a unit the packages its allow map names', () => {
     const violations = findViolations(
@@ -256,8 +275,10 @@ describe('check-boundaries as a program', () => {
     for (const unit of Object.keys(ALLOW_MAP)) {
       writeSource(path.join(tree, 'packages', unit, 'src', 'index.ts'));
     }
-    for (const [unit, wiringModule] of Object.entries(WIRING_MODULES)) {
-      writeSource(path.join(tree, 'packages', unit, 'src', wiringModule));
+    for (const [unit, modules] of Object.entries(WIRING_MODULES)) {
+      for (const wiringModule of [modules].flat() as string[]) {
+        writeSource(path.join(tree, 'packages', unit, 'src', wiringModule));
+      }
     }
     for (const unit of Object.keys(EXAMPLE_ALLOW_MAP)) {
       // Loose files directly under examples/ make up the shared-fixture unit.

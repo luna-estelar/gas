@@ -24,13 +24,28 @@ export const EXAMPLE_ALLOW_MAP = {
 
 const CONCRETE_RUNTIME = new Set(['renderer', 'connector-lyria']);
 
-/** Runtime composition modules, keyed by package. */
+/**
+ * Runtime composition modules, keyed by package: the only files in that package
+ * that may import a concrete runtime. A facade that re-exports several of them
+ * lists one module per runtime.
+ */
 export const WIRING_MODULES = { browser: 'session.ts' };
 
 // Units allowed to contain no scannable source files.
 const EXPECTED_EMPTY = new Set();
 
 const SPEC_PREFIX = '@luna-estelar/gas-';
+
+// The umbrella package. It sits above every package, so nothing in the
+// workspace may import it; it would otherwise slip past SPEC_PREFIX unchecked.
+const UMBRELLA = '@luna-estelar/gas';
+const UMBRELLA_UNIT = 'gas';
+
+function wiringModulesOf(unit) {
+  const modules = WIRING_MODULES[unit];
+  if (modules === undefined) return undefined;
+  return Array.isArray(modules) ? modules : [modules];
+}
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -264,14 +279,25 @@ export function findViolations(files, allowMap = { ...ALLOW_MAP, ...EXAMPLE_ALLO
   for (const file of files) {
     const allowed = allowMap[file.package] ?? [];
     for (const specifier of extractSpecifiers(file.content, file.path)) {
+      if (specifier === UMBRELLA || specifier.startsWith(`${UMBRELLA}/`)) {
+        if (file.package !== UMBRELLA_UNIT) {
+          violations.push({
+            package: file.package,
+            path: file.path,
+            importedPackage: UMBRELLA,
+            specifier
+          });
+        }
+        continue;
+      }
       if (!specifier.startsWith(SPEC_PREFIX)) continue;
       const importedShort = specifier.slice(SPEC_PREFIX.length).split('/')[0];
       if (importedShort === file.package) continue; // self-import is fine
-      const confinedTo = WIRING_MODULES[file.package];
+      const confinedTo = wiringModulesOf(file.package);
       if (
         confinedTo !== undefined &&
         CONCRETE_RUNTIME.has(importedShort) &&
-        path.basename(file.path) !== confinedTo
+        !confinedTo.includes(path.basename(file.path))
       ) {
         violations.push({
           package: file.package,
@@ -404,11 +430,13 @@ export async function assertCoverage(files, root = ROOT) {
     }
   }
 
-  for (const [unit, wiringModule] of Object.entries(WIRING_MODULES)) {
-    const matched = files.some(
-      (file) => file.package === unit && path.basename(file.path) === wiringModule
-    );
-    if (!matched) errors.push(`wiring module matched no scanned file: ${unit}/${wiringModule}`);
+  for (const unit of Object.keys(WIRING_MODULES)) {
+    for (const wiringModule of wiringModulesOf(unit)) {
+      const matched = files.some(
+        (file) => file.package === unit && path.basename(file.path) === wiringModule
+      );
+      if (!matched) errors.push(`wiring module matched no scanned file: ${unit}/${wiringModule}`);
+    }
   }
 
   const counts = Object.keys(allowMap)
