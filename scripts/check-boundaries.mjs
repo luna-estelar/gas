@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 export const ALLOW_MAP = {
   protocol: [],
   language: ['protocol'],
-  highlight: ['language'],
+  highlight: [],
   notation: ['protocol'],
   api: ['protocol', 'language', 'core'],
   core: ['protocol'],

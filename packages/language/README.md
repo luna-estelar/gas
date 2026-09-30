@@ -38,7 +38,8 @@ Importing the package root loads Langium and Chevrotain along with the parser.
 
 Browser applications can defer compilation with a dynamic import of
 `@luna-estelar/gas-browser/compile`. For token presentation alone,
-`@luna-estelar/gas-highlight` uses language types without loading the parser at runtime.
+`@luna-estelar/gas-highlight` has no dependencies at all: it declares a structurally
+identical token type, so `highlightSource` output passes straight into it.
 
 Timelines carry a `compilerVersion` field recording this package's version, and a
 `formatVersion` of `{ major: 1, minor: 0 }` recording the Protocol contract they satisfy. The two
