@@ -31,12 +31,7 @@ export interface Globals {
 }
 
 export type Global =
-  | TempoGlobal
-  | KeyGlobal
-  | TimeSignatureGlobal
-  | GlobalLength
-  | FlavorGlobal
-  | LevelGlobal;
+  TempoGlobal | KeyGlobal | TimeSignatureGlobal | GlobalLength | FlavorGlobal | LevelGlobal;
 
 export interface TempoGlobal extends GasNode {
   readonly kind: 'Tempo';
