@@ -4,13 +4,13 @@ import { describe, expect, test } from 'vitest';
 import { compileSource, type Timeline } from '../packages/language/src/index.js';
 import {
   authoredEventSchedule,
+  comparePositions,
   createInputState,
   effectiveStateAt,
   sectionInstanceAt,
   validateTimeline,
   type EffectiveState
 } from '../packages/core/src/index.js';
-import { comparePositions } from '../packages/core/src/positions.js';
 import { exampleFiles, readExample } from '../examples/support.js';
 
 const corpusFiles = exampleFiles();
@@ -26,8 +26,9 @@ describe('core reads every compiled corpus timeline', () => {
     const timeline = result.timeline;
 
     // The compiler and the load-time gate agree on every timeline the language
-    // can produce.
-    expect(validateTimeline(timeline).ok).toBe(true);
+    // can produce, including the ordering, sequence, beat and section-scope
+    // invariants the gate checks beyond the structural schema.
+    expect(validateTimeline(timeline)).toEqual({ ok: true, problems: [] });
 
     const state = createInputState(timeline);
     const trackIds = timeline.tracks.map((track) => track.trackId);

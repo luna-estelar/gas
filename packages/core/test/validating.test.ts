@@ -13,13 +13,27 @@ describe('validateTimeline accepts well-formed timelines', () => {
     ['finite', validTimeline()],
     ['loop', { ...validTimeline(), playback: { mode: 'loop', declaredBars: 16 } }],
     ['infinite', { ...validTimeline(), playback: { mode: 'infinite' } }],
-    ['globals-only with an empty arrangement', globalsOnlyTimeline()]
+    ['globals-only with an empty arrangement', globalsOnlyTimeline()],
+    ['a beat position inside the declared meter', withLastEventAt({ bar: 9, beat: { index: 4 } })],
+    [
+      'the last tick before the next beat',
+      withLastEventAt({ bar: 9, beat: { index: 4, offset: { numerator: 959, denominator: 960 } } })
+    ]
   ];
 
   test.each(ACCEPTED)('accepts a %s timeline', (_name, timeline) => {
     expect(validateTimeline(timeline).ok).toBe(true);
   });
 });
+
+// The valid timeline with its last event moved. That event is timed rather than
+// section-scoped and already sits in the final bar, so only the position changes.
+function withLastEventAt(position: unknown): unknown {
+  const timeline = validTimeline();
+  const events = [...timeline.events];
+  events[2] = { ...events[2], position } as (typeof events)[2];
+  return { ...timeline, events };
+}
 
 // Each case starts from a fresh valid timeline and breaks exactly one thing.
 type Break = (timeline: any) => void;
@@ -128,7 +142,38 @@ const REJECTIONS: ReadonlyArray<readonly [name: string, brk: Break, code: Timeli
     (t) => (t.tracks[0].defaults[0].value.value = 2),
     'invalid-level'
   ],
-  ['an event level below zero', (t) => (t.events[2].value.value = -0.1), 'invalid-level']
+  ['an event level below zero', (t) => (t.events[2].value.value = -0.1), 'invalid-level'],
+  ['events out of musical order', (t) => t.events.reverse(), 'events-unordered'],
+  [
+    'two events sharing a position and a sequence',
+    (t) => (t.events[1].sequence = t.events[0].sequence),
+    'sequence-collision'
+  ],
+  [
+    'a beat past the end of its bar',
+    (t) => (t.events[2].position = { bar: 9, beat: { index: 5 } }),
+    'beat-out-of-range'
+  ],
+  [
+    'an offset of a whole beat',
+    (t) =>
+      (t.events[2].position = {
+        bar: 9,
+        beat: { index: 2, offset: { numerator: 4, denominator: 4 } }
+      }),
+    'beat-out-of-range'
+  ],
+  [
+    'a section instance starting on a beat past the end of its bar',
+    (t) => (t.arrangement[1].start = { bar: 9, beat: { index: 7 } }),
+    'beat-out-of-range'
+  ],
+  [
+    'a section-scoped event outside its own instance',
+    // The intro instance is bars 1 through 8, so its own end bar is outside it.
+    (t) => (t.events[1].position = { bar: 9 }),
+    'event-outside-section'
+  ]
 ];
 
 describe('validateTimeline rejects broken timelines', () => {
@@ -141,6 +186,24 @@ describe('validateTimeline rejects broken timelines', () => {
     for (const problem of result.problems) {
       expect(problem.message.length).toBeGreaterThan(0);
     }
+  });
+
+  test('checks the beat offset but not the beat index when no meter is declared', () => {
+    // A document with no time signature is played at the host's renderer
+    // default, which this gate cannot see, so guessing 4/4 here would reject a
+    // timeline a host would legitimately play in 9/8.
+    const spacious = validTimeline() as any;
+    delete spacious.musicalContext;
+    spacious.events[2].position = { bar: 9, beat: { index: 9 } };
+    expect(validateTimeline(spacious).ok).toBe(true);
+
+    spacious.events[2].position = {
+      bar: 9,
+      beat: { index: 9, offset: { numerator: 3, denominator: 2 } }
+    };
+    const result = validateTimeline(spacious);
+    expect(result.problems.map((problem) => problem.code)).toEqual(['beat-out-of-range']);
+    expect(result.problems[0].message).toContain('3/2');
   });
 
   test('a non-object timeline is a shape problem', () => {
