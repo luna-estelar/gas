@@ -20,9 +20,6 @@ importers:
       '@changesets/cli':
         specifier: ^3.0.3
         version: 3.0.3
-      '@luna-estelar/gas-browser':
-        specifier: workspace:*
-        version: link:packages/browser
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.1
@@ -102,6 +99,39 @@ importers:
       '@luna-estelar/gas-protocol':
         specifier: workspace:^
         version: link:../protocol
+
+  packages/gas:
+    dependencies:
+      '@luna-estelar/gas-api':
+        specifier: workspace:*
+        version: link:../api
+      '@luna-estelar/gas-browser':
+        specifier: workspace:*
+        version: link:../browser
+      '@luna-estelar/gas-cli':
+        specifier: workspace:*
+        version: link:../cli
+      '@luna-estelar/gas-connector-lyria':
+        specifier: workspace:*
+        version: link:../connector-lyria
+      '@luna-estelar/gas-core':
+        specifier: workspace:*
+        version: link:../core
+      '@luna-estelar/gas-highlight':
+        specifier: workspace:*
+        version: link:../highlight
+      '@luna-estelar/gas-language':
+        specifier: workspace:*
+        version: link:../language
+      '@luna-estelar/gas-notation':
+        specifier: workspace:*
+        version: link:../notation
+      '@luna-estelar/gas-protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@luna-estelar/gas-renderer':
+        specifier: workspace:*
+        version: link:../renderer
 
   packages/highlight: {}
 

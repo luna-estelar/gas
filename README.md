@@ -39,7 +39,7 @@ sound; the same document does not guarantee the same performance on every render
 Compile a document without model credentials:
 
 ```bash
-npx @luna-estelar/gas-cli compile song.gas
+npx @luna-estelar/gas compile song.gas
 ```
 
 The CLI prints timeline JSON. Use `--out timeline.json` to write a file. The
@@ -49,20 +49,33 @@ browser. Audio generation requires model access; see the
 
 ## Install
 
-The release contains ten scoped npm packages. There is no umbrella package named
-`@luna-estelar/gas`.
-
 ```bash
-npm install @luna-estelar/gas-api
-npm install @luna-estelar/gas-browser
-npm install @luna-estelar/gas-language
-npm install @luna-estelar/gas-cli
+npm install @luna-estelar/gas
 ```
 
-Install the packages your application needs:
+`@luna-estelar/gas` installs the language, the session runtime, the renderer, the Lyria connector
+and the `gas` command. Its root is the application API; every package is also available at a
+subpath that mirrors it:
+
+```ts
+import { createSession, sourceText } from '@luna-estelar/gas';
+import { compileSource } from '@luna-estelar/gas/language';
+import { createLyriaConnector } from '@luna-estelar/gas/lyria';
+import { createRenderer } from '@luna-estelar/gas/renderer';
+```
+
+Run the command as `npx @luna-estelar/gas`; a bare `npx gas` fetches an unrelated npm package.
+See the [package README](./packages/gas/README.md) for every entry point.
+
+### Installing individual packages
+
+Each package is also published on its own. Use either the umbrella or individual packages, not
+both: the umbrella pins exact versions, so a separately installed package at another version is a
+second copy.
 
 | Package                             | Purpose                                                |
 | ----------------------------------- | ------------------------------------------------------ |
+| `@luna-estelar/gas`                 | Everything below, pinned to one tested set             |
 | `@luna-estelar/gas-protocol`        | Shared contracts and JSON Schemas                      |
 | `@luna-estelar/gas-language`        | Parsing, validation, compilation and live commands     |
 | `@luna-estelar/gas-core`            | Session state, command validation and state derivation |
@@ -75,7 +88,8 @@ Install the packages your application needs:
 | `@luna-estelar/gas-highlight`       | Syntax classes and code-fence helpers                  |
 
 Each package has its own README, with exports and usage examples, and a changelog. Packages are
-ESM-only and versioned independently; internal dependencies use caret ranges.
+ESM-only and versioned independently; internal dependencies use caret ranges, and the umbrella
+pins exact versions.
 
 For Node consumers, Protocol, Core, Notation, Renderer and the Lyria connector require
 Node 20 or newer. Language, Highlight, API, CLI and Browser require Node 22 or newer
@@ -115,7 +129,7 @@ are maintained separately from this library.
 
 | Path                                | Contents                                            |
 | ----------------------------------- | --------------------------------------------------- |
-| [`packages/`](./packages)           | The ten library packages                            |
+| [`packages/`](./packages)           | The ten library packages and the umbrella           |
 | [`examples/`](./examples/README.md) | Seven GAS documents and their shared manifest       |
 | [`test/`](./test/README.md)         | Integration and publication checks                  |
 | [`scripts/`](./scripts)             | Formatting, schema, boundary and publication checks |

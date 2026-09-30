@@ -11,6 +11,7 @@ import { version as browserVersion } from '../packages/browser/src/session.js';
 import { version as cliVersion } from '../packages/cli/src/index.js';
 import { version as connectorVersion } from '../packages/connector-lyria/src/index.js';
 import { version as coreVersion } from '../packages/core/src/index.js';
+import { version as gasVersion } from '../packages/gas/src/index.js';
 import { compileSource, version as languageVersion } from '../packages/language/src/index.js';
 import { version as notationVersion } from '../packages/notation/src/index.js';
 import { version as protocolVersion } from '../packages/protocol/src/index.js';
@@ -28,6 +29,7 @@ const EXPORTED: ReadonlyArray<readonly [string, string]> = [
   ['cli', cliVersion],
   ['connector-lyria', connectorVersion],
   ['core', coreVersion],
+  ['gas', gasVersion],
   ['language', languageVersion],
   ['notation', notationVersion],
   ['protocol', protocolVersion],
@@ -50,6 +52,6 @@ describe('exported version constants', () => {
   test('the packages that export one are the packages that have one', () => {
     const declared = EXPORTED.map(([pkg]) => pkg);
     expect(declared).toEqual([...declared].sort());
-    expect(declared).toHaveLength(9);
+    expect(declared).toHaveLength(10);
   });
 });

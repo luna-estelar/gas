@@ -77,6 +77,11 @@ Choose the affected packages and a bump for each, and write the summary for some
 reading that package's changelog. Changes that only touch tests, CI or the private root
 need no changeset.
 
+The umbrella `@luna-estelar/gas` pins every package exactly, and Changesets releases it as a
+patch whenever one of them changes. A breaking change would then reach its users as a patch, so
+a `minor` or `major` on any package also needs the same bump for `@luna-estelar/gas`.
+`test/meta-package.test.ts` enforces this.
+
 Pending changesets on `main` keep a Version Packages PR open. It runs `pnpm
 version-packages`, which bumps manifests and internal ranges, writes each package's
 `CHANGELOG.md`, and copies the new versions into the exported `version` literals and the
@@ -88,5 +93,6 @@ with provenance every package whose version is not yet on npm, in dependency ord
 package gets its own tag and GitHub release, for example `@luna-estelar/gas-core@0.1.2`.
 
 Internal dependencies use `workspace:^`, which pnpm converts to a caret range such as
-`^0.1.2` when packing. Publication is not transactional. If it is interrupted, rerun the
+`^0.1.2` when packing. The umbrella is the exception: it uses `workspace:*`, which becomes the
+exact version, so it always ships the set it was tested with. Publication is not transactional. If it is interrupted, rerun the
 release workflow; versions already on npm are skipped.

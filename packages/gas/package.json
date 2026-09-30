@@ -1,0 +1,123 @@
+{
+  "name": "@luna-estelar/gas",
+  "version": "0.0.0",
+  "description": "GAS — Generative Audio Syntax. Language, runtime and Lyria connector in one install.",
+  "keywords": [
+    "gas",
+    "generative-audio",
+    "music",
+    "lyria",
+    "dsl"
+  ],
+  "homepage": "https://gas.lunaestelar.com",
+  "bugs": {
+    "url": "https://github.com/luna-estelar/gas/issues"
+  },
+  "license": "MIT",
+  "author": "sathira10 (https://github.com/sathira10)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/luna-estelar/gas.git",
+    "directory": "packages/gas"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "main": "./out/index.js",
+  "module": "./out/index.js",
+  "types": "./out/index.d.ts",
+  "bin": {
+    "gas": "./bin/gas.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./out/index.d.ts",
+      "default": "./out/index.js"
+    },
+    "./protocol": {
+      "types": "./out/protocol.d.ts",
+      "default": "./out/protocol.js"
+    },
+    "./protocol/validation": {
+      "types": "./out/protocol/validation.d.ts",
+      "default": "./out/protocol/validation.js"
+    },
+    "./language": {
+      "types": "./out/language.d.ts",
+      "default": "./out/language.js"
+    },
+    "./core": {
+      "types": "./out/core.d.ts",
+      "default": "./out/core.js"
+    },
+    "./api": {
+      "types": "./out/api.d.ts",
+      "default": "./out/api.js"
+    },
+    "./renderer": {
+      "types": "./out/renderer.d.ts",
+      "default": "./out/renderer.js"
+    },
+    "./notation": {
+      "types": "./out/notation.d.ts",
+      "default": "./out/notation.js"
+    },
+    "./highlight": {
+      "types": "./out/highlight.d.ts",
+      "default": "./out/highlight.js"
+    },
+    "./lyria": {
+      "types": "./out/lyria.d.ts",
+      "default": "./out/lyria.js"
+    },
+    "./browser/session": {
+      "types": "./out/browser/session.d.ts",
+      "default": "./out/browser/session.js"
+    },
+    "./browser/audio": {
+      "types": "./out/browser/audio.d.ts",
+      "default": "./out/browser/audio.js"
+    },
+    "./browser/capture": {
+      "types": "./out/browser/capture.d.ts",
+      "default": "./out/browser/capture.js"
+    },
+    "./browser/compile": {
+      "types": "./out/browser/compile.d.ts",
+      "default": "./out/browser/compile.js"
+    },
+    "./browser/timeline": {
+      "types": "./out/browser/timeline.d.ts",
+      "default": "./out/browser/timeline.js"
+    },
+    "./browser/inspect": {
+      "types": "./out/browser/inspect.d.ts",
+      "default": "./out/browser/inspect.js"
+    }
+  },
+  "files": [
+    "bin",
+    "out",
+    "src"
+  ],
+  "scripts": {
+    "clean": "tsc -b --clean"
+  },
+  "dependencies": {
+    "@luna-estelar/gas-api": "workspace:*",
+    "@luna-estelar/gas-browser": "workspace:*",
+    "@luna-estelar/gas-cli": "workspace:*",
+    "@luna-estelar/gas-connector-lyria": "workspace:*",
+    "@luna-estelar/gas-core": "workspace:*",
+    "@luna-estelar/gas-highlight": "workspace:*",
+    "@luna-estelar/gas-language": "workspace:*",
+    "@luna-estelar/gas-notation": "workspace:*",
+    "@luna-estelar/gas-protocol": "workspace:*",
+    "@luna-estelar/gas-renderer": "workspace:*"
+  }
+}
