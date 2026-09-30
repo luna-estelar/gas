@@ -37,6 +37,24 @@ export { warningsForTimeline } from './warnings.js';
 export type { TimelineProblem, TimelineProblemCode, ValidateTimelineResult } from './validate.js';
 export { validateTimeline } from './validate.js';
 
+export { comparePositions, positionsEqual } from './positions.js';
+
+export type { ResolvedTiming, TempoSegment, TempoSegmentMap } from './musical-time.js';
+export {
+  barToTime,
+  createTempoSegmentMap,
+  DEFAULT_TEMPO,
+  DEFAULT_TIME_SIGNATURE,
+  positionToTime,
+  reanchorTempo,
+  resolveTiming,
+  secondsPerBar,
+  secondsPerBeat,
+  TICKS_PER_BEAT,
+  timeToBarFraction,
+  timeToPosition
+} from './musical-time.js';
+
 export type {
   EffectiveGlobals,
   EffectiveState,

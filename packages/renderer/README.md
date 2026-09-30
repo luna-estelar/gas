@@ -16,10 +16,13 @@ npm install @luna-estelar/gas-renderer
 The package is ESM-only and requires Node.js 20 or newer when used in Node. Hosts supply both the
 clock and connector; the renderer does not choose environment-specific implementations.
 
-The package root exports `createRenderer`, the musical-time helpers (`barToTime`, `timeToBar`,
-`secondsPerBar`, `secondsPerBeat`, `resolveTiming`, `createTempoSegmentMap`, `reanchorTempo`),
-the `DEFAULT_TEMPO` and `DEFAULT_TIME_SIGNATURE` constants, the buffer and lookahead constants,
-`RendererError`, and the `applyS16leGain` / `BufferLedger` audio helpers.
+The package root exports `createRenderer`, the buffer and lookahead constants, `RendererError`,
+the `applyS16leGain` / `BufferLedger` audio helpers, and the musical-time helpers (`barToTime`,
+`timeToBarFraction`, `positionToTime`, `timeToPosition`, `secondsPerBar`, `secondsPerBeat`,
+`resolveTiming`, `createTempoSegmentMap`, `reanchorTempo`) with the `DEFAULT_TEMPO`,
+`DEFAULT_TIME_SIGNATURE` and `TICKS_PER_BEAT` constants. Those conversions are owned by
+`@luna-estelar/gas-core` and re-exported here, so a host that only needs to place a position in
+time can take them from Core without pulling in the Renderer.
 
 ```ts
 import { createRenderer } from '@luna-estelar/gas-renderer';

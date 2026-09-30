@@ -11,6 +11,7 @@
 // timeline may be hand-authored or persisted, not freshly compiled.
 
 import type {
+  MusicalPosition,
   TimelineProblem,
   TimelineProblemCode,
   ValidateTimelineResult
@@ -19,6 +20,7 @@ import {
   validateTimelinePayload,
   type ProtocolValidationIssue
 } from '@luna-estelar/gas-protocol/validation';
+import { comparePositions, positionsEqual } from './positions.js';
 
 export type {
   TimelineProblem,
@@ -50,12 +52,20 @@ export function validateTimeline(timeline: unknown): ValidateTimelineResult {
   validateMusicalContext(timeline.musicalContext, problems);
   validateGlobals(timeline.globals, problems);
 
+  const beatsPerBar = declaredBeatsPerBar(timeline.musicalContext);
   const resourceIds = collectResources(timeline.resources, problems);
   const trackIds = collectTracks(timeline.tracks, resourceIds, problems);
-  const spans = collectArrangement(timeline.arrangement, problems);
+  const spans = collectArrangement(timeline.arrangement, beatsPerBar, problems);
   validateEvents(
     timeline.events,
-    { trackIds, instanceIds: spans.ids, resourceIds, arrangedBars },
+    {
+      trackIds,
+      instanceIds: spans.ids,
+      instanceRanges: spans.ranges,
+      resourceIds,
+      arrangedBars,
+      beatsPerBar
+    },
     problems
   );
   validateContiguity(spans, arrangedBars, problems);
@@ -198,6 +208,15 @@ function validateMusicalContext(value: unknown, problems: TimelineProblem[]): vo
   }
 }
 
+// The meter a beat position is measured against, or undefined when the document
+// declares none. `validateMusicalContext` reports a malformed one; this only
+// answers whether there is a usable one.
+function declaredBeatsPerBar(value: unknown): number | undefined {
+  if (!isObject(value) || !isObject(value.timeSignature)) return undefined;
+  const beatsPerBar = value.timeSignature.beatsPerBar;
+  return isPositiveInteger(beatsPerBar) ? beatsPerBar : undefined;
+}
+
 function validateGlobals(value: unknown, problems: TimelineProblem[]): void {
   if (!isObject(value)) {
     problems.push(shape('The timeline is missing its global defaults.'));
@@ -286,6 +305,11 @@ function validateTrackDefaults(
   }
 }
 
+interface InstanceRange {
+  readonly start: MusicalPosition;
+  readonly end: MusicalPosition;
+}
+
 interface ArrangementSpans {
   readonly ids: Set<string>;
   // Instances with well-formed start/end bars, in document order. Contiguity runs
@@ -295,15 +319,22 @@ interface ArrangementSpans {
     readonly start: number;
     readonly end: number;
   }>;
+  // The same spans as positions, by instance id, for checking section scope.
+  readonly ranges: ReadonlyMap<string, InstanceRange>;
   readonly complete: boolean;
 }
 
-function collectArrangement(value: unknown, problems: TimelineProblem[]): ArrangementSpans {
+function collectArrangement(
+  value: unknown,
+  beatsPerBar: number | undefined,
+  problems: TimelineProblem[]
+): ArrangementSpans {
   const ids = new Set<string>();
   const instances: Array<{ name: string; start: number; end: number }> = [];
+  const ranges = new Map<string, InstanceRange>();
   if (!isArray(value)) {
     problems.push(shape('The timeline is missing its arrangement.'));
-    return { ids, instances, complete: false };
+    return { ids, instances, ranges, complete: false };
   }
   let complete = true;
   value.forEach((instance, index) => {
@@ -326,6 +357,8 @@ function collectArrangement(value: unknown, problems: TimelineProblem[]): Arrang
     if (!isNonNegativeInteger(instance.callIndex)) {
       problems.push(shape(`${label} needs a whole-number call index.`));
     }
+    validatePositionBeats(instance.start, `The start of ${label}`, beatsPerBar, problems);
+    validatePositionBeats(instance.end, `The end of ${label}`, beatsPerBar, problems);
     const start = positionBar(instance.start);
     const end = positionBar(instance.end);
     if (start === undefined || end === undefined) {
@@ -335,15 +368,26 @@ function collectArrangement(value: unknown, problems: TimelineProblem[]): Arrang
     }
     const name = isNonEmptyString(instance.sectionName) ? instance.sectionName : label;
     instances.push({ name, start, end });
+    const startPosition = positionAt(instance.start);
+    const endPosition = positionAt(instance.end);
+    if (
+      isNonEmptyString(instance.sectionInstanceId) &&
+      startPosition !== undefined &&
+      endPosition !== undefined
+    ) {
+      ranges.set(instance.sectionInstanceId, { start: startPosition, end: endPosition });
+    }
   });
-  return { ids, instances, complete };
+  return { ids, instances, ranges, complete };
 }
 
 interface EventContext {
   readonly trackIds: ReadonlySet<string>;
   readonly instanceIds: ReadonlySet<string>;
+  readonly instanceRanges: ReadonlyMap<string, InstanceRange>;
   readonly resourceIds: ReadonlySet<string>;
   readonly arrangedBars: number | undefined;
+  readonly beatsPerBar: number | undefined;
 }
 
 function validateEvents(value: unknown, ctx: EventContext, problems: TimelineProblem[]): void {
@@ -372,8 +416,87 @@ function validateEvents(value: unknown, ctx: EventContext, problems: TimelinePro
       problems.push(shape(`${label} needs a whole-number sequence.`));
     }
     validateEventPosition(event.position, label, ctx.arrangedBars, problems);
+    validatePositionBeats(event.position, capitalize(label), ctx.beatsPerBar, problems);
+    validateSectionScope(event, label, ctx, problems);
     validateEventReferences(event, label, ctx, problems);
   });
+  validateEventOrder(value, problems);
+}
+
+// Protocol promises events arrive ordered by position and then `sequence`, and
+// the cascade relies on it: at one position the later event wins. A hand-authored
+// or re-serialized timeline can break that, so check it rather than silently
+// derive the wrong effective state.
+function validateEventOrder(events: readonly unknown[], problems: TimelineProblem[]): void {
+  const ordered: Array<{ position: MusicalPosition; sequence: number; label: string }> = [];
+  events.forEach((event, index) => {
+    if (!isObject(event)) return;
+    const position = positionAt(event.position);
+    if (position === undefined || !isNonNegativeInteger(event.sequence)) return;
+    ordered.push({
+      position,
+      sequence: event.sequence,
+      label: isNonEmptyString(event.eventId) ? `event "${event.eventId}"` : `event #${index + 1}`
+    });
+  });
+
+  for (let index = 1; index < ordered.length; index++) {
+    const previous = ordered[index - 1];
+    const current = ordered[index];
+    const byPosition = comparePositions(previous.position, current.position);
+    if (byPosition > 0 || (byPosition === 0 && previous.sequence > current.sequence)) {
+      problems.push({
+        code: 'events-unordered',
+        message: `${current.label} is listed after ${previous.label} but comes before it musically; events run in order of position and then sequence.`
+      });
+      break; // one ordering report is enough; collisions are checked separately.
+    }
+  }
+
+  // Checked on a sorted copy so the result does not depend on the list already
+  // being ordered, and through `positionsEqual` so equal fractions written with
+  // different denominators (1/2 and 2/4) count as the same position.
+  const sorted = [...ordered].sort(
+    (left, right) =>
+      comparePositions(left.position, right.position) || left.sequence - right.sequence
+  );
+  for (let index = 1; index < sorted.length; index++) {
+    const previous = sorted[index - 1];
+    const current = sorted[index];
+    if (
+      previous.sequence === current.sequence &&
+      positionsEqual(previous.position, current.position)
+    ) {
+      problems.push({
+        code: 'sequence-collision',
+        message: `${previous.label} and ${current.label} share bar ${current.position.bar} and sequence ${current.sequence}, so which one wins is undefined.`
+      });
+    }
+  }
+}
+
+// A section-scoped value applies only while its instance is active, so one placed
+// outside its own instance can never take effect. That is a silent no-op the
+// author cannot see, so it is a problem rather than a warning.
+function validateSectionScope(
+  event: Record<string, unknown>,
+  label: string,
+  ctx: EventContext,
+  problems: TimelineProblem[]
+): void {
+  if (event.scope !== 'section' || !isNonEmptyString(event.sectionInstanceId)) return;
+  const range = ctx.instanceRanges.get(event.sectionInstanceId);
+  // An instance that is not in the arrangement at all is already a reference
+  // problem; do not pile on.
+  if (range === undefined) return;
+  const position = positionAt(event.position);
+  if (position === undefined) return;
+  if (comparePositions(position, range.start) < 0 || comparePositions(position, range.end) >= 0) {
+    problems.push({
+      code: 'event-outside-section',
+      message: `${label} is scoped to section instance "${event.sectionInstanceId}", which covers bars ${range.start.bar} through ${range.end.bar - 1}, but sits at bar ${position.bar}.`
+    });
+  }
 }
 
 function validateEventReferences(
@@ -437,6 +560,44 @@ function validateEventPosition(
     problems.push({
       code: 'position-out-of-range',
       message: `${label} is placed at bar ${bar}, past the arranged length of ${arrangedBars} bars.`
+    });
+  }
+}
+
+// The structural gate has already fixed the shape of a position and the lower
+// bounds of its beat, so this covers only what JSON Schema cannot: a beat past
+// the end of its bar, and an offset of a whole beat or more. The index check
+// needs a declared meter, and a document that declares none is played at the
+// host's default, which a document-level gate cannot see — so that half is
+// skipped rather than guessed at 4/4.
+function validatePositionBeats(
+  position: unknown,
+  subject: string,
+  beatsPerBar: number | undefined,
+  problems: TimelineProblem[]
+): void {
+  if (!isObject(position) || !isObject(position.beat)) {
+    return;
+  }
+  const beat = position.beat;
+  if (beatsPerBar !== undefined && isPositiveInteger(beat.index) && beat.index > beatsPerBar) {
+    problems.push({
+      code: 'beat-out-of-range',
+      message: `${subject} is on beat ${beat.index}, past the ${beatsPerBar} beats in a bar.`
+    });
+  }
+  if (!isObject(beat.offset)) {
+    return;
+  }
+  const { numerator, denominator } = beat.offset;
+  if (
+    isNonNegativeInteger(numerator) &&
+    isPositiveInteger(denominator) &&
+    numerator >= denominator
+  ) {
+    problems.push({
+      code: 'beat-out-of-range',
+      message: `${subject} is offset ${numerator}/${denominator} into its beat, which is a whole beat or more.`
     });
   }
 }
@@ -571,6 +732,44 @@ function positionBar(position: unknown): number | undefined {
     return undefined;
   }
   return isPositiveInteger(position.bar) ? position.bar : undefined;
+}
+
+// Narrows the `unknown` a load-time timeline carries into a position that can be
+// compared. The structural gate has already accepted these shapes; this rebuilds
+// the value so `comparePositions` cannot be handed a half-formed beat.
+function positionAt(value: unknown): MusicalPosition | undefined {
+  if (!isObject(value) || !isPositiveInteger(value.bar)) {
+    return undefined;
+  }
+  const beat = value.beat;
+  if (beat === undefined) {
+    return { bar: value.bar };
+  }
+  if (!isObject(beat) || !isPositiveInteger(beat.index)) {
+    return undefined;
+  }
+  const offset = beat.offset;
+  if (offset === undefined) {
+    return { bar: value.bar, beat: { index: beat.index } };
+  }
+  if (
+    !isObject(offset) ||
+    !isNonNegativeInteger(offset.numerator) ||
+    !isPositiveInteger(offset.denominator)
+  ) {
+    return undefined;
+  }
+  return {
+    bar: value.bar,
+    beat: {
+      index: beat.index,
+      offset: { numerator: offset.numerator, denominator: offset.denominator }
+    }
+  };
+}
+
+function capitalize(label: string): string {
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 function requireNonEmptyString(value: unknown, field: string, problems: TimelineProblem[]): void {

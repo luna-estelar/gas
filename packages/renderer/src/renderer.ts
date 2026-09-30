@@ -1,9 +1,16 @@
 import {
   applyLoopBoundary,
   authoredEventSchedule,
+  barToTime,
+  createTempoSegmentMap,
   effectiveStateAt,
+  reanchorTempo,
+  resolveTiming,
   sectionInstanceAt,
-  validateTimeline
+  timeToBarFraction,
+  validateTimeline,
+  type ResolvedTiming,
+  type TempoSegmentMap
 } from '@luna-estelar/gas-core';
 import { AldaParseError, parseAlda, toMidi } from '@luna-estelar/gas-notation';
 import type {
@@ -53,15 +60,6 @@ import {
   type ConfigValidator
 } from './connector-config.js';
 import { classifyConnectorFailure, RendererError } from './errors.js';
-import {
-  barToTime,
-  createTempoSegmentMap,
-  reanchorTempo,
-  resolveTiming,
-  timeToBar,
-  type ResolvedTiming,
-  type TempoSegmentMap
-} from './musical-time.js';
 
 export interface CreateRendererOptions {
   readonly clock: MonotonicClock;
@@ -288,7 +286,10 @@ class RendererSession implements Renderer {
           this.playback === 'holding'
             ? currentPosition
             : {
-                bar: timeToBar(loaded.tempoMap, this.options.clock.now() + this.lookaheadSeconds())
+                bar: timeToBarFraction(
+                  loaded.tempoMap,
+                  this.options.clock.now() + this.lookaheadSeconds()
+                )
               };
         const appliedPosition = await this.options.connector.update(
           this.buildConnectorUpdate(state, run),
@@ -822,7 +823,7 @@ class RendererSession implements Renderer {
     if (this.playback === 'holding') {
       return { bar: Math.max(1, loaded.timeline.arrangedBars + 1) };
     }
-    return { bar: Math.max(1, timeToBar(loaded.tempoMap, this.options.clock.now())) };
+    return { bar: Math.max(1, timeToBarFraction(loaded.tempoMap, this.options.clock.now())) };
   }
 
   private applyDerivedTempo(

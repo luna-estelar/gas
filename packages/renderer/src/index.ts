@@ -6,18 +6,24 @@
 // application-facing GAS syntax parsing and does not depend on any specific
 // connector.
 
-export type { ResolvedTiming, TempoSegment, TempoSegmentMap } from './musical-time.js';
+// Musical-time conversion is owned by Core, so a host can share it without
+// depending on the Renderer. Re-exported here because these have always been
+// part of this package's surface.
+export type { ResolvedTiming, TempoSegment, TempoSegmentMap } from '@luna-estelar/gas-core';
 export {
   barToTime,
   createTempoSegmentMap,
   DEFAULT_TEMPO,
   DEFAULT_TIME_SIGNATURE,
+  positionToTime,
   reanchorTempo,
   resolveTiming,
   secondsPerBar,
   secondsPerBeat,
-  timeToBar
-} from './musical-time.js';
+  TICKS_PER_BEAT,
+  timeToBarFraction,
+  timeToPosition
+} from '@luna-estelar/gas-core';
 export type { RendererErrorCode } from './errors.js';
 export { RendererError } from './errors.js';
 export type { SanitizedSchemaProblem } from './connector-config.js';
