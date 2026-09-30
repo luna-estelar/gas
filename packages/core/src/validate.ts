@@ -449,7 +449,7 @@ function validateEventOrder(events: readonly unknown[], problems: TimelineProble
         code: 'events-unordered',
         message: `${current.label} is listed after ${previous.label} but comes before it musically; events run in order of position and then sequence.`
       });
-      return; // one report is enough: the whole list needs re-sorting either way.
+      break; // one ordering report is enough; collisions are checked separately.
     }
   }
 

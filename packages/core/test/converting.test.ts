@@ -154,6 +154,51 @@ describe('musical position conversion', () => {
     expect(positionToTime(changed, { bar: 4, beat: { index: 3 } })).toBe(anchor + 4);
   });
 
+  it('places beats and offsets on either side of a mid-bar tempo change', () => {
+    const changed = reanchorTempo(mapFor(120, 4, 4), 3.5, 60, 4);
+    const cases: readonly (readonly [MusicalPosition, number])[] = [
+      [{ bar: 3, beat: { index: 2 } }, 4.5],
+      [{ bar: 3, beat: { index: 3 } }, 5],
+      [{ bar: 3, beat: { index: 3, offset: { numerator: 1, denominator: 2 } } }, 5.5],
+      [{ bar: 3, beat: { index: 4 } }, 6],
+      [{ bar: 4 }, 7]
+    ];
+    for (const [position, time] of cases) {
+      expect(positionToTime(changed, position)).toBe(time);
+      expect(timeToPosition(changed, time)).toEqual(
+        position.beat?.offset === undefined
+          ? position
+          : { bar: 3, beat: { index: 3, offset: { numerator: 480, denominator: TICKS_PER_BEAT } } }
+      );
+    }
+  });
+
+  it('accounts for multiple tempo changes within one bar', () => {
+    const slower = reanchorTempo(mapFor(120, 4, 4), 3.25, 60, 4);
+    const changed = reanchorTempo(slower, 3.75, 240, 4);
+    expect(positionToTime(changed, { bar: 3, beat: { index: 2 } })).toBe(4.5);
+    expect(positionToTime(changed, { bar: 3, beat: { index: 3 } })).toBe(5.5);
+    expect(positionToTime(changed, { bar: 3, beat: { index: 4 } })).toBe(6.5);
+    expect(
+      positionToTime(changed, {
+        bar: 3,
+        beat: { index: 4, offset: { numerator: 1, denominator: 2 } }
+      })
+    ).toBe(6.625);
+    expect(positionToTime(changed, { bar: 4 })).toBe(6.75);
+  });
+
+  it('rounds once when a tempo change is anchored between ticks', () => {
+    const initial = mapFor(120, 4, 4);
+    const changed = reanchorTempo(initial, 1 + 0.4 / (4 * TICKS_PER_BEAT), 60, 4);
+    const anchor = changed[1].startTime;
+    const time = anchor + 0.4 / TICKS_PER_BEAT;
+    expect(timeToPosition(changed, time)).toEqual({
+      bar: 1,
+      beat: { index: 1, offset: { numerator: 1, denominator: TICKS_PER_BEAT } }
+    });
+  });
+
   it('treats equal fractions with different denominators as one position', () => {
     const map = mapFor(120, 4, 4);
     const half: MusicalPosition = {

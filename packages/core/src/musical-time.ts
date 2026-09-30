@@ -157,12 +157,15 @@ export function timeToBarFraction(segments: TempoSegmentMap, time: number): numb
 export function positionToTime(segments: TempoSegmentMap, position: MusicalPosition): number {
   assertSegments(segments);
   assertPositive('position.bar', position.bar);
-  const barStart = barToTime(segments, position.bar);
-  if (position.beat === undefined) return barStart;
+  if (position.beat === undefined) return barToTime(segments, position.bar);
   assertPositive('position.beat.index', position.beat.index);
-  const segment = segmentForBar(segments, position.bar);
+  const barSegment = segmentForBar(segments, position.bar);
   const beats = position.beat.index - 1 + offsetFraction(position.beat.offset);
-  return barStart + beats * secondsPerBeat(segment.tempo);
+  // Select the tempo at the complete position: a live change can sit between
+  // the start of this bar and the requested beat.
+  const segment = segmentForBar(segments, position.bar + beats / barSegment.beatsPerBar);
+  const beatsFromAnchor = (position.bar - segment.startBar) * segment.beatsPerBar + beats;
+  return segment.startTime + beatsFromAnchor * secondsPerBeat(segment.tempo);
 }
 
 /**
@@ -184,9 +187,10 @@ export function timeToPosition(segments: TempoSegmentMap, time: number): Musical
   // Counted from bar 1 rather than from the segment, because a segment that was
   // re-anchored mid-bar has a fractional `startBar` and adding to that would
   // hand back a fractional bar — the very thing this function exists to avoid.
-  const ticksElapsed =
-    Math.round((segment.startBar - 1) * ticksPerBar) +
-    Math.round(((time - segment.startTime) / secondsPerBeat(segment.tempo)) * TICKS_PER_BEAT);
+  const ticksElapsed = Math.round(
+    (segment.startBar - 1) * ticksPerBar +
+      ((time - segment.startTime) / secondsPerBeat(segment.tempo)) * TICKS_PER_BEAT
+  );
   const barsElapsed = Math.floor(ticksElapsed / ticksPerBar);
   const bar = 1 + barsElapsed;
   // A time before the map's first segment has no musical position; the piece

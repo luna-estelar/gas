@@ -188,6 +188,46 @@ describe('validateTimeline rejects broken timelines', () => {
     }
   });
 
+  test('reports sequence collisions even when the event list is unordered', () => {
+    const timeline = validTimeline() as any;
+    timeline.events[1].sequence = timeline.events[0].sequence;
+    timeline.events.reverse();
+    expect(validateTimeline(timeline).problems.map((problem) => problem.code)).toEqual([
+      'events-unordered',
+      'sequence-collision'
+    ]);
+  });
+
+  test('orders equal-position events by sequence', () => {
+    const timeline = validTimeline() as any;
+    timeline.events[0].sequence = 2;
+    expect(validateTimeline(timeline).problems.map((problem) => problem.code)).toEqual([
+      'events-unordered'
+    ]);
+  });
+
+  test('detects collisions between equivalent beat fractions', () => {
+    const timeline = validTimeline() as any;
+    timeline.events[0].position = {
+      bar: 1,
+      beat: { index: 2, offset: { numerator: 1, denominator: 2 } }
+    };
+    timeline.events[1].position = {
+      bar: 1,
+      beat: { index: 2, offset: { numerator: 2, denominator: 4 } }
+    };
+    timeline.events[1].sequence = timeline.events[0].sequence;
+    expect(validateTimeline(timeline).problems.map((problem) => problem.code)).toEqual([
+      'sequence-collision'
+    ]);
+  });
+
+  test('allows sequence reuse at different positions', () => {
+    const timeline = validTimeline() as any;
+    timeline.events[2].sequence = timeline.events[0].sequence;
+    expect(validateTimeline(timeline)).toEqual({ ok: true, problems: [] });
+  });
+
   test('checks the beat offset but not the beat index when no meter is declared', () => {
     // A document with no time signature is played at the host's renderer
     // default, which this gate cannot see, so guessing 4/4 here would reject a
