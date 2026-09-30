@@ -1,6 +1,6 @@
 {
   "name": "@luna-estelar/gas",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "GAS — Generative Audio Syntax. Language, runtime and Lyria connector in one install.",
   "keywords": [
     "gas",

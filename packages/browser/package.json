@@ -1,6 +1,6 @@
 {
   "name": "@luna-estelar/gas-browser",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Browser host for GAS sessions: prebuffered Web Audio playback, session composition, and timeline view models.",
   "keywords": [
     "gas",

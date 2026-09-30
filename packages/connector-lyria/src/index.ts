@@ -1,7 +1,7 @@
 // Lyria prompt translation and transport. Vendor types remain behind the protocol boundary.
 
 export const packageName = '@luna-estelar/gas-connector-lyria';
-export const version = '0.1.1';
+export const version = '0.2.0';
 
 export {
   LYRIA_CONFIG_SCHEMA,
