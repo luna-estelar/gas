@@ -26,6 +26,13 @@ updates:
       # Langium 4.2 requires chevrotain 12. Move it when Langium does.
       - dependency-name: 'chevrotain'
         update-types: ['version-update:semver-major']
+      # TypeScript 7 ships no stable compiler API, which the browser boundary
+      # tests parse source with. Stay on 6 until they move off it.
+      - dependency-name: 'typescript'
+        update-types: ['version-update:semver-major']
+      # Typings track the oldest supported Node (engines), not the newest.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
   - package-ecosystem: github-actions
     directory: /
     schedule:
