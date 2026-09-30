@@ -1,9 +1,28 @@
 // Turns the compiler's flat token list into per-line spans, ready to render as
-// HTML. Pure and dependency-free (the language imports are type-only), so the
-// same function runs at build time and in the browser with identical output.
-import type { HighlightKind, HighlightToken } from '@luna-estelar/gas-language';
+// HTML. Pure and dependency-free, so the same function runs at build time and
+// in the browser with identical output.
 
-export type { HighlightToken };
+// Declared here rather than imported from the language package. Depending on
+// that package for a string union and three fields would pull Langium and
+// Chevrotain into every consumer that only wants to present tokens. The shapes
+// are structural, so tokens from `highlightSource` still pass straight in.
+type HighlightKind =
+  | 'keyword'
+  | 'builtin'
+  | 'section'
+  | 'track'
+  | 'action'
+  | 'string'
+  | 'number'
+  | 'punct'
+  | 'comment';
+
+/** One highlighted range of the source, as the compiler reports it. */
+export interface HighlightToken {
+  readonly from: number;
+  readonly to: number;
+  readonly kind: HighlightKind;
+}
 
 /** Syntax classes for compiler highlight kinds. Consumers provide matching CSS. */
 export const TOKEN_CLASS: Record<HighlightKind, string> = {

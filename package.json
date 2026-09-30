@@ -23,13 +23,14 @@
     "check:schemas": "node scripts/validate-schemas.mjs",
     "build:validators": "node scripts/build-validators.mjs",
     "check:validators": "node scripts/build-validators.mjs --check",
+    "check:language-generated": "node scripts/check-language-generated.mjs",
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "format": "node scripts/format.mjs --write",
     "format:check": "node scripts/format.mjs --check",
     "check:publish": "node scripts/check-publish.mjs",
     "check:security": "pnpm audit --prod --audit-level high",
     "version-packages": "changeset version && node scripts/sync-versions.mjs && pnpm install --lockfile-only",
-    "test": "pnpm format:check && pnpm build && pnpm check:schemas && pnpm check:validators && pnpm check:boundaries && pnpm check:publish && vitest run"
+    "test": "pnpm format:check && pnpm check:language-generated && pnpm build && pnpm check:schemas && pnpm check:validators && pnpm check:boundaries && pnpm check:publish && vitest run"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
