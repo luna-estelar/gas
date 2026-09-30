@@ -37,5 +37,7 @@ actually played. It returns `undefined` for an instant the live tempo map cannot
 boundary rebuilds that map from bar one, so a host still catching up to a rollover is asking about an
 iteration the map no longer describes, and answering bar one would walk its playhead backwards. A
 host that wants a playhead to sit still through a rollover should hold the last position it was
-given. `comparePositions` and `positionsEqual` are re-exported from Core alongside the
+given. After a finite piece completes it keeps answering for that run, capped at the declared end,
+until the next `start()` or a `stop()`, so a playhead can follow the audio a host is still playing
+out. `comparePositions` and `positionsEqual` are re-exported from Core alongside the
 other musical-time helpers.
