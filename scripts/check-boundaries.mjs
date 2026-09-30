@@ -13,7 +13,7 @@ export const ALLOW_MAP = {
   core: ['protocol'],
   renderer: ['protocol', 'core', 'notation'],
   'connector-lyria': ['protocol'],
-  cli: ['protocol', 'language', 'core'],
+  cli: ['language'],
   browser: ['protocol', 'language', 'core', 'api', 'renderer', 'connector-lyria']
 };
 
