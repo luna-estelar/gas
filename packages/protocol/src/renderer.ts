@@ -143,11 +143,10 @@ export interface Connector {
   close(): Promise<void>;
   setGenerationPaused?(paused: boolean): Promise<void>;
   /**
-   * Checks a configuration the host proposes, without compiling a schema. The
-   * Renderer calls this instead of validating `configSchema` itself, so a
-   * session stays usable under a Content Security Policy without
-   * `'unsafe-eval'`. Optional because `Connector` is a published interface; a
-   * connector that omits it gets no configuration validation.
+   * Checks a configuration the host proposes, without compiling a schema.
+   * Renderers can use this instead of compiling `configSchema` to validate
+   * configuration under a Content Security Policy without `'unsafe-eval'`.
+   * Optional because `Connector` is a published interface.
    */
   validateConfig?(config: ConnectorConfig): ConnectorConfigValidation;
 }

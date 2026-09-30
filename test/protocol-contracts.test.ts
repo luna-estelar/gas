@@ -41,6 +41,7 @@ import type {
   Timeline as ProtocolTimeline,
   TimelineProblem as ProtocolTimelineProblem
 } from '../packages/protocol/src/index.js';
+import { ConnectorError, isCloseCode } from '../packages/protocol/src/index.js';
 import { capabilitiesWith, createFakeWiring } from '../packages/api/test/support/fake-renderer.js';
 import { readExample } from '../examples/support.js';
 
@@ -274,6 +275,29 @@ describe('landed values match canonical protocol schemas', () => {
     expect(validation.ok).toBe(false);
     if (validation.ok) return;
     expect(validation.problems).toEqual([problem]);
+  });
+
+  it('keeps the foreign-error guard and failure schema on the same close-code range', () => {
+    const validate = schema(`${base}/diagnostics.schema.json#/$defs/RendererFailure`);
+    for (const closeCode of [1000, 1006, 4429, 4999, 999, 5000, 1000.5, Number.NaN, Infinity]) {
+      const error = new Error('Provider text must not determine the classification.');
+      error.name = 'ConnectorError';
+      Object.assign(error, {
+        code: 'network-failure',
+        reason: 'network',
+        retryable: true,
+        closeCode
+      });
+      const failure: RendererFailure = {
+        code: 'network-failure',
+        message: 'The connector lost its connection.',
+        reason: 'network',
+        retryable: true,
+        closeCode
+      };
+      expect(ConnectorError.isConnectorError(error)).toBe(isCloseCode(closeCode));
+      expect(validate(failure)).toBe(isCloseCode(closeCode));
+    }
   });
 
   it('keeps schema validation before Core reference validation', () => {

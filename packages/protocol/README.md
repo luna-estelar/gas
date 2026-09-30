@@ -85,19 +85,19 @@ so vendor text and credentials cannot leak into an event, log, or diagnostic. Th
 that into a `RendererFailure` carrying the connector's `code`, `reason` and `retryable` with the
 Renderer's own message.
 
-`closeCode` is the raw transport close code, passed through unclassified from `ConnectorError` to
-`RendererFailure` and on to the host. `isCloseCode` is the one gate on it — a whole number from
-1000 through 4999 — and every guard and schema range uses it, so a value that reaches a host is
-always in range or absent. A connector classifies the standard codes into a `reason`; the
-application range 4000-4999 means whatever the endpoint says it means, so the number travels
-intact and the host maps it.
+`ConnectorError` and `RendererFailure` support an optional `closeCode`: the raw transport close
+code, left unclassified for a host to interpret. `isCloseCode` accepts a whole number from 1000
+through 4999; the error constructor, structural guard and failure schema enforce that same range.
+A connector classifies the standard codes into a `reason`; the application range 4000-4999 means
+whatever the endpoint says it means. Forwarding the number through the Renderer and API is part
+of the subsequent runtime update.
 
 ## Connector obligations
 
-Beyond the `Connector` methods, a connector owns validating its own configuration. `validateConfig`
-takes a proposed `ConnectorConfig` and returns `ConnectorConfigValidation` — either `{ ok: true }`
-or the `ConnectorConfigProblem` list — without compiling a schema, so a Renderer never has to
-compile `configSchema` and a session stays usable under a Content Security Policy without
+The optional `validateConfig` contract lets a connector validate its own configuration without
+compiling a schema. It takes a proposed `ConnectorConfig` and returns `ConnectorConfigValidation`
+— either `{ ok: true }` or `{ ok: false, problems }` containing a `ConnectorConfigProblem` list.
+Renderers can use it to validate configuration under a Content Security Policy without
 `'unsafe-eval'`.
 
 A `ConnectorConfigProblem` is a JSON Pointer `path` (the empty string for the root), a stable
@@ -106,8 +106,11 @@ embeds provider or caller input. It is deliberately not shaped like a schema com
 hand-written validator should not have to invent a `schemaPath` and a `keyword` to say that a
 number is too large.
 
-`validateConfig` is optional because `Connector` is a published interface. A connector that omits
-it gets no configuration validation at all.
+`validateConfig` is optional because `Connector` is a published interface. The current Renderer
+still validates configuration with AJV and does not call this method; connector-owned validation
+is part of the subsequent runtime update. The optional `completed` event fields and
+`Renderer.positionAtSeconds` method likewise prepare contracts for that update; adding the types
+does not yet change finite-run completion or expose a runtime audible playhead.
 
 ## TypeScript-only contracts
 
