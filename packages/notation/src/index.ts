@@ -8,4 +8,4 @@ export { toMidi } from './to-midi.js';
 export type { NoteEvent } from './note-event.js';
 
 export const packageName = '@luna-estelar/gas-notation';
-export const version = '0.1.1';
+export const version = '0.1.2';

@@ -15,7 +15,7 @@ import { openAudioContext } from './audio/context.js';
 import type { EngineOptions, PlaybackEngine } from './audio/engine.js';
 import { PcmCapture } from './capture.js';
 
-export const version = '0.1.1';
+export const version = '0.2.0';
 
 export interface BrowserSessionOptions {
   /**
