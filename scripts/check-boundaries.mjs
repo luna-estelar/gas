@@ -1,7 +1,7 @@
 // Enforce package import boundaries. Exported scanner helpers are tested independently.
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 // Allowed GAS dependencies by package name.
 export const ALLOW_MAP = {
@@ -449,6 +449,6 @@ async function main() {
   );
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   await main();
 }
