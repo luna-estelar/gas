@@ -33,5 +33,9 @@ timeline was what failed. A connector that does not implement `validateConfig` s
 
 Transport close codes are forwarded to every emitted failure, and `positionAtSeconds` maps seconds
 after the anchor to a musical position so a host can place a playhead against the audio it has
-actually played. `comparePositions` and `positionsEqual` are re-exported from Core alongside the
+actually played. It returns `undefined` for an instant the live tempo map cannot place: a loop
+boundary rebuilds that map from bar one, so a host still catching up to a rollover is asking about an
+iteration the map no longer describes, and answering bar one would walk its playhead backwards. A
+host that wants a playhead to sit still through a rollover should hold the last position it was
+given. `comparePositions` and `positionsEqual` are re-exported from Core alongside the
 other musical-time helpers.

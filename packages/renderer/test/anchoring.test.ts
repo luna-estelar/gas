@@ -209,22 +209,94 @@ describe('renderer anchoring', () => {
     expect(renderer.positionAtSeconds?.(1)).toBeUndefined();
   });
 
-  it('rejects audio that arrives after a finite run has completed', async () => {
-    // The run ends before the connector is asked to stop, so a chunk generated
-    // during that round trip is not accepted into a run that is over.
+  it('rejects audio the connector generates while it is being stopped', async () => {
+    // The run stops accepting audio before the connector is asked to stop, so a
+    // chunk already in flight is refused rather than accepted into a run that is
+    // over and whose delivery timers are already cancelled.
     const clock = new VirtualClock();
-    const connector = new FakeConnector({ anchorOnStart: true });
+    const connector = new FakeConnector({ anchorOnStart: true, chunkOnStop: true });
     const renderer = await createRenderer({ clock, connector, runIdFactory: () => 'run-1' });
     const timeline = testTimeline();
     await renderer.load(timeline, createInputState(timeline));
     const warnings: string[] = [];
+    const audio: AudioChunk[] = [];
     renderer.on('warning', (warning) => warnings.push(warning.code));
+    renderer.on('audio', (value) => audio.push(value));
     await renderer.start();
 
     clock.advanceTo(8);
     await flushAsync();
-    connector.sink!.push(chunk('run-1', 2));
     expect(warnings).toContain('stale-audio-rejected');
+    // Only the chunk that anchored the run was ever delivered.
+    expect(audio).toHaveLength(1);
+  });
+
+  it('fails the run when the connector rejects the stop that completes it', async () => {
+    // Reaching the declared end still has to stop the connector, and that can
+    // fail. Reporting nothing would leave the host watching a session wedged in
+    // 'stopping' with no way to learn why.
+    const clock = new VirtualClock();
+    const connector = new FakeConnector({
+      anchorOnStart: true,
+      stopFailure: new Error('provider refused the stop')
+    });
+    const renderer = await createRenderer({ clock, connector, runIdFactory: () => 'run-1' });
+    const timeline = testTimeline();
+    await renderer.load(timeline, createInputState(timeline));
+    const failures: RendererFailure[] = [];
+    const statuses: RendererStatusEvent[] = [];
+    renderer.on('failure', (failure) => failures.push(failure));
+    renderer.on('status', (status) => statuses.push(status));
+    await renderer.start();
+
+    clock.advanceTo(8);
+    await flushAsync();
+
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toMatchObject({ runId: 'run-1', retryable: true });
+    expect(statuses.at(-1)).toMatchObject({ lifecycle: 'failed', playback: 'failed' });
+    // A run that could not be stopped did not complete.
+    expect(statuses.some((status) => status.completed === true)).toBe(false);
+    expect(connector.calls.filter((call) => call === 'stop:run-1')).toHaveLength(1);
+  });
+
+  it('reverts to the document tempo when a pre-anchor override is cleared', async () => {
+    // Clearing an override means "no override", not "keep the last value". The
+    // document declares no tempo here, so the renderer default is what is left.
+    const timeline = testTimeline({ playback: { mode: 'infinite' }, musicalContext: undefined });
+    const { clock, connector, renderer } = await startedRenderer(timeline);
+
+    const slow = applyActive(createInputState(timeline), { kind: 'setTempo', bpm: 60 });
+    await renderer.updateState(slow);
+    await renderer.updateState(applyActive(slow, { kind: 'clearTempo' }));
+
+    clock.advanceTo(1);
+    connector.sink!.push(chunk('run-1', 2));
+    // The default is 120 BPM 4/4, so a bar is two seconds, not four.
+    expect(renderer.positionAtSeconds?.(2)).toEqual({ bar: 2 });
+  });
+
+  it('places no playhead in an iteration the live tempo map no longer describes', async () => {
+    // A loop boundary rebuilds the map from bar one at that instant. A host whose
+    // audio lags asks about the iteration before it, which the map cannot place —
+    // and reporting bar one would walk a buffered playhead backwards.
+    const clock = new VirtualClock();
+    const connector = new FakeConnector({ anchorOnStart: true });
+    const renderer = await createRenderer({ clock, connector, runIdFactory: () => 'run-1' });
+    const timeline = testTimeline({ playback: { mode: 'loop', declaredBars: 4 } });
+    await renderer.load(timeline, createInputState(timeline));
+    await renderer.start();
+
+    expect(renderer.positionAtSeconds?.(7.5)).toEqual({ bar: 4, beat: { index: 4 } });
+    expect(renderer.positionAtSeconds?.(-1)).toBeUndefined();
+
+    clock.advanceTo(8);
+    await flushAsync();
+
+    expect(renderer.positionAtSeconds?.(7.5)).toBeUndefined();
+    expect(renderer.positionAtSeconds?.(8)).toEqual({ bar: 1 });
+    expect(renderer.positionAtSeconds?.(10)).toEqual({ bar: 2 });
+    await renderer.stop();
   });
 });
 

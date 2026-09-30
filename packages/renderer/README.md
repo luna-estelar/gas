@@ -55,8 +55,13 @@ tempo set there is the tempo the anchored run plays at.
 
 A finite piece that reaches its declared length emits a terminal status carrying both its `runId`
 and `completed: true`, then the ordinary `stopped` status. That is what lets a host tell a piece
-that finished from one it stopped. `positionAtSeconds` maps seconds after the anchor to a musical
-position, for placing a playhead against audio the host has actually played.
+that finished from one it stopped.
+
+`positionAtSeconds` maps seconds after the anchor to a musical position, for placing a playhead
+against audio the host has actually played. It answers `undefined` for an instant the live tempo map
+cannot place — a loop boundary rebuilds that map from bar one, so a host whose audio still lags the
+rollover is asking about an iteration the map no longer describes. Hold the last position you were
+given rather than treating that as "no position".
 
 ## Dependencies
 

@@ -133,6 +133,12 @@ interface ActiveRun {
   warnedForBuffer: boolean;
   throttled: boolean;
   stream: ConnectorStreamStatus | undefined;
+  /**
+   * The run takes no more audio. Set before a stop the run may not survive, so a
+   * chunk already in flight is refused without making the run terminal — `ended`
+   * is what decides that, and a failure still needs to get out.
+   */
+  audioClosed: boolean;
   ended: boolean;
   chain: Promise<void>;
 }
@@ -317,8 +323,9 @@ class RendererSession implements Renderer {
           this.applyDerivedTempo(loaded, run, state, this.currentBarFraction(loaded));
         } else {
           // The tempo map is rebuilt from run.tempo when the anchor lands, so
-          // recording the tempo is enough here.
-          run.tempo = state.globals.tempo ?? run.tempo;
+          // recording the tempo is enough here. Clearing an override falls back to
+          // the document's own tempo, the same as every other derivation does.
+          run.tempo = state.globals.tempo ?? loaded.timing.tempo;
         }
         const requestedPosition =
           !anchored || this.playback === 'holding'
@@ -368,6 +375,7 @@ class RendererSession implements Renderer {
       warnedForBuffer: false,
       throttled: false,
       stream: undefined,
+      audioClosed: false,
       ended: false,
       chain: Promise.resolve()
     };
@@ -871,18 +879,21 @@ class RendererSession implements Renderer {
    * the run id and `completed`, which is what lets a session tell a piece that
    * finished from one that was stopped. The ordinary `stopped` status follows.
    *
-   * `run.ended` is set before the connector is stopped, so a chunk generated
-   * during that round trip is rejected rather than accepted into a run that is
-   * over.
+   * The run stops taking audio before the connector is stopped, so a chunk
+   * generated during that round trip is refused rather than accepted into a run
+   * that is over. It becomes `ended` only once the stop succeeds: a stop that
+   * rejects has to reach the host as a failure, and `failRun` treats an ended run
+   * as already reported.
    */
   private async completeFiniteRun(run: ActiveRun): Promise<void> {
     if (run.ended) return;
     this.playback = 'stopping';
     this.emitStatus();
-    run.ended = true;
+    run.audioClosed = true;
     this.cancelTimers(run);
     this.rejectHeldAudio(run, 'Buffered audio was rejected when the finite run completed.');
     await this.stopConnector(run, false);
+    run.ended = true;
     this.playback = 'stopped';
     this.emitStatus({ completed: true });
     if (this.run === run) this.run = undefined;
@@ -946,6 +957,12 @@ class RendererSession implements Renderer {
    * The musical position `seconds` after this run's anchor, through the live tempo
    * map. A host uses it to place what a listener is hearing, which lags the last
    * position event by whatever its own audio path buffers.
+   *
+   * Undefined for an instant the live map cannot place. A loop boundary rebuilds
+   * the map from bar one at that instant, so a host still catching up to the
+   * rollover is asking about an iteration the map no longer describes; saying so
+   * is better than answering bar one and walking its playhead backwards. A tempo
+   * change keeps its earlier segments, so it does not have this effect.
    */
   positionAtSeconds(seconds: number): MusicalPosition | undefined {
     const loaded = this.loaded;
@@ -953,7 +970,10 @@ class RendererSession implements Renderer {
     if (loaded === undefined || run === undefined) return undefined;
     if (!run.anchored || run.ended) return undefined;
     if (!Number.isFinite(seconds)) return undefined;
-    return timeToPosition(loaded.tempoMap, run.startTime + seconds);
+    const time = run.startTime + seconds;
+    const origin = loaded.tempoMap[0]?.startTime;
+    if (origin === undefined || time < origin) return undefined;
+    return timeToPosition(loaded.tempoMap, time);
   }
 
   private async enterHolding(
@@ -1137,7 +1157,7 @@ class RendererSession implements Renderer {
 
   private receiveAudio(run: ActiveRun, chunk: ConnectorAudioChunk): void {
     run.ledger.receive(chunk.durationSeconds);
-    if (run.ended || chunk.runId !== run.id || this.run !== run) {
+    if (run.ended || run.audioClosed || chunk.runId !== run.id || this.run !== run) {
       run.ledger.reject(chunk.durationSeconds);
       this.emit(
         'warning',

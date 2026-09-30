@@ -51,6 +51,11 @@ export interface FakeConnectorOptions {
    * test that wants a running renderer has to supply some.
    */
   readonly anchorOnStart?: boolean;
+  /**
+   * Push one chunk from inside `stop()`, modelling audio a provider had already
+   * generated when the stop was sent. The renderer must refuse it: the run is over.
+   */
+  readonly chunkOnStop?: boolean;
   readonly startGate?: Promise<void>;
   readonly updateFailure?: Error;
   readonly stopFailure?: Error;
@@ -154,6 +159,7 @@ export class FakeConnector implements Connector {
 
   async stop(runId: string): Promise<void> {
     this.calls.push(`stop:${runId}`);
+    if (this.options.chunkOnStop === true) this.sink?.push(anchorChunk(runId));
     if (this.options.stopFailure !== undefined) throw this.options.stopFailure;
   }
 
