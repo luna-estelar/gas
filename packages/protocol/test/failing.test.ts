@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ConnectorFailureReason } from '../src/index.js';
-import { ConnectorError } from '../src/index.js';
+import { ConnectorError, isCloseCode } from '../src/index.js';
 
 describe('ConnectorError', () => {
   it('carries the safe structured fields and derives a generic message', () => {
@@ -90,5 +90,72 @@ describe('ConnectorError', () => {
       false
     );
     expect(ConnectorError.isConnectorError(null)).toBe(false);
+  });
+});
+
+describe('close codes', () => {
+  it('accepts whole numbers across the WebSocket range and nothing else', () => {
+    for (const value of [1000, 1006, 1011, 3000, 4000, 4429, 4999]) {
+      expect(isCloseCode(value)).toBe(true);
+    }
+    for (const value of [
+      999,
+      5000,
+      0,
+      -1006,
+      1000.5,
+      Number.NaN,
+      Infinity,
+      '1006',
+      null,
+      undefined
+    ]) {
+      expect(isCloseCode(value)).toBe(false);
+    }
+  });
+
+  it('carries a close code through the error for the host to interpret', () => {
+    // 4429 is in the application range: the connector cannot classify it, so the
+    // number reaches the host unchanged.
+    const error = new ConnectorError({
+      code: 'lyria-network-failure',
+      reason: 'network',
+      retryable: true,
+      closeCode: 4429
+    });
+    expect(error.closeCode).toBe(4429);
+    expect(JSON.parse(JSON.stringify(error))).toEqual({
+      name: 'ConnectorError',
+      code: 'lyria-network-failure',
+      reason: 'network',
+      retryable: true,
+      closeCode: 4429
+    });
+  });
+
+  it('drops a close code outside the range rather than carrying a wrong one', () => {
+    for (const closeCode of [999, 5000, 1000.5, Number.NaN]) {
+      const error = new ConnectorError({
+        code: 'x',
+        reason: 'network',
+        retryable: true,
+        closeCode
+      });
+      expect(error.closeCode).toBeUndefined();
+      // Dropped entirely, so nothing appears on the wire either.
+      expect(JSON.parse(JSON.stringify(error))).not.toHaveProperty('closeCode');
+    }
+  });
+
+  it('applies the same range to a foreign error as to its own', () => {
+    const valid = new Error('boom');
+    valid.name = 'ConnectorError';
+    Object.assign(valid, { code: 'x', reason: 'network', retryable: true, closeCode: 4001 });
+    expect(ConnectorError.isConnectorError(valid)).toBe(true);
+
+    const bogus = new Error('boom');
+    bogus.name = 'ConnectorError';
+    Object.assign(bogus, { code: 'x', reason: 'network', retryable: true, closeCode: 99 });
+    expect(ConnectorError.isConnectorError(bogus)).toBe(false);
   });
 });

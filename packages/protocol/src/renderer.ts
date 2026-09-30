@@ -100,6 +100,10 @@ export interface RendererFailure {
   readonly reason?: ConnectorFailureReason;
   readonly runId?: string;
   readonly retryable: boolean;
+  // The raw transport close code, 1000-4999, when the failure came from a closed
+  // connection. Passed through unclassified: a connector classifies the standard
+  // codes and leaves the application range (4000-4999) for the host to interpret.
+  readonly closeCode?: number;
 }
 
 export type ConnectorStreamStatus = 'streaming' | 'ended' | 'throttled';
@@ -111,6 +115,24 @@ export interface AudioSink {
   failure(failure: RendererFailure): void;
 }
 
+/**
+ * One thing wrong with a proposed connector configuration. Deliberately not the
+ * Renderer's AJV-shaped problem: a hand-written validator should not have to
+ * imitate a schema compiler to report a bad value.
+ */
+export interface ConnectorConfigProblem {
+  /** JSON Pointer to the offending member, '' for the root. */
+  readonly path: string;
+  /** Stable machine code, e.g. 'unknown-member', 'out-of-range', 'wrong-type'. */
+  readonly code: string;
+  /** Safe, fixed text. Never provider or caller input. */
+  readonly message: string;
+}
+
+export type ConnectorConfigValidation =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly problems: readonly ConnectorConfigProblem[] };
+
 export interface Connector {
   describe(): Promise<ConnectorDescription>;
   open(settings: ConnectorSettings): Promise<void>;
@@ -120,6 +142,14 @@ export interface Connector {
   stop(runId: string): Promise<void>;
   close(): Promise<void>;
   setGenerationPaused?(paused: boolean): Promise<void>;
+  /**
+   * Checks a configuration the host proposes, without compiling a schema. The
+   * Renderer calls this instead of validating `configSchema` itself, so a
+   * session stays usable under a Content Security Policy without
+   * `'unsafe-eval'`. Optional because `Connector` is a published interface; a
+   * connector that omits it gets no configuration validation.
+   */
+  validateConfig?(config: ConnectorConfig): ConnectorConfigValidation;
 }
 
 export interface RendererStatusEvent {
@@ -128,6 +158,11 @@ export interface RendererStatusEvent {
   readonly runId?: string;
   readonly stream?: ConnectorStreamStatus;
   readonly throttled?: boolean;
+  // Set once, on the stopped status a finite run emits when it reaches its
+  // declared length, while `runId` is still present. `stream` keeps meaning
+  // provider stream state only, so a provider that ends its stream early is not
+  // mistaken for a piece that finished.
+  readonly completed?: true;
 }
 
 export interface RendererPositionEvent {
@@ -167,4 +202,11 @@ export interface Renderer {
   getConnectorConfig(): ConnectorConfig;
   updateConnectorConfig(patch: ConnectorConfig): Promise<ConnectorConfig>;
   getConfigSchema(): ConnectorConfigSchema;
+  /**
+   * The musical position `seconds` after the current run's anchor, through the
+   * live tempo map; `undefined` when nothing is loaded or playing. Hosts use it
+   * to place what a listener is actually hearing, which lags the Renderer's last
+   * position event by whatever the audio path buffers.
+   */
+  positionAtSeconds?(seconds: number): MusicalPosition | undefined;
 }

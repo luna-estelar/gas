@@ -132,7 +132,8 @@
         },
         "runId": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
         "stream": { "enum": ["streaming", "ended", "throttled"] },
-        "throttled": { "type": "boolean" }
+        "throttled": { "type": "boolean" },
+        "completed": { "const": true }
       }
     },
     "DiagnosticEvent": {

@@ -29,7 +29,11 @@
             "position-out-of-range",
             "arrangement-not-contiguous",
             "invalid-level",
-            "invalid-playback"
+            "invalid-playback",
+            "events-unordered",
+            "sequence-collision",
+            "beat-out-of-range",
+            "event-outside-section"
           ]
         },
         "message": { "type": "string", "minLength": 1 }
@@ -84,7 +88,8 @@
         "message": { "type": "string", "minLength": 1 },
         "reason": { "enum": ["network", "auth", "quota", "provider", "internal"] },
         "runId": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
-        "retryable": { "type": "boolean" }
+        "retryable": { "type": "boolean" },
+        "closeCode": { "type": "integer", "minimum": 1000, "maximum": 4999 }
       }
     }
   }

@@ -21,7 +21,11 @@ export type TimelineProblemCode =
   | 'position-out-of-range'
   | 'arrangement-not-contiguous'
   | 'invalid-level'
-  | 'invalid-playback';
+  | 'invalid-playback'
+  | 'events-unordered'
+  | 'sequence-collision'
+  | 'beat-out-of-range'
+  | 'event-outside-section';
 
 export interface TimelineProblem {
   readonly code: TimelineProblemCode;

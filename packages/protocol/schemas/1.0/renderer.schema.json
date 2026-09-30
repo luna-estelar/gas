@@ -89,7 +89,21 @@
         "playback": { "enum": ["stopped", "starting", "running", "holding", "stopping", "failed"] },
         "runId": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
         "stream": { "enum": ["streaming", "ended", "throttled"] },
-        "throttled": { "type": "boolean" }
+        "throttled": { "type": "boolean" },
+        "completed": { "const": true }
+      }
+    },
+    "ConnectorConfigProblem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "code", "message"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "JSON Pointer to the offending member; the empty string is the root."
+        },
+        "code": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
+        "message": { "$ref": "common.schema.json#/$defs/NonEmptyString" }
       }
     },
     "RendererPositionEvent": {
