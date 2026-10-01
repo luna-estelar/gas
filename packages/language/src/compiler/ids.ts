@@ -5,15 +5,10 @@
 // slugified name only ever appears as a trailing segment and never has to start
 // with a letter itself.
 
-// Reduce an arbitrary name to a single LocalId segment: lowercase, non
-// [a-z0-9] runs collapsed to '-', no leading/trailing separators.
-export function slugify(name: string): string {
-  const slug = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  return slug.length > 0 ? slug : 'x';
-}
+// The name-to-segment rule itself belongs to the id format, so Protocol owns it:
+// a host deriving the id of a live track declaration has to land on the same
+// string this compiler does, without depending on the compiler to do it.
+export { slugify } from '@luna-estelar/gas-protocol';
 
 // Return `base`, or `base-2`, `base-3`, ... if `base` is already taken. Records
 // the chosen id in `used`. Deterministic: same inputs in the same order always

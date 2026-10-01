@@ -8,9 +8,9 @@ import type {
 } from '@luna-estelar/gas-protocol';
 import { describe, expect, it } from 'vitest';
 import { createRenderer, RendererError } from '../src/index.js';
-import { FakeConnector } from './support/fake-connector.js';
-import { testTimeline } from './support/timeline.js';
-import { VirtualClock } from './support/virtual-clock.js';
+import { FakeConnector } from '../../../test/support/fake-connector.js';
+import { testTimeline } from '../../../test/support/timeline.js';
+import { VirtualClock } from '../../../test/support/virtual-clock.js';
 
 const CONFIG_SCHEMA: ConnectorConfigSchema = {
   type: 'object',
@@ -143,9 +143,7 @@ describe('renderer connector configuration validation', () => {
       description: { configSchema: CONFIG_SCHEMA, defaultConfig: brokenDefault },
       validateConfig: validateFixture
     });
-    await expect(
-      createRenderer({ clock: new VirtualClock(), connector, checkConnectorContract: true })
-    ).rejects.toMatchObject({
+    await expect(createRenderer({ clock: new VirtualClock(), connector })).rejects.toMatchObject({
       code: 'connector-unavailable',
       failure: { retryable: false }
     });
@@ -160,8 +158,7 @@ describe('renderer connector configuration validation', () => {
       createRenderer({
         clock: new VirtualClock(),
         connector: masked,
-        connectorConfig: { prompt: { weight: 0.9 } },
-        checkConnectorContract: true
+        connectorConfig: { prompt: { weight: 0.9 } }
       })
     ).rejects.toMatchObject({ code: 'connector-unavailable', failure: { retryable: false } });
     expect(masked.calls).toEqual(['describe']);
@@ -194,10 +191,15 @@ describe('renderer connector configuration validation', () => {
       clock: new VirtualClock(),
       connector: new FakeConnector({
         description: { configSchema: CONFIG_SCHEMA, defaultConfig: {} },
-        validateConfig: () => ({
-          ok: false,
-          problems: [{ path: '/prompt/weight', code: 'out-of-range', message: 'Too loud.' }]
-        })
+        // Only the offending patch, not the empty defaults the renderer checks
+        // at init.
+        validateConfig: (config) =>
+          (config as { prompt?: { weight?: unknown } }).prompt?.weight === undefined
+            ? { ok: true }
+            : {
+                ok: false,
+                problems: [{ path: '/prompt/weight', code: 'out-of-range', message: 'Too loud.' }]
+              }
       })
     });
     let caught: RendererError | undefined;
@@ -271,8 +273,7 @@ describe('renderer connector configuration validation', () => {
       const renderer = await createRenderer({
         clock: new VirtualClock(),
         connector: configuredConnector(),
-        connectorConfig: { prompt: { weight: 0.9 } },
-        checkConnectorContract: true
+        connectorConfig: { prompt: { weight: 0.9 } }
       });
       await renderer.load(timeline, createInputState(timeline));
       // Paths three and four: an accepted edit and a rejected one.
@@ -298,8 +299,10 @@ describe('renderer connector configuration validation', () => {
     expect(await renderer.updateConnectorConfig({ mode: 'bright' })).toMatchObject({
       mode: 'bright'
     });
-    // The merged candidate is what the connector sees, not the bare patch.
+    // The connector's own defaults are checked first, at init. After that the
+    // merged candidate is what it sees, never the bare patch.
     expect(connector.validated).toEqual([
+      { prompt: { weight: 0.5, tags: ['warm'] }, mode: 'ambient' },
       { prompt: { weight: 'loud', tags: ['warm'] }, mode: 'ambient' },
       { prompt: { weight: 0.5, tags: ['warm'] }, mode: 'bright' }
     ]);

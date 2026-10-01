@@ -40,5 +40,4 @@ export type {
   WarningEvent
 } from './types.js';
 
-export const packageName = '@luna-estelar/gas-api';
 export const version = '0.2.0';

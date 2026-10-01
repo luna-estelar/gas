@@ -15,9 +15,9 @@ import type {
 } from '@luna-estelar/gas-protocol';
 import { describe, expect, it } from 'vitest';
 import { createRenderer } from '../src/index.js';
-import { FakeConnector, anchorChunk } from './support/fake-connector.js';
-import { testTimeline } from './support/timeline.js';
-import { VirtualClock } from './support/virtual-clock.js';
+import { FakeConnector, anchorChunk } from '../../../test/support/fake-connector.js';
+import { testTimeline } from '../../../test/support/timeline.js';
+import { VirtualClock } from '../../../test/support/virtual-clock.js';
 
 describe('renderer anchoring', () => {
   it('anchors bar one to the arrival of the first chunk', async () => {
@@ -145,36 +145,6 @@ describe('renderer anchoring', () => {
     clock.advanceTo(20);
     await flushAsync();
     expect(failures).toEqual([]);
-  });
-
-  it('anchors at connector start when a host asks for the old timing', async () => {
-    const clock = new VirtualClock();
-    const gate = deferred();
-    const connector = new FakeConnector({ startGate: gate.promise });
-    const renderer = await createRenderer({
-      clock,
-      connector,
-      runIdFactory: () => 'run-1',
-      anchor: 'connector-start'
-    });
-    const timeline = testTimeline({ playback: { mode: 'infinite' } });
-    await renderer.load(timeline, createInputState(timeline));
-    const positions: RendererPositionEvent[] = [];
-    renderer.on('position', (event) => positions.push(event));
-
-    const starting = renderer.start();
-    await flushAsync();
-    clock.advanceTo(10);
-    gate.resolve();
-    await starting;
-
-    // Musical time starts with no audio in hand, and no silence timeout is armed.
-    expect(positions).toEqual([
-      { runId: 'run-1', position: { bar: 1 }, seconds: 0, loopIteration: 1 }
-    ]);
-    clock.advanceTo(40);
-    await flushAsync();
-    expect(renderer.positionAtSeconds?.(0)).toEqual({ bar: 1 });
   });
 
   it('accepts a state change made before the first chunk arrives', async () => {

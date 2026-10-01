@@ -7,7 +7,7 @@
 // This is a structural and referential gate, not a musical-quality check: it does
 // not, for example, reject a `declaredBars` that differs from the arranged span
 // (the language treats that as a non-fatal warning), so it accepts every timeline
-// the compiler can produce. The input is typed `unknown` because a load-time
+// the compiler can produce. The entry point takes `unknown` because a load-time
 // timeline may be hand-authored or persisted, not freshly compiled.
 
 import type {
@@ -40,24 +40,28 @@ export function validateTimeline(timeline: unknown): ValidateTimelineResult {
     return { ok: false, problems: schemaProblems(structural.issues, timeline) };
   }
 
-  requireNonEmptyString(timeline.timelineId, 'timelineId', problems);
-  requireNonEmptyString(timeline.languageVersion, 'languageVersion', problems);
-  requireNonEmptyString(timeline.compilerVersion, 'compilerVersion', problems);
-  if (!isObject(timeline.source)) {
-    problems.push(shape('The timeline is missing its source identity.'));
-  }
+  // From here the timeline has the schema's shape, so it is read as one. The
+  // checks below are not a second pass over what the schema covers: they are the
+  // finite-number, reference and musical invariants JSON Schema cannot express.
+  // The schema accepts `tempo: Infinity` and `arrangedBars: Infinity`, for
+  // example, and only these checks reject them. The helpers still take `unknown`
+  // so each one stands on its own guards rather than on that assumption.
+  //
+  // `timelineId`, `languageVersion`, `compilerVersion` and `source` are not
+  // re-checked here: the schema above requires all four and constrains their
+  // shape, so anything reaching this line already has them.
+  const validated = structural.value;
+  validatePlayback(validated.playback, problems);
+  const arrangedBars = validateArrangedBars(validated.arrangedBars, problems);
+  validateMusicalContext(validated.musicalContext, problems);
+  validateGlobals(validated.globals, problems);
 
-  validatePlayback(timeline.playback, problems);
-  const arrangedBars = validateArrangedBars(timeline.arrangedBars, problems);
-  validateMusicalContext(timeline.musicalContext, problems);
-  validateGlobals(timeline.globals, problems);
-
-  const beatsPerBar = declaredBeatsPerBar(timeline.musicalContext);
-  const resourceIds = collectResources(timeline.resources, problems);
-  const trackIds = collectTracks(timeline.tracks, resourceIds, problems);
-  const spans = collectArrangement(timeline.arrangement, beatsPerBar, problems);
+  const beatsPerBar = declaredBeatsPerBar(validated.musicalContext);
+  const resourceIds = collectResources(validated.resources, problems);
+  const trackIds = collectTracks(validated.tracks, resourceIds, problems);
+  const spans = collectArrangement(validated.arrangement, beatsPerBar, problems);
   validateEvents(
-    timeline.events,
+    validated.events,
     {
       trackIds,
       instanceIds: spans.ids,
@@ -770,12 +774,6 @@ function positionAt(value: unknown): MusicalPosition | undefined {
 
 function capitalize(label: string): string {
   return label.charAt(0).toUpperCase() + label.slice(1);
-}
-
-function requireNonEmptyString(value: unknown, field: string, problems: TimelineProblem[]): void {
-  if (!isNonEmptyString(value)) {
-    problems.push(shape(`The timeline needs a non-empty ${field}.`));
-  }
 }
 
 function shape(message: string): TimelineProblem {

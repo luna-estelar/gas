@@ -1,8 +1,10 @@
-// Check that exported version literals match their manifests. Literals support
-// browser consumers without importing Node APIs or package metadata. Packages
-// are versioned independently, so each literal is checked against its own
-// manifest only; `scripts/sync-versions.mjs` keeps them in step on release.
-import { readFileSync } from 'node:fs';
+// Check that exported version literals match their manifests. The literals exist
+// so browser consumers can read a version without importing Node APIs or package
+// metadata, and `changeset version` only rewrites manifests — so without this the
+// Version Packages PR would ship stale literals. Packages are versioned
+// independently, so each literal is checked against its own manifest only;
+// `scripts/sync-versions.mjs` keeps them in step on release.
+import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, test } from 'vitest';
@@ -18,9 +20,18 @@ import { version as protocolVersion } from '../packages/protocol/src/index.js';
 import { version as rendererVersion } from '../packages/renderer/src/index.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+const packagesRoot = path.join(here, '..', 'packages');
+
 function manifestVersion(pkg: string): string {
-  const file = path.join(here, '..', 'packages', pkg, 'package.json');
+  const file = path.join(packagesRoot, pkg, 'package.json');
   return (JSON.parse(readFileSync(file, 'utf8')) as { version: string }).version;
+}
+
+function packageDirectories(): string[] {
+  return readdirSync(packagesRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
 }
 
 const EXPORTED: ReadonlyArray<readonly [string, string]> = [
@@ -36,8 +47,11 @@ const EXPORTED: ReadonlyArray<readonly [string, string]> = [
   ['renderer', rendererVersion]
 ];
 
+// Highlight exports no version constant.
+const NO_VERSION_LITERAL = new Set(['highlight']);
+
 describe('exported version constants', () => {
-  test.each(EXPORTED)('%s matches its package.json', (pkg, exported) => {
+  test.each(EXPORTED)('%s exports its package.json version', (pkg, exported) => {
     expect(exported).toBe(manifestVersion(pkg));
   });
 
@@ -48,10 +62,11 @@ describe('exported version constants', () => {
     expect(result.timeline.compilerVersion).toBe(manifestVersion('language'));
   });
 
-  // Highlight exposes no version constant.
-  test('the packages that export one are the packages that have one', () => {
-    const declared = EXPORTED.map(([pkg]) => pkg);
-    expect(declared).toEqual([...declared].sort());
-    expect(declared).toHaveLength(10);
+  // Discovered from the filesystem rather than restated, so a new package cannot
+  // arrive without a literal or an explicit exemption.
+  test('every package with a literal is covered, and only those lack one', () => {
+    expect(EXPORTED.map(([pkg]) => pkg).sort()).toEqual(
+      packageDirectories().filter((pkg) => !NO_VERSION_LITERAL.has(pkg))
+    );
   });
 });

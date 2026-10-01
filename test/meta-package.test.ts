@@ -91,51 +91,88 @@ describe('umbrella entry points', () => {
     }
   );
 
-  // The root is the api plus its own identity; the api's packageName and
-  // version are shadowed rather than dropped.
-  it('the root is the api with its own package name and version', async () => {
+  // The root is the api plus its own version; the api's own version is shadowed
+  // rather than dropped, which is observable because the umbrella is versioned
+  // separately from the packages it pins.
+  it('the root is the api with its own version', async () => {
     const rootModule = (await import(
       pathToFileURL(path.join(umbrellaRoot, umbrella.exports['.']!.default)).href
-    )) as { packageName: string };
-    expect(rootModule.packageName).toBe(UMBRELLA);
+    )) as { version: string };
+    expect(rootModule.version).toBe(
+      (
+        JSON.parse(readFileSync(path.join(umbrellaRoot, 'package.json'), 'utf8')) as {
+          version: string;
+        }
+      ).version
+    );
     expect(EXPECTED_NAMES['.']).toEqual(EXPECTED_NAMES['./api']);
   });
 });
 
-// Each import runs in its own process from the umbrella's directory, under a
-// resolve hook that throws on the SDK, because only a module graph's first
-// evaluation can be observed.
-describe('the Google GenAI SDK', () => {
-  const hook = path.join(root, 'test', 'support', 'deny-genai.mjs');
+// What an entry point loads, checked by loading it. Each import runs in its own
+// process from the umbrella's directory, under a resolve hook that throws on the
+// modules in question, because only a module graph's first evaluation can be
+// observed. This catches a transitive import that no source scan would see.
+const DENY_HOOK = path.join(root, 'test', 'support', 'deny-modules.mjs');
 
-  async function importUnderHook(specifier: string): Promise<void> {
-    await run(
-      process.execPath,
-      [
-        '--import',
-        pathToFileURL(hook).href,
-        '--input-type=module',
-        '-e',
-        `await import(${JSON.stringify(specifier)});`
-      ],
-      { cwd: umbrellaRoot }
-    );
-  }
-
-  const specifiers = Object.keys(MIRRORS).map((subpath) =>
-    subpath === '.' ? UMBRELLA : `${UMBRELLA}/${subpath.slice(2)}`
+async function importUnderHook(specifier: string, denied: readonly string[]): Promise<void> {
+  await run(
+    process.execPath,
+    [
+      '--import',
+      pathToFileURL(DENY_HOOK).href,
+      '--input-type=module',
+      '-e',
+      `await import(${JSON.stringify(specifier)});`
+    ],
+    { cwd: umbrellaRoot, env: { ...process.env, DENY_MODULES: denied.join(',') } }
   );
+}
 
-  it.concurrent.each(specifiers.filter((specifier) => specifier !== `${UMBRELLA}/lyria`))(
+const SPECIFIERS = Object.keys(MIRRORS).map((subpath) =>
+  subpath === '.' ? UMBRELLA : `${UMBRELLA}/${subpath.slice(2)}`
+);
+
+describe('the Google GenAI SDK', () => {
+  const DENIED = ['@google/genai'];
+
+  it.concurrent.each(SPECIFIERS.filter((specifier) => specifier !== `${UMBRELLA}/lyria`))(
     'is not loaded by %s',
     async (specifier) => {
-      await expect(importUnderHook(specifier)).resolves.toBeUndefined();
+      await expect(importUnderHook(specifier, DENIED)).resolves.toBeUndefined();
     }
   );
 
   // Without this the hook could be broken and every case above would still pass.
   it('is loaded by the lyria subpath, which the hook catches', async () => {
-    await expect(importUnderHook(`${UMBRELLA}/lyria`)).rejects.toThrow('@google/genai was loaded');
+    await expect(importUnderHook(`${UMBRELLA}/lyria`, DENIED)).rejects.toThrow(
+      '@google/genai was loaded'
+    );
+  });
+});
+
+// The compiler carries Langium and Chevrotain, which dwarf everything else here.
+// A host that drives a session without compiling source must not pay for them, so
+// every entry point but the two that exist to compile is parser-free — including
+// the root, which re-exports the api, and the browser session, which composes it.
+// `gas-api` keeps the compiler behind a dynamic import to hold this line.
+describe('the GAS compiler', () => {
+  const DENIED = ['@luna-estelar/gas-language', 'langium', 'chevrotain'];
+  const COMPILING = [`${UMBRELLA}/language`, `${UMBRELLA}/browser/compile`];
+
+  it.concurrent.each(SPECIFIERS.filter((specifier) => !COMPILING.includes(specifier)))(
+    'is not loaded by %s',
+    async (specifier) => {
+      await expect(importUnderHook(specifier, DENIED)).resolves.toBeUndefined();
+    }
+  );
+
+  // The controls: without these the hook could be broken and every case above
+  // would still pass.
+  it.each(COMPILING)('is loaded by %s, which the hook catches', async (specifier) => {
+    await expect(importUnderHook(specifier, DENIED)).rejects.toThrow(
+      '@luna-estelar/gas-language was loaded'
+    );
   });
 });
 
@@ -150,7 +187,7 @@ describe('umbrella sources', () => {
     });
   }
 
-  const IDENTITY = new Set(['packageName', 'version']);
+  const IDENTITY = new Set(['version']);
 
   function isReExport(statement: ts.Statement): boolean {
     return (

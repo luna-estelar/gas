@@ -53,6 +53,10 @@ const REJECTIONS: ReadonlyArray<readonly [name: string, brk: Break, code: Timeli
   ['a missing track list', (t) => delete t.tracks, 'invalid-shape'],
   ['an unknown playback mode', (t) => (t.playback = { mode: 'once' }), 'invalid-playback'],
   ['an unknown top-level field', (t) => (t.extra = true), 'invalid-shape'],
+  // The schema accepts both of these: JSON Schema has no finiteness constraint,
+  // so Core's own checks are the only thing rejecting them.
+  ['an infinite tempo', (t) => (t.musicalContext.tempo = Infinity), 'invalid-shape'],
+  ['an infinite arranged length', (t) => (t.arrangedBars = Infinity), 'invalid-shape'],
   [
     'a finite length below one bar',
     (t) => (t.playback = { mode: 'finite', declaredBars: 0 }),

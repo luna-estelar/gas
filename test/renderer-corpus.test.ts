@@ -16,8 +16,8 @@ import type {
   RendererStatusEvent,
   Timeline
 } from '../packages/protocol/src/index.js';
-import { FakeConnector } from '../packages/renderer/test/support/fake-connector.js';
-import { VirtualClock } from '../packages/renderer/test/support/virtual-clock.js';
+import { FakeConnector } from './support/fake-connector.js';
+import { VirtualClock } from './support/virtual-clock.js';
 import { exampleFiles, readExample } from '../examples/support.js';
 
 const corpusFiles = exampleFiles();

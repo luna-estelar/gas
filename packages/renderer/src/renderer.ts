@@ -76,21 +76,6 @@ export interface CreateRendererOptions {
   readonly connectorConfig?: ConnectorConfig;
   readonly runIdFactory?: () => string;
   /**
-   * Check the connector's own `defaultConfig` through its own `validateConfig` at
-   * startup. Off by default: the answer is fixed by the connector's build and
-   * belongs in its test suite. Connector and renderer tests turn it on.
-   */
-  readonly checkConnectorContract?: boolean;
-  /**
-   * When musical time starts. `'first-audio'`, the default, anchors bar one to
-   * the arrival of the first audio chunk, so the musical clock and the audible
-   * clock agree. `'connector-start'` anchors when `connector.start()` resolves,
-   * which for a connector whose start means "session established" begins musical
-   * time before any audio exists and leaves every later chunk that much closer to
-   * being late.
-   */
-  readonly anchor?: 'first-audio' | 'connector-start';
-  /**
    * How long to wait for the first chunk before failing the run, timed from the
    * moment anchoring becomes possible. Covers a connector that connects and then
    * stays silent; connector setup has its own timeout. Defaults to three chunk
@@ -206,15 +191,16 @@ class RendererSession implements Renderer {
     let candidate: ConnectorConfig;
     try {
       const defaults = cloneJsonObject(description.defaultConfig);
-      if (this.options.checkConnectorContract === true) {
-        const defaultProblems = this.checkConfig(defaults);
-        if (defaultProblems.length > 0) {
-          throw new RendererError(
-            'connector-unavailable',
-            'The connector advertised an invalid configuration contract.',
-            { problems: defaultProblems }
-          );
-        }
+      // A connector whose own validator rejects its own advertised defaults is
+      // broken in a way nothing downstream can work around, so it is refused
+      // here rather than left to surface as a confusing failure later.
+      const defaultProblems = this.checkConfig(defaults);
+      if (defaultProblems.length > 0) {
+        throw new RendererError(
+          'connector-unavailable',
+          'The connector advertised an invalid configuration contract.',
+          { problems: defaultProblems }
+        );
       }
       candidate = defaults;
     } catch (error) {
@@ -424,10 +410,6 @@ class RendererSession implements Renderer {
       // A timeline with no notation sends no initial update, so "both settled"
       // includes the case where there was nothing to send.
       run.startSettled = true;
-      if (this.options.anchor === 'connector-start') {
-        this.commitAnchor(loaded, run);
-        return runId;
-      }
       this.armFirstAudioTimeout(run);
       this.maybeAnchor(loaded, run);
       return runId;
@@ -651,7 +633,12 @@ class RendererSession implements Renderer {
         ? {
             runId: this.run.id,
             ...(this.run.stream !== undefined ? { stream: this.run.stream } : {}),
-            ...(this.run.throttled || this.run.stream === 'throttled' ? { throttled: true } : {})
+            // The renderer's own flow control only. A provider that says it is
+            // throttling reports that through `stream`; folding the two together
+            // would leave a host unable to tell "the model is struggling" from
+            // "we are deliberately holding the model back", which want opposite
+            // handling.
+            ...(this.run.throttled ? { throttled: true } : {})
           }
         : {}),
       ...(extra.completed === true ? { completed: true } : {})

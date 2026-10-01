@@ -199,21 +199,6 @@ describe('gain, flush and run changes', () => {
     ]);
   });
 
-  it('fades out over the requested time and resolves when it is done', async () => {
-    const { context, engine } = setup();
-    context.advanceTo(1);
-    let done = false;
-    const fading = engine.fadeOut(0.5).then(() => (done = true));
-    expect(context.master.gain.calls.at(-1)).toEqual(['ramp', 0, 1.5]);
-    context.advanceTo(1.4);
-    await Promise.resolve();
-    expect(done).toBe(false);
-    context.advanceTo(1.5);
-    await fading;
-    engine.restoreGain();
-    expect(context.master.gain.calls.slice(-1)).toEqual([['set', 1, 1.5]]);
-  });
-
   it('plays a finished run out and reaches stopped when its last source ends', () => {
     const { context, engine, at } = setup();
     at(0.1, pcmChunk(0));

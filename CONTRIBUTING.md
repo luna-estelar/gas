@@ -51,9 +51,9 @@ Package tests follow the same boundaries as package source. Tests that combine p
 beyond those dependencies belong in the root `test/` directory. See
 [test/README.md](./test/README.md).
 
-The renderer and connector keep separate virtual-clock test helpers because package test
-boundaries prohibit sharing them. The browser package confines concrete runtime composition
-to its session module and exports explicit subpaths to control parser loading.
+Shared test helpers live in `test/support/` and depend only on Protocol. The browser package
+confines concrete runtime composition to its session module and exports explicit subpaths
+to control parser loading.
 
 ## Writing a connector
 
@@ -64,10 +64,9 @@ contracts that the Renderer and the host rely on:
   `{ ok: false, problems }` with a `ConnectorConfigProblem` per fault: a JSON Pointer `path`, a
   stable `code` such as `out-of-range` or `unknown-member`, and a fixed `message` that never
   echoes the offending value. Write it by hand, reporting every problem at once; never compile
-  the connector's JSON Schema at runtime. The Renderer calls it for the initial configuration and
-  every edit. A connector without it has its configuration accepted unchecked, with a
-  `connector-config-unvalidated` warning. Run connector tests with `checkConnectorContract: true`
-  so the connector's own defaults pass through its own validator.
+  the connector's JSON Schema at runtime. The Renderer calls it for the connector's own defaults,
+  the initial configuration and every edit. A connector without it has its configuration accepted
+  unchecked, with a `connector-config-unvalidated` warning.
   `packages/connector-lyria/src/config.ts` is the reference implementation, and
   `test/lyria-config.test.ts` checks that it agrees with an AJV compile of its schema.
 - **Failures.** Throw `ConnectorError` with a `reason` and a stable `code`; its message is fixed
@@ -108,6 +107,10 @@ The umbrella `@luna-estelar/gas` pins every package exactly, and Changesets rele
 patch whenever one of them changes. A breaking change would then reach its users as a patch, so
 a `minor` or `major` on any package also needs the same bump for `@luna-estelar/gas`.
 `test/meta-package.test.ts` enforces this.
+
+The CI workflow runs on pull requests only. Pushes to `main` go to the Release workflow,
+which runs the same `pnpm test` before it publishes anything, so `main` is verified once
+rather than by two workflows racing each other.
 
 Pending changesets on `main` keep a Version Packages PR open. It runs `pnpm
 version-packages`, which bumps manifests and internal ranges, writes each package's

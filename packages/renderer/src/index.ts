@@ -42,5 +42,4 @@ export {
   MIN_FIRST_AUDIO_TIMEOUT_SECONDS
 } from './constants.js';
 
-export const packageName = '@luna-estelar/gas-renderer';
 export const version = '0.2.0';

@@ -475,11 +475,18 @@ export class LyriaConnector implements Connector {
     };
   }
 
+  // A GAS tempo is beats per minute where a beat is the meter's `beatUnit`, so
+  // 120 in 6/8 is 120 eighth notes a minute. Lyria's `bpm` is an integer count of
+  // quarter notes, 60-200, so the meter has to come out of the number before it
+  // is sent: without the conversion a 6/8 document would be generated at twice
+  // the tempo the renderer's clock assumes, and the two would drift apart.
   private modelContext(state: EffectiveState, timing: ConnectorTiming): ModelContext {
     const requestedTempo = state.globals.tempo ?? timing.tempo;
-    const roundedTempo = Math.round(requestedTempo);
-    const bpm = Math.min(200, Math.max(60, roundedTempo));
-    if ((requestedTempo < 60 || requestedTempo > 200) && !this.warnedTempos.has(requestedTempo)) {
+    const quarterTempo = (requestedTempo * 4) / timing.timeSignature.beatUnit;
+    const bpm = Math.min(200, Math.max(60, Math.round(quarterTempo)));
+    // Warn on what is actually out of the model's range, keyed on what the author
+    // wrote, so the warning fires once for the tempo they can see and change.
+    if ((quarterTempo < 60 || quarterTempo > 200) && !this.warnedTempos.has(requestedTempo)) {
       this.warnedTempos.add(requestedTempo);
       this.emitWarning('lyria-tempo-clamped');
     }

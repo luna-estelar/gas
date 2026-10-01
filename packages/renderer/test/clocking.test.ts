@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { VirtualClock } from './support/virtual-clock.js';
+import { VirtualClock } from '../../../test/support/virtual-clock.js';
 
 describe('virtual monotonic clock', () => {
   it('fires equal deadlines in insertion order and exposes pending work', () => {

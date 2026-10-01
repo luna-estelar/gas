@@ -7,7 +7,7 @@ and this package reads them.
 
 [![npm](https://img.shields.io/npm/v/@luna-estelar/gas-notation)](https://www.npmjs.com/package/@luna-estelar/gas-notation)
 [![license](https://img.shields.io/npm/l/@luna-estelar/gas-notation)](https://github.com/luna-estelar/gas/blob/main/LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/ci.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/release.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/release.yml)
 
 ## Install
 
@@ -33,13 +33,13 @@ try {
 
 ## Exports
 
-| Export                   | Purpose                                                             |
-| ------------------------ | ------------------------------------------------------------------- |
-| `parseAlda`              | Parse the supported Alda subset into note events                    |
-| `toMidi`                 | Encode note events as a Standard MIDI File (`Uint8Array`)           |
-| `AldaParseError`         | Thrown for anything outside the subset, with the source offset      |
-| `NoteEvent`              | `{ pitch, start, duration, velocity }`, with times in quarter notes |
-| `packageName`, `version` | This package's name and version                                     |
+| Export           | Purpose                                                             |
+| ---------------- | ------------------------------------------------------------------- |
+| `parseAlda`      | Parse the supported Alda subset into note events                    |
+| `toMidi`         | Encode note events as a Standard MIDI File (`Uint8Array`)           |
+| `AldaParseError` | Thrown for anything outside the subset, with the source offset      |
+| `NoteEvent`      | `{ pitch, start, duration, velocity }`, with times in quarter notes |
+| `version`        | This package's version                                              |
 
 ## Supported Alda subset
 

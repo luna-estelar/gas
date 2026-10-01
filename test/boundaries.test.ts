@@ -1,5 +1,13 @@
 import { execFile } from 'node:child_process';
-import { copyFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync
+} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,7 +16,12 @@ import { afterAll, describe, expect, it } from 'vitest';
 // @ts-expect-error -- plain ESM script without type declarations
 import { assertCoverage, collectAll, findViolations } from '../scripts/check-boundaries.mjs';
 // @ts-expect-error -- plain ESM script without type declarations
-import { ALLOW_MAP, EXAMPLE_ALLOW_MAP, WIRING_MODULES } from '../scripts/check-boundaries.mjs';
+import {
+  ALLOW_MAP,
+  EXAMPLE_ALLOW_MAP,
+  FIXTURE_ALLOW_MAP,
+  WIRING_MODULES
+} from '../scripts/check-boundaries.mjs';
 
 const run = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -283,6 +296,9 @@ describe('check-boundaries as a program', () => {
     const copy = path.join(tree, 'scripts', 'check-boundaries.mjs');
     mkdirSync(path.dirname(copy), { recursive: true });
     copyFileSync(script, copy);
+    // The script imports TypeScript to read import statements, so the fixture
+    // needs the dependencies a real checkout has.
+    symlinkSync(path.join(root, 'node_modules'), path.join(tree, 'node_modules'), 'dir');
 
     // The script takes its root from its own location, so it scans this fixture.
     // Building the fixture from the script's own maps keeps it correct when a
@@ -303,6 +319,10 @@ describe('check-boundaries as a program', () => {
           ? path.join(tree, 'examples', 'support.ts')
           : path.join(tree, 'examples', unit, 'index.ts')
       );
+    }
+    // test/support/ is a required scan root, so it must exist in the fixture too.
+    for (const _unit of Object.keys(FIXTURE_ALLOW_MAP)) {
+      writeSource(path.join(tree, 'test', 'support', 'fixture.ts'));
     }
 
     const { stdout } = await run(process.execPath, [copy], { cwd: tree });

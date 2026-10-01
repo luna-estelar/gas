@@ -2,7 +2,7 @@
 // every node records what the engine asked of it. A source "plays" by firing
 // `onended` when the clock passes its end, or its stop time if that is earlier.
 import type { AudioChunk } from '@luna-estelar/gas-protocol';
-import { VirtualClock } from './virtual-clock.js';
+import { VirtualClock } from '../../../../test/support/virtual-clock.js';
 
 export class FakeAudioParam {
   value = 1;

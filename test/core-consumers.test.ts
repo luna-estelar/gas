@@ -1,12 +1,10 @@
-// Exercise Core through API commands, renderer state derivation and compile-only inspection.
+// Exercise Core through the API session, renderer state derivation and compile-only inspection.
+// Root tests may compose package surfaces; package boundary tests may not.
 
 import { describe, expect, it } from 'vitest';
-import {
-  compileSource,
-  parseLiveCommands,
-  type LiveStatement,
-  type Timeline
-} from '../packages/language/src/index.js';
+import { compileSource, type Timeline } from '../packages/language/src/index.js';
+import { createSession, GasOperationError } from '../packages/api/src/index.js';
+import { createRenderer } from '../packages/renderer/src/index.js';
 import {
   applyCommand,
   applyCompletion,
@@ -15,12 +13,10 @@ import {
   createInputState,
   effectiveStateAt,
   sectionInstanceAt,
-  type Command,
-  type CommandWarning,
-  type EffectiveState,
-  type InputState,
-  type PlaybackPhase
+  type EffectiveState
 } from '../packages/core/src/index.js';
+import { FakeConnector } from './support/fake-connector.js';
+import { VirtualClock } from './support/virtual-clock.js';
 import { readExample } from '../examples/support.js';
 
 function corpusTimeline(name: string): Timeline {
@@ -53,160 +49,81 @@ function trackOf(snapshot: EffectiveState, trackId: string) {
   return track;
 }
 
-// Reference mapping from live statements to Core commands. Unknown track names
-// reach Core validation as unresolved references.
-function trackResolver(state: InputState): (name: string) => string {
-  const byName = new Map<string, string>();
-  for (const track of state.timeline.tracks) {
-    byName.set(track.name, track.trackId);
-    byName.set(track.trackId, track.trackId);
-  }
-  for (const host of state.hostTracks) {
-    byName.set(host.name ?? host.id, host.id);
-    byName.set(host.id, host.id);
-  }
-  return (name) => byName.get(name) ?? name;
-}
-
-function toCommand(statement: LiveStatement, resolve: (name: string) => string): Command {
-  switch (statement.kind) {
-    case 'DeclareTrack':
-      return {
-        kind: 'defineTrack',
-        id: statement.name,
-        name: statement.name,
-        description: statement.description
-      };
-    case 'Tempo':
-      return { kind: 'setTempo', bpm: statement.bpm };
-    case 'Play':
-      return { kind: 'playTrack', trackId: resolve(statement.trackName) };
-    case 'Stop':
-      return { kind: 'stopTrack', trackId: resolve(statement.trackName) };
-    case 'Flavor':
-      return {
-        kind: 'setTrackFlavor',
-        trackId: resolve(statement.trackName),
-        value: statement.value
-      };
-    case 'Timbre':
-      return {
-        kind: 'setTrackTimbre',
-        trackId: resolve(statement.trackName),
-        value: statement.value.value
-      };
-    case 'Level':
-      return {
-        kind: 'setTrackLevel',
-        trackId: resolve(statement.trackName),
-        value: statement.value
-      };
-    case 'Notes':
-      return {
-        kind: 'setTrackNotes',
-        trackId: resolve(statement.trackName),
-        alda: statement.value.raw
-      };
-    case 'Motif':
-      return {
-        kind: 'setTrackMotif',
-        trackId: resolve(statement.trackName),
-        alda: statement.value.raw
-      };
-  }
-}
-
-// Applies a live fragment as the API would: parse, map each statement, apply in
-// order at the given phase, collecting warnings.
-function submitLive(
-  state: InputState,
-  source: string,
-  phase: PlaybackPhase
-): { state: InputState; warnings: CommandWarning[] } {
-  const parsed = parseLiveCommands(source);
-  if (!parsed.ok) {
-    throw new Error(
-      `Live fragment failed to parse: ${parsed.diagnostics.map((d) => d.message).join('; ')}`
-    );
-  }
-  let next = state;
-  const warnings: CommandWarning[] = [];
-  for (const statement of parsed.statements) {
-    const command = toCommand(statement, trackResolver(next));
-    const result = applyCommand(next, command, { phase, capabilities: CAPABILITIES });
-    if (!result.ok) {
-      throw new Error(`Command rejected: ${result.failure.message}`);
-    }
-    next = result.state;
-    warnings.push(...result.warnings);
-  }
-  return { state: next, warnings };
+// The API path runs through a real session and Renderer rather than a copy of
+// the API's command mapping: a copy once declared live tracks as `pad` while the
+// API declares `track.pad`, and the test passed while asserting behaviour the
+// API did not have. Capability warnings come from the connector's `describe()`,
+// whose table marks notes and motif unsupported.
+async function apiSession(timeline: Timeline) {
+  const clock = new VirtualClock();
+  // Musical time starts with the first chunk, so a run needs audio to begin.
+  const connector = new FakeConnector({ anchorOnStart: true });
+  const session = await createSession({
+    createRenderer: () => createRenderer({ clock, connector })
+  });
+  await session.loadTimeline(timeline);
+  return { connector, session };
 }
 
 describe('consumer: the GAS API command path', () => {
-  it('parses live statements, maps them onto canonical commands, and applies them', () => {
-    const timeline = corpusTimeline('spec-example'); // authored guitar / drums / keys
-    const loaded = createInputState(timeline);
+  it('parses live statements, maps them onto canonical commands, and applies them', async () => {
+    const { connector, session } = await apiSession(corpusTimeline('spec-example')); // authored guitar / drums / keys
+    await session.play();
 
-    const { state, warnings } = submitLive(
-      loaded,
+    const result = await session.submitLiveCommands(
       ['track pad "warm background"', 'pad.play', 'guitar.flavor "brighter"', 'tempo 120'].join(
         '\n'
-      ),
-      'active'
+      )
     );
 
-    // A host track joined the namespace; three overrides landed live, in order.
-    expect(state.hostTracks).toEqual([{ id: 'pad', name: 'pad', description: 'warm background' }]);
-    expect(state.live.map((override) => override.kind)).toEqual([
-      'playTrack',
-      'setTrackFlavor',
-      'setTempo'
-    ]);
-    // The live statements had no unsupported intent here, so no warnings.
-    expect(warnings).toEqual([]);
-
-    // Deriving at bar 1 (the chorus is active) reflects the applied commands.
-    const snapshot = effectiveStateAt(
-      state,
-      { bar: 1 },
-      {
-        activeSection: sectionInstanceAt(timeline, { bar: 1 })
-      }
-    );
-    expect(snapshot.globals.tempo).toBe(120);
-    expect(trackOf(snapshot, 'pad').active).toBe(true);
-    const flavor = state.live.find((override) => override.kind === 'setTrackFlavor');
-    expect(trackOf(snapshot, 'track.guitar').flavor).toEqual({
-      kind: 'text',
-      text: flavor && 'value' in flavor ? flavor.value : ''
+    // All four landed, and none touched an unsupported intent.
+    expect(result).toMatchObject({ ok: true, applied: 4, warnings: [] });
+    // A host track joined the namespace under the compiler's id scheme.
+    expect(session.getTracks()).toContainEqual({
+      id: 'track.pad',
+      name: 'pad',
+      description: 'warm background',
+      source: 'host'
     });
+
+    // The Renderer forwarded the derived state, which reflects every command.
+    const forwarded = connector.updates.at(-1)?.update.state;
+    expect(forwarded).toBeDefined();
+    expect(forwarded!.globals.tempo).toBe(120);
+    expect(trackOf(forwarded!, 'track.pad').active).toBe(true);
+    expect(trackOf(forwarded!, 'track.guitar').flavor).toEqual({ kind: 'text', text: 'brighter' });
+    await session.close();
   });
 
-  it('stages commands while stopped and warns from the capabilities table', () => {
-    const loaded = createInputState(corpusTimeline('spec-example'));
-    // notes/motif are unsupported in CAPABILITIES: the override is kept, but warned.
-    const { state, warnings } = submitLive(loaded, 'guitar.motif alda( c d e )', 'stopped');
-    expect(state.staged.map((override) => override.kind)).toEqual(['setTrackMotif']);
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toMatchObject({
+  it('stages commands while stopped and warns from the capabilities table', async () => {
+    const { connector, session } = await apiSession(corpusTimeline('spec-example'));
+
+    const result = await session.submitLiveCommands('guitar.motif alda( c d e )');
+    // Unsupported by the connector: the override is kept, but warned.
+    expect(result).toMatchObject({ ok: true, applied: 1 });
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]).toMatchObject({
       code: 'unsupported-intent',
       intent: 'motif',
       support: 'unsupported'
     });
+
+    // Staged rather than dropped: the run starts with it.
+    expect(connector.prepared).toEqual([]);
+    await session.play();
+    expect(trackOf(connector.prepared[0]!.state, 'track.guitar').motif).toBeDefined();
+    await session.close();
   });
 
-  it('surfaces an unknown live track name as a structured failure', () => {
-    const loaded = createInputState(corpusTimeline('spec-example'));
-    const parsed = parseLiveCommands('ghost.play');
-    expect(parsed.ok).toBe(true);
-    if (!parsed.ok) return;
-    const command = toCommand(parsed.statements[0], trackResolver(loaded));
-    const result = applyCommand(loaded, command, { phase: 'active', capabilities: CAPABILITIES });
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.failure.code).toBe('unknown-track');
-    expect(result.failure.trackId).toBe('ghost');
+  it('surfaces an unknown live track name as a structured failure', async () => {
+    const { session } = await apiSession(corpusTimeline('spec-example'));
+    const rejection = session.submitLiveCommands('ghost.play');
+    await expect(rejection).rejects.toBeInstanceOf(GasOperationError);
+    await expect(rejection).rejects.toMatchObject({
+      kind: 'live',
+      failure: { code: 'unknown-track', trackId: 'ghost' }
+    });
+    await session.close();
   });
 });
 

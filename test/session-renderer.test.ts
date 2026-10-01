@@ -8,8 +8,8 @@ import { describe, expect, it } from 'vitest';
 import { createSession } from '../packages/api/src/index.js';
 import { createRenderer } from '../packages/renderer/src/index.js';
 import type { LifecycleEvent, WarningEvent } from '../packages/protocol/src/index.js';
-import { FakeConnector } from '../packages/renderer/test/support/fake-connector.js';
-import { VirtualClock } from '../packages/renderer/test/support/virtual-clock.js';
+import { FakeConnector } from './support/fake-connector.js';
+import { VirtualClock } from './support/virtual-clock.js';
 
 const SOURCE = `tempo 120
 time_signature 4/4

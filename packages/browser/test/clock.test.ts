@@ -139,6 +139,29 @@ describe('opening a context', () => {
     expect((await openAudioContext()).resumed).toBe(false);
   });
 
+  // A browser that refuses to start audio may reject, but it may also leave the
+  // promise pending forever. Awaiting that unconditionally hung every caller:
+  // `createBrowserSession` never resolved, so the host got no context at all and
+  // could not even offer the gesture that would have fixed it.
+  it('yields a context whose resume never settles instead of hanging', async () => {
+    vi.stubGlobal(
+      'AudioContext',
+      class {
+        state = 'suspended';
+        resume() {
+          return new Promise<void>(() => {});
+        }
+      }
+    );
+
+    const opening = openAudioContext();
+    await vi.advanceTimersByTimeAsync(1000);
+
+    const { context, resumed } = await opening;
+    expect(resumed).toBe(false);
+    expect(context.state).toBe('suspended');
+  });
+
   it('detects the browser APIs a session needs', () => {
     vi.stubGlobal('AudioContext', undefined);
     expect(detectSupport()).toEqual({

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { compileSource } from '@luna-estelar/gas-language';
-import { execute, packageName, version, type CliIo } from '../src/index.js';
+import { execute, version, type CliIo } from '../src/index.js';
 import { readExample } from '../../../examples/support.js';
 
 function harness(files: Record<string, string> = {}): {
@@ -32,11 +32,6 @@ function harness(files: Record<string, string> = {}): {
 }
 
 describe('@luna-estelar/gas-cli', () => {
-  it('exposes package metadata', () => {
-    expect(packageName).toBe('@luna-estelar/gas-cli');
-    expect(version).toMatch(/^\d+\.\d+\.\d+$/);
-  });
-
   it('preserves help and version output', () => {
     const help = harness();
     expect(execute(['--help'], help.io)).toBe(0);

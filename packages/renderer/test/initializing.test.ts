@@ -1,9 +1,9 @@
 import { createInputState } from '@luna-estelar/gas-core';
 import { describe, expect, it } from 'vitest';
 import { createRenderer, RendererError } from '../src/index.js';
-import { FakeConnector } from './support/fake-connector.js';
-import { testTimeline } from './support/timeline.js';
-import { VirtualClock } from './support/virtual-clock.js';
+import { FakeConnector } from '../../../test/support/fake-connector.js';
+import { testTimeline } from '../../../test/support/timeline.js';
+import { VirtualClock } from '../../../test/support/virtual-clock.js';
 
 describe('renderer initialization and loading', () => {
   it('describes and opens the connector before resolving ready', async () => {

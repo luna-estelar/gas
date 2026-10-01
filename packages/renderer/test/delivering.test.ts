@@ -2,9 +2,9 @@ import { createInputState } from '@luna-estelar/gas-core';
 import type { ConnectorAudioChunk, Renderer, Timeline } from '@luna-estelar/gas-protocol';
 import { describe, expect, it } from 'vitest';
 import { applyS16leGain, BufferLedger, createRenderer } from '../src/index.js';
-import { FakeConnector } from './support/fake-connector.js';
-import { testTimeline } from './support/timeline.js';
-import { VirtualClock } from './support/virtual-clock.js';
+import { FakeConnector } from '../../../test/support/fake-connector.js';
+import { testTimeline } from '../../../test/support/timeline.js';
+import { VirtualClock } from '../../../test/support/virtual-clock.js';
 
 describe('audio delivery', () => {
   it('holds startup audio and releases it from the committed audible anchor', async () => {
@@ -133,7 +133,8 @@ describe('audio delivery', () => {
     sink.status('ended', 'run-audio');
     expect(statuses.slice(-3)).toEqual([
       { playback: 'running', stream: 'streaming' },
-      { playback: 'running', stream: 'throttled', throttled: true },
+      // `stream` alone: the provider throttling is not the renderer throttling it.
+      { playback: 'running', stream: 'throttled' },
       { playback: 'running', stream: 'ended' }
     ]);
 

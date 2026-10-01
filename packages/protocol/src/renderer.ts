@@ -59,6 +59,12 @@ export interface ConnectorDescription {
 }
 
 export interface ConnectorTiming {
+  /**
+   * Beats per minute where a beat is `timeSignature.beatUnit`, so 120 in 6/8 is
+   * 120 eighth notes a minute and a bar lasts 3 s. A connector whose model wants
+   * an absolute tempo must convert — `tempo * 4 / beatUnit` for quarter-note BPM
+   * — or it will generate at a different tempo than the renderer's clock assumes.
+   */
   readonly tempo: number;
   readonly timeSignature: TimeSignature;
   readonly key?: string;
@@ -155,7 +161,14 @@ export interface RendererStatusEvent {
   readonly lifecycle: RendererLifecycle;
   readonly playback: PlaybackStatus;
   readonly runId?: string;
+  /** What the provider last said about its own stream. */
   readonly stream?: ConnectorStreamStatus;
+  /**
+   * The Renderer is holding the connector back because its own buffer is deep,
+   * which is not the same fact as `stream === 'throttled'` — that is the provider
+   * reporting it slowed down. A host that conflates them cannot tell a model
+   * struggling to keep up from one being deliberately restrained.
+   */
   readonly throttled?: boolean;
   // Set once, on the stopped status a finite run emits when it reaches its
   // declared length, while `runId` is still present. `stream` keeps meaning

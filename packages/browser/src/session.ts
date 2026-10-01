@@ -38,6 +38,13 @@ export interface BrowserSession {
   readonly session: GasSession;
   readonly audio: PlaybackEngine;
   readonly capture: PcmCapture | undefined;
+  /**
+   * The context the audio graph runs on, adopted or opened here. Exposed because
+   * a browser may hand back a context it declined to start: read `state`, listen
+   * for `statechange`, and call `resume()` from a later gesture. Closing it is the
+   * owner's business — `close()` closes only a context this session opened.
+   */
+  readonly context: AudioContext;
   /** The musical position the listener is hearing now, or undefined before first audio. */
   audiblePosition(): { position: MusicalPosition; seconds: number } | undefined;
   close(): Promise<void>;
@@ -96,6 +103,7 @@ export async function createBrowserSession(
       session,
       audio: activeEngine,
       capture,
+      context: audioContext,
       audiblePosition() {
         const seconds = activeEngine.playheadSeconds();
         if (seconds === undefined) return undefined;

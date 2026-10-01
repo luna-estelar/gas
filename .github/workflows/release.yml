@@ -1,8 +1,12 @@
-# Release through Changesets. While changesets are pending on main, this opens
-# or updates the Version Packages PR. Merging that PR publishes every package
-# whose version is not yet on npm, in workspace dependency order, and creates a
-# tag and GitHub release per package. Publication is not transactional: rerun
-# the workflow after an interrupted publish and it skips versions already out.
+# Release through Changesets, and the verification of main. CI covers pull
+# requests only, so this workflow runs `pnpm test` on every push to main whether
+# or not it goes on to publish.
+#
+# While changesets are pending on main, this opens or updates the Version
+# Packages PR. Merging that PR publishes every package whose version is not yet
+# on npm, in workspace dependency order, and creates a tag and GitHub release
+# per package. Publication is not transactional: rerun the workflow after an
+# interrupted publish and it skips versions already out.
 name: Release
 
 on:
@@ -73,5 +77,7 @@ jobs:
       - name: Verify provenance
         if: steps.changesets.outputs.published == 'true'
         env:
-          PUBLISHED: ${{ steps.changesets.outputs.publishedPackages }}
+          # Index syntax, not a dot: a hyphen in an expression is subtraction, and
+          # a mistyped output reads as an empty string rather than failing.
+          PUBLISHED: ${{ steps.changesets.outputs['published-packages'] }}
         run: node scripts/check-provenance.mjs

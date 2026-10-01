@@ -1,15 +1,23 @@
 // Timeline calculations with synthetic inputs. Root corpus tests cover compiled GAS documents.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { createTempoSegmentMap } from '@luna-estelar/gas-core';
 import type { Diagnostic } from '../src/compile.js';
-import { testTimeline } from './support/timeline.js';
+import { testTimeline } from '../../../test/support/timeline.js';
 import {
   countDiagnostics,
+  deriveTimeline,
   diagnosticOffsets,
   formatClock,
   positionSeconds,
   timelinePositionSeconds,
   timelineProgressPercent
 } from '../src/timeline.js';
+
+// Pass-through, so every calculation is real; only the call count is observed.
+vi.mock('@luna-estelar/gas-core', async (importOriginal) => {
+  const core = await importOriginal<typeof import('@luna-estelar/gas-core')>();
+  return { ...core, createTempoSegmentMap: vi.fn(core.createTempoSegmentMap) };
+});
 
 describe('diagnostics', () => {
   it('counts all categories and clamps editor ranges', () => {
@@ -79,5 +87,17 @@ describe('positions', () => {
         beat: { index: 1, offset: { numerator: 1, denominator: 2 } }
       })
     ).toBe(0.25);
+  });
+});
+
+describe('timeline view', () => {
+  it('builds one tempo map for every event and section boundary', () => {
+    // One authored event plus a start and an end boundary: three positions that
+    // used to build a map each.
+    const timeline = testTimeline();
+    vi.mocked(createTempoSegmentMap).mockClear();
+    const view = deriveTimeline(timeline);
+    expect(view.events.map((event) => event.seconds)).toEqual([0, 0, 8]);
+    expect(createTempoSegmentMap).toHaveBeenCalledTimes(1);
   });
 });

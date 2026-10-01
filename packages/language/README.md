@@ -6,7 +6,7 @@ in musical time. It is the language stage of `document → language → timeline
 
 [![npm](https://img.shields.io/npm/v/@luna-estelar/gas-language)](https://www.npmjs.com/package/@luna-estelar/gas-language)
 [![license](https://img.shields.io/npm/l/@luna-estelar/gas-language)](https://github.com/luna-estelar/gas/blob/main/LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/ci.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/release.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/release.yml)
 
 ## Install
 
@@ -39,7 +39,7 @@ else console.log(result.diagnostics);
 | `GasDocument`, `Track`, `Section`, … and `LiveStatement`                      | The document and live-statement AST                       |
 | `GasCompileResult`, `GasAnalyzeResult`, `GasParseResult`, `LiveCommandResult` | Result unions                                             |
 | `GasDiagnostic`, `Timeline`, `MusicalPosition`, …                             | Protocol types, re-exported                               |
-| `packageName`, `version`                                                      | This package's name and version                           |
+| `version`                                                                     | This package's version                                    |
 
 No Langium types, CST nodes, or service objects leak through that surface.
 

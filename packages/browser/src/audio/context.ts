@@ -1,6 +1,15 @@
 // Opening an AudioContext. Browsers keep a context suspended unless it resumes
 // during a user gesture, so these helpers do nothing asynchronous first.
 
+// How long to wait for `resume()` before reporting what the context's own state
+// says. A browser that refuses to start audio may reject, but it may also leave
+// the promise pending indefinitely, which the Web Audio specification permits.
+// Awaiting it unconditionally would hang every caller, so this is a bound on the
+// wait, not a policy: `resumed` is read from `context.state` either way, and a
+// context that starts later is still usable — the caller holds it and can watch
+// `statechange`.
+const RESUME_TIMEOUT_MS = 1000;
+
 export interface OpenAudioContextOptions {
   readonly sampleRate?: number;
   /** Defaults to `'playback'`: steady streamed audio, not interactive sound effects. */
@@ -23,10 +32,18 @@ export async function openAudioContext(
   });
   // Started before the first await, so the request still carries the gesture.
   const resuming = context.resume();
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    await resuming;
-  } catch {
-    // Reported through `resumed`; the host can retry on the next gesture.
+    await Promise.race([
+      // A rejection is one of the answers, not a failure: it is reported through
+      // `resumed`, and the host can retry on the next gesture.
+      resuming.catch(() => undefined),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, RESUME_TIMEOUT_MS);
+      })
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
   }
   return { context, resumed: context.state === 'running' };
 }

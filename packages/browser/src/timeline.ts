@@ -1,10 +1,18 @@
 // Musical-time calculations and timeline view models shared by browser controls.
-import { createTempoSegmentMap, positionToTime } from '@luna-estelar/gas-core';
+import {
+  DEFAULT_TEMPO as CORE_DEFAULT_TEMPO,
+  DEFAULT_TIME_SIGNATURE,
+  createTempoSegmentMap,
+  positionToTime,
+  secondsPerBar as coreSecondsPerBar,
+  type TempoSegmentMap
+} from '@luna-estelar/gas-core';
 import type { Diagnostic, CompiledTimeline } from './compile.js';
 
-export const DEFAULT_TEMPO = 120;
-export const DEFAULT_BEATS_PER_BAR = 4;
-export const DEFAULT_BEAT_UNIT = 4;
+// Published defaults, taken from Core so the two packages cannot disagree.
+export const DEFAULT_TEMPO = CORE_DEFAULT_TEMPO;
+export const DEFAULT_BEATS_PER_BAR = DEFAULT_TIME_SIGNATURE.beatsPerBar;
+export const DEFAULT_BEAT_UNIT = DEFAULT_TIME_SIGNATURE.beatUnit;
 
 export type DiagnosticCategory = Diagnostic['category'];
 export type DiagnosticCounts = Record<DiagnosticCategory, number>;
@@ -56,7 +64,7 @@ export function meterOf(timeline: CompiledTimeline): { beatsPerBar: number; beat
 }
 
 export function secondsPerBar(timeline: CompiledTimeline): number {
-  return (meterOf(timeline).beatsPerBar * 60) / tempoOf(timeline);
+  return coreSecondsPerBar(tempoOf(timeline), meterOf(timeline).beatsPerBar);
 }
 
 /** Seconds from bar one to `position` at the document's tempo and meter. */
@@ -64,12 +72,15 @@ export function positionSeconds(
   timeline: CompiledTimeline,
   position: CompiledTimeline['events'][number]['position']
 ): number {
+  return positionToTime(tempoMapOf(timeline), position);
+}
+
+function tempoMapOf(timeline: CompiledTimeline): TempoSegmentMap {
   const meter = meterOf(timeline);
-  const map = createTempoSegmentMap({
+  return createTempoSegmentMap({
     tempo: tempoOf(timeline),
     timeSignature: { beatsPerBar: meter.beatsPerBar, beatUnit: meter.beatUnit }
   });
-  return positionToTime(map, position);
 }
 
 export function totalBars(timeline: CompiledTimeline): number | null {
@@ -154,6 +165,8 @@ export interface TimelineView {
 
 export function deriveTimeline(timeline: CompiledTimeline): TimelineView {
   const span = Math.max(1, timeline.arrangedBars);
+  // One map for the whole view: every event and boundary shares the same tempo.
+  const tempoMap = tempoMapOf(timeline);
   const trackNames = new Map(timeline.tracks.map((track) => [track.trackId, track.name]));
   const sections = timeline.arrangement.map((section) => ({
     id: section.sectionInstanceId,
@@ -167,7 +180,7 @@ export function deriveTimeline(timeline: CompiledTimeline): TimelineView {
     .map((event) => ({
       id: event.eventId,
       bar: event.position.bar,
-      seconds: positionSeconds(timeline, event.position),
+      seconds: positionToTime(tempoMap, event.position),
       label:
         event.type === 'section'
           ? (timeline.arrangement.find((section) => section.sectionInstanceId === event.targetId)
@@ -183,7 +196,7 @@ export function deriveTimeline(timeline: CompiledTimeline): TimelineView {
     {
       id: `${section.sectionInstanceId}.start`,
       bar: section.start.bar,
-      seconds: positionSeconds(timeline, section.start),
+      seconds: positionToTime(tempoMap, section.start),
       label: section.sectionName,
       detail: 'section started',
       sourceLine: section.provenance?.sourceRange?.start.line
@@ -191,7 +204,7 @@ export function deriveTimeline(timeline: CompiledTimeline): TimelineView {
     {
       id: `${section.sectionInstanceId}.end`,
       bar: section.end.bar,
-      seconds: positionSeconds(timeline, section.end),
+      seconds: positionToTime(tempoMap, section.end),
       label: section.sectionName,
       detail: 'section ended',
       sourceLine: section.provenance?.sourceRange?.start.line

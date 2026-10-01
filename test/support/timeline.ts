@@ -1,3 +1,5 @@
+// A minimal valid Timeline for tests, shared by the renderer and the browser.
+// Protocol-only, like the other shared fixtures.
 import type { Timeline } from '@luna-estelar/gas-protocol';
 
 export function testTimeline(overrides: Partial<Timeline> = {}): Timeline {

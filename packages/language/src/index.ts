@@ -96,7 +96,6 @@ export type {
 // namespace stays Core's job (`defineTrack` rejects a duplicate id).
 export { slugify } from './compiler/ids.js';
 
-export const packageName = '@luna-estelar/gas-language';
 export const version = '0.1.2';
 
 export type GasParseDiagnostic = GasDiagnostic;

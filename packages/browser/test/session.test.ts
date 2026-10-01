@@ -4,8 +4,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBrowserSession, type BrowserSession } from '../src/session.js';
 import { FakeAudioContext, pcmChunk } from './support/fake-audio-context.js';
-import { FakeConnector, type FakeConnectorOptions } from './support/fake-connector.js';
-import { testTimeline } from './support/timeline.js';
+import { FakeConnector, type FakeConnectorOptions } from '../../../test/support/fake-connector.js';
+import { testTimeline } from '../../../test/support/timeline.js';
 
 beforeEach(() => {
   vi.useFakeTimers();

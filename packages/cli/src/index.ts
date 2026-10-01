@@ -3,7 +3,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { compileSource, type GasDiagnostic } from '@luna-estelar/gas-language';
 
-export const packageName = '@luna-estelar/gas-cli';
 export const version = '0.1.2';
 
 export interface CliIo {

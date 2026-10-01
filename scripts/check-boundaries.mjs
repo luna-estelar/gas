@@ -2,6 +2,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import ts from 'typescript';
 
 // Allowed GAS dependencies by package name.
 export const ALLOW_MAP = {
@@ -34,6 +35,15 @@ export const EXAMPLE_ALLOW_MAP = {
   examples: []
 };
 
+// Test fixtures under test/support/ are shared by several packages' test suites,
+// so they must stay independent of every implementation they are used to test:
+// Protocol only, which is types and the error class. A fixture that reached for
+// the renderer or a connector would quietly couple one package's tests to
+// another's implementation.
+export const FIXTURE_ALLOW_MAP = {
+  fixtures: ['protocol']
+};
+
 const CONCRETE_RUNTIME = new Set(['renderer', 'connector-lyria']);
 
 /**
@@ -64,165 +74,52 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // Supported module file types, including JSX and Astro frontmatter.
 const SCANNED_EXTENSIONS = ['.ts', '.tsx', '.jsx', '.astro'];
 
-// Replace string contents with indexed handles so code samples cannot match import patterns.
-const HANDLE = /^@@literal:(\d+)@@$/;
-
-// After one of these, a `/` opens a regex literal rather than dividing. Without
-// the keyword list, `return /x['"]/` reads as division and its quotes open a
-// phantom string.
-const REGEX_PRECEDING_KEYWORDS = new Set([
-  'return',
-  'typeof',
-  'instanceof',
-  'in',
-  'of',
-  'case',
-  'do',
-  'else',
-  'yield',
-  'await',
-  'delete',
-  'void',
-  'new'
-]);
-
-class MaskError extends Error {}
+/**
+ * Module specifiers imported by one block of TypeScript or JSX, read from the
+ * syntax tree. The tree is what makes a specifier inside a comment, a string or
+ * a template literal invisible: those are not import nodes, so a documentation
+ * sample cannot be mistaken for an import. Type-only imports are reported like
+ * any other, because the boundary rules govern what a package may name at all,
+ * not only what it pulls in at runtime.
+ */
+function specifiersIn(text, scriptKind) {
+  const source = ts.createSourceFile('scan.ts', text, ts.ScriptTarget.Latest, true, scriptKind);
+  const specifiers = [];
+  const visit = (node) => {
+    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+      specifiers.push(node.moduleSpecifier.text);
+    } else if (
+      ts.isExportDeclaration(node) &&
+      node.moduleSpecifier !== undefined &&
+      ts.isStringLiteral(node.moduleSpecifier)
+    ) {
+      specifiers.push(node.moduleSpecifier.text);
+    } else if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments.length > 0 &&
+      ts.isStringLiteral(node.arguments[0])
+    ) {
+      specifiers.push(node.arguments[0].text);
+    } else if (
+      ts.isImportTypeNode(node) &&
+      ts.isLiteralTypeNode(node.argument) &&
+      ts.isStringLiteral(node.argument.literal)
+    ) {
+      specifiers.push(node.argument.literal.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return specifiers;
+}
 
 /**
- * Mask comments, regexes and template text; store quoted strings in a shared table.
- * Unclosed literals throw MaskError so callers can fall back to scanning raw text.
- * @param source Module text.
- * @param literals String contents indexed by generated handles.
+ * The spans of an `.astro` file that are module code: the frontmatter fence and
+ * each `<script>` block. The markup between them is prose and is not scanned —
+ * an import written there is documentation, not a dependency.
  */
-function maskCode(source, literals) {
-  let out = '';
-  let i = 0;
-  let prev = ''; // last significant code character emitted
-  let word = ''; // identifier ending at `prev`, for the regex-vs-division test
-  const modes = ['code'];
-  const substitutionDepths = []; // brace depth at each open `${`
-  let braceDepth = 0;
-
-  const blank = (text) => text.replace(/[^\n]/g, ' ');
-  const advance = (char) => {
-    if (/\s/.test(char)) return;
-    word = /[\w$]/.test(char) ? word + char : '';
-    prev = char;
-  };
-
-  while (i < source.length) {
-    const char = source[i];
-
-    if (modes[modes.length - 1] === 'template') {
-      if (char === '\\') {
-        out += blank(source.slice(i, i + 2));
-        i += 2;
-      } else if (char === '`') {
-        out += ' ';
-        i += 1;
-        modes.pop();
-        advance(')'); // a finished template is a value, so a following `/` divides
-      } else if (char === '$' && source[i + 1] === '{') {
-        out += '  ';
-        i += 2;
-        modes.push('code');
-        substitutionDepths.push(braceDepth);
-        braceDepth += 1;
-        prev = '(';
-        word = '';
-      } else {
-        out += char === '\n' ? '\n' : ' ';
-        i += 1;
-      }
-      continue;
-    }
-
-    if (char === '/' && source[i + 1] === '/') {
-      const newline = source.indexOf('\n', i);
-      const stop = newline === -1 ? source.length : newline;
-      out += blank(source.slice(i, stop));
-      i = stop;
-      continue;
-    }
-    if (char === '/' && source[i + 1] === '*') {
-      const end = source.indexOf('*/', i + 2);
-      if (end === -1) throw new MaskError('unterminated block comment');
-      out += blank(source.slice(i, end + 2));
-      i = end + 2;
-      continue;
-    }
-    // `prev === '<'` is a JSX closing tag, not a regex — the islands are .tsx.
-    if (
-      char === '/' &&
-      prev !== '<' &&
-      (!/[\w$)\]}]/.test(prev) || REGEX_PRECEDING_KEYWORDS.has(word))
-    ) {
-      const end = endOfRegex(source, i);
-      out += blank(source.slice(i, end));
-      i = end;
-      advance(')');
-      continue;
-    }
-    if (char === "'" || char === '"') {
-      let j = i + 1;
-      while (j < source.length && source[j] !== char) {
-        if (source[j] === '\n') throw new MaskError('newline inside a quoted string');
-        j += source[j] === '\\' ? 2 : 1;
-      }
-      if (j >= source.length) throw new MaskError('unterminated string');
-      out += `'@@literal:${literals.length}@@'`;
-      literals.push(source.slice(i + 1, j));
-      i = j + 1;
-      advance(')');
-      continue;
-    }
-    if (char === '`') {
-      out += ' ';
-      i += 1;
-      modes.push('template');
-      continue;
-    }
-    if (char === '{') braceDepth += 1;
-    if (char === '}') {
-      braceDepth -= 1;
-      if (modes.length > 1 && braceDepth === substitutionDepths[substitutionDepths.length - 1]) {
-        substitutionDepths.pop();
-        modes.pop();
-        out += ' ';
-        i += 1;
-        continue;
-      }
-    }
-    out += char;
-    advance(char);
-    i += 1;
-  }
-
-  if (modes.length > 1) throw new MaskError('unterminated template literal');
-  return out;
-}
-
-/** Index just past the regex literal starting at `start`. */
-function endOfRegex(source, start) {
-  let i = start + 1;
-  let inClass = false;
-  while (i < source.length) {
-    const char = source[i];
-    if (char === '\\') {
-      i += 2;
-      continue;
-    }
-    if (char === '\n') throw new MaskError('newline inside a regex literal');
-    if (char === '[') inClass = true;
-    else if (char === ']') inClass = false;
-    else if (char === '/' && !inClass) return i + 1;
-    i += 1;
-  }
-  throw new MaskError('unterminated regex literal');
-}
-
-// Scan Astro frontmatter and script blocks as module code; leave markup as text.
-function maskAstro(content, literals) {
+function astroRegions(content) {
   const regions = [];
   const fence = /^\uFEFF?[ \t]*---[^\n]*\n/.exec(content);
   if (fence) {
@@ -236,49 +133,30 @@ function maskAstro(content, literals) {
     const start = match.index + match[0].length;
     const close = /<\/script\s*>/i.exec(content.slice(start));
     if (!close) break;
-    regions.push([start, start + close.index]);
+    // A `<script>` quoted inside the frontmatter is already covered by it.
+    if (regions.every(([from, to]) => start < from || start >= to)) {
+      regions.push([start, start + close.index]);
+    }
     openTag.lastIndex = start + close.index;
   }
-
-  let out = '';
-  let cursor = 0;
-  for (const [start, end] of regions) {
-    if (start < cursor) continue; // a `<script>` quoted inside the frontmatter
-    out += content.slice(cursor, start);
-    out += maskCode(content.slice(start, end), literals);
-    cursor = end;
-  }
-  return out + content.slice(cursor);
+  return regions;
 }
 
 /** Extract module specifiers from import/export/dynamic-import statements. */
 export function extractSpecifiers(content, filePath = '') {
-  const literals = [];
-  let masked;
-  try {
-    masked = filePath.endsWith('.astro')
-      ? maskAstro(content, literals)
-      : maskCode(content, literals);
-  } catch (error) {
-    if (!(error instanceof MaskError)) throw error;
-    masked = content; // lost the thread: scan the raw text, as this script always did
-    literals.length = 0;
+  if (filePath.endsWith('.astro')) {
+    const regions = astroRegions(content);
+    // Finding no module code is not the same as there being none: a fence this
+    // did not recognize would otherwise skip the file silently, and a scan that
+    // reads nothing passes every rule. So fall back to the whole file, which can
+    // only over-report, never under-report.
+    if (regions.length === 0) return specifiersIn(content, ts.ScriptKind.TS);
+    return regions.flatMap(([start, end]) =>
+      specifiersIn(content.slice(start, end), ts.ScriptKind.TS)
+    );
   }
-
-  const specifiers = [];
-  const patterns = [
-    /(?:^|[\s;])(?:import|export)\b[^'"]*?\bfrom\s*['"]([^'"]+)['"]/g, // import/export ... from '...'
-    /(?:^|[\s;])import\s*['"]([^'"]+)['"]/g, // side-effect import '...'
-    /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g // dynamic import('...')
-  ];
-  for (const pattern of patterns) {
-    let match;
-    while ((match = pattern.exec(masked)) !== null) {
-      const handle = HANDLE.exec(match[1]);
-      specifiers.push(handle ? (literals[Number(handle[1])] ?? '') : match[1]);
-    }
-  }
-  return specifiers;
+  const jsx = filePath.endsWith('.tsx') || filePath.endsWith('.jsx');
+  return specifiersIn(content, jsx ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
 }
 
 /**
@@ -286,7 +164,10 @@ export function extractSpecifiers(content, filePath = '') {
  * @param allowMap Per-unit allowed short names (defaults to every allow map).
  * @returns Array of violations.
  */
-export function findViolations(files, allowMap = { ...ALLOW_MAP, ...EXAMPLE_ALLOW_MAP }) {
+export function findViolations(
+  files,
+  allowMap = { ...ALLOW_MAP, ...EXAMPLE_ALLOW_MAP, ...FIXTURE_ALLOW_MAP }
+) {
   const violations = [];
   for (const file of files) {
     const allowed = allowMap[file.package] ?? [];
@@ -332,12 +213,16 @@ export function findViolations(files, allowMap = { ...ALLOW_MAP, ...EXAMPLE_ALLO
   return violations;
 }
 
-async function walkSource(dir) {
+// `required` is for a scan root that must exist: a missing one has to fail
+// rather than contribute nothing, because a scan of nothing passes every rule.
+// Optional subdirectories (a package without tests) keep the quiet behaviour.
+async function walkSource(dir, { required = false } = {}) {
   const found = [];
   let entries;
   try {
     entries = await readdir(dir, { withFileTypes: true });
-  } catch {
+  } catch (error) {
+    if (required) throw error;
     return found; // directory may not exist (e.g. a package without tests)
   }
   for (const entry of entries) {
@@ -388,11 +273,27 @@ export async function collectExampleFiles(examplesRoot) {
   return files;
 }
 
+/** Collect the test fixtures shared across package test suites. */
+export async function collectFixtureFiles(fixturesRoot) {
+  const files = [];
+  // A missing scan root must fail, like the examples root: silently scanning
+  // nothing is what makes a boundary check green and worthless.
+  for (const filePath of await walkSource(fixturesRoot, { required: true })) {
+    files.push({
+      package: 'fixtures',
+      path: filePath,
+      content: await readFile(filePath, 'utf8')
+    });
+  }
+  return files;
+}
+
 /** Collect every source file governed by the boundary scanner. */
 export async function collectAll(root = ROOT) {
   return [
     ...(await collectWorkspaceFiles(path.join(root, 'packages'))),
-    ...(await collectExampleFiles(path.join(root, 'examples')))
+    ...(await collectExampleFiles(path.join(root, 'examples'))),
+    ...(await collectFixtureFiles(path.join(root, 'test', 'support')))
   ];
 }
 
@@ -433,7 +334,7 @@ export async function assertCoverage(files, root = ROOT) {
     }
   }
 
-  const allowMap = { ...ALLOW_MAP, ...EXAMPLE_ALLOW_MAP };
+  const allowMap = { ...ALLOW_MAP, ...EXAMPLE_ALLOW_MAP, ...FIXTURE_ALLOW_MAP };
   for (const [unit, allowed] of Object.entries(allowMap)) {
     if (allowed.some((dependency) => CONCRETE_RUNTIME.has(dependency))) {
       if (WIRING_MODULES[unit] === undefined) {

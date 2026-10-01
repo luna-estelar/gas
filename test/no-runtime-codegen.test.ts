@@ -84,7 +84,7 @@ const CONFIG_PATHS_SCRIPT = `
   };
   const clock = { now: () => 0, schedule: () => ({ token: 0 }), cancel() {} };
   const renderer = await createRenderer({
-    clock, connector, connectorConfig: { level: 2 }, checkConnectorContract: true
+    clock, connector, connectorConfig: { level: 2 }
   });
   await renderer.updateConnectorConfig({ level: 3 });
   const rejected = await renderer.updateConnectorConfig({ level: 'loud' }).then(() => false, () => true);

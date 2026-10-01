@@ -3,9 +3,9 @@ import { ConnectorError } from '@luna-estelar/gas-protocol';
 import type { CapabilitiesTable, InputState, RendererFailure } from '@luna-estelar/gas-protocol';
 import { describe, expect, it } from 'vitest';
 import { createRenderer, RendererError } from '../src/index.js';
-import { FakeConnector } from './support/fake-connector.js';
-import { testTimeline } from './support/timeline.js';
-import { VirtualClock } from './support/virtual-clock.js';
+import { FakeConnector } from '../../../test/support/fake-connector.js';
+import { testTimeline } from '../../../test/support/timeline.js';
+import { VirtualClock } from '../../../test/support/virtual-clock.js';
 
 describe('renderer connector failure propagation', () => {
   it('preserves a ConnectorError thrown from describe', async () => {

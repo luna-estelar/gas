@@ -151,6 +151,9 @@ export class ChainedSourceEngine implements PlaybackEngine {
   }
 
   flush(): void {
+    // A closed engine has already stopped its sources and disconnected its gain
+    // node; a late flush from a listener still unwinding must not touch either.
+    if (this.closed) return;
     this.cancelPrebuffer();
     const stopAt = this.context.currentTime + FLUSH_RAMP_SECONDS;
     this.rampGainTo0(FLUSH_RAMP_SECONDS);
@@ -164,21 +167,6 @@ export class ChainedSourceEngine implements PlaybackEngine {
     this.resetRun(undefined);
     // A session flushes on every renderer stop, including one before any audio.
     if (this.state !== 'idle') this.setState('stopped');
-  }
-
-  async fadeOut(seconds: number): Promise<void> {
-    if (this.closed) return;
-    const duration = Math.max(0, seconds);
-    this.rampGainTo0(duration);
-    await new Promise<void>((resolve) => {
-      this.clock.schedule(this.clock.now() + duration, resolve);
-    });
-  }
-
-  restoreGain(): void {
-    const now = this.context.currentTime;
-    this.master.gain.cancelScheduledValues(now);
-    this.master.gain.setValueAtTime(1, now);
   }
 
   status(): AudioStatus {

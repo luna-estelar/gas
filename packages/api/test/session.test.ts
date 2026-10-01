@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createSession, GasOperationError, type SessionState } from '../src/index.js';
+import { createSession, GasOperationError, sourceBlob, type SessionState } from '../src/index.js';
 import { capabilities, capabilitiesWith, createFakeWiring } from './support/fake-renderer.js';
 
 const SOURCE = `tempo 120
@@ -119,6 +119,34 @@ describe('command forwarding', () => {
     const result = await session.setTempo(140);
     expect(result.requestedPosition).toBeUndefined();
     expect(result.appliedPosition).toBeUndefined();
+  });
+
+  // A live submission resolves its source and loads the compiler before it can
+  // apply anything, and both of those yield. It used to read the session state
+  // before that wait and write the result afterwards, so a programmatic command
+  // accepted in between was committed and then silently discarded. The source is
+  // gated here rather than timed, so the case holds however many times the
+  // implementation happens to await.
+  it('keeps a command accepted while a live submission was still preparing', async () => {
+    const { session } = await loadedSession();
+    let release = (): void => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    const live = session.submitLiveCommands(
+      sourceBlob({
+        text: async () => {
+          await gate;
+          return 'tempo 140';
+        }
+      })
+    );
+    await session.defineTrack({ id: 'host.late', name: 'Late' });
+    release();
+
+    expect(await live).toMatchObject({ ok: true, applied: 1 });
+    expect(session.getTracks().map((track) => track.id)).toContain('host.late');
   });
 });
 

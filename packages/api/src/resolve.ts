@@ -2,7 +2,9 @@
 // New declarations use the compiler's track.<slug> ID scheme; Core checks collisions.
 
 import type { InputState } from '@luna-estelar/gas-core';
-import { slugify } from '@luna-estelar/gas-language';
+// From Protocol, not the language barrel: this module is on the eager path of
+// every host that imports a session, and the barrel would pull the parser in.
+import { slugify } from '@luna-estelar/gas-protocol';
 
 // Resolve a live reference to a Core track id. Display names win over ids and
 // authored tracks over host tracks, matching the compiler's first-declared

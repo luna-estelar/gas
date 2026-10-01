@@ -7,7 +7,7 @@ session → renderer → connector → model`.
 
 [![npm](https://img.shields.io/npm/v/@luna-estelar/gas-core)](https://www.npmjs.com/package/@luna-estelar/gas-core)
 [![license](https://img.shields.io/npm/l/@luna-estelar/gas-core)](https://github.com/luna-estelar/gas/blob/main/LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/ci.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/release.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/release.yml)
 
 ## Install
 
@@ -48,7 +48,7 @@ console.log(state.tracks);
 | `secondsPerBar`, `secondsPerBeat`                                            | Durations at a tempo and meter                                       |
 | `DEFAULT_TEMPO`, `DEFAULT_TIME_SIGNATURE`, `TICKS_PER_BEAT`                  | Defaults, and the resolution of derived beat offsets (960)           |
 | `Command`, `InputState`, `EffectiveState`, `TempoSegment`, `TimelineProblem` | The type families above                                              |
-| `packageName`, `version`                                                     | This package's name and version                                      |
+| `version`                                                                    | This package's version                                               |
 
 ## Musical time
 

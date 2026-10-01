@@ -6,7 +6,7 @@ packages, pinned to one tested set of versions.
 
 [![npm](https://img.shields.io/npm/v/@luna-estelar/gas)](https://www.npmjs.com/package/@luna-estelar/gas)
 [![license](https://img.shields.io/npm/l/@luna-estelar/gas)](https://github.com/luna-estelar/gas/blob/main/LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/ci.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/release.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/release.yml)
 
 ## Install
 
@@ -63,7 +63,7 @@ subpath that mirrors it:
 | `@luna-estelar/gas/lyria`                                                    | `@luna-estelar/gas-connector-lyria`     |
 | `@luna-estelar/gas/browser/{session,audio,capture,compile,timeline,inspect}` | `@luna-estelar/gas-browser/*`           |
 
-The root exports `packageName` and `version` for this package; each subpath exports the
+The root exports `version` for this package; each subpath exports the
 underlying package's own.
 
 ### Why most of GAS is behind subpaths

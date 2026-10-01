@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ConnectorError } from '@luna-estelar/gas-protocol';
 import { createPromptTransition, type PromptSender } from '../src/transition.js';
 import type { WeightedPrompt } from '../src/prompts.js';
-import { VirtualClock } from './support/virtual-clock.js';
+import { VirtualClock } from '../../../test/support/virtual-clock.js';
 
 async function flushAsync(): Promise<void> {
   for (let i = 0; i < 12; i++) await Promise.resolve();

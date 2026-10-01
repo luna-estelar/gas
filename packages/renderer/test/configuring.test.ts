@@ -1,9 +1,9 @@
 import { createInputState } from '@luna-estelar/gas-core';
 import { describe, expect, it } from 'vitest';
 import { createRenderer } from '../src/index.js';
-import { FakeConnector } from './support/fake-connector.js';
-import { testTimeline } from './support/timeline.js';
-import { VirtualClock } from './support/virtual-clock.js';
+import { FakeConnector } from '../../../test/support/fake-connector.js';
+import { testTimeline } from '../../../test/support/timeline.js';
+import { VirtualClock } from '../../../test/support/virtual-clock.js';
 
 describe('renderer configuration', () => {
   it('keeps editable defaults separate from built-in timing fallbacks', async () => {

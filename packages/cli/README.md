@@ -6,7 +6,7 @@ connector → model` from a terminal.
 
 [![npm](https://img.shields.io/npm/v/@luna-estelar/gas-cli)](https://www.npmjs.com/package/@luna-estelar/gas-cli)
 [![license](https://img.shields.io/npm/l/@luna-estelar/gas-cli)](https://github.com/luna-estelar/gas/blob/main/LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/ci.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/release.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/release.yml)
 
 ## Install
 
@@ -46,12 +46,12 @@ console.log(exitCode, files.get('song.json'));
 
 ## Exports
 
-| Export                   | Purpose                                                    |
-| ------------------------ | ---------------------------------------------------------- |
-| `run`                    | Run the command with `process.argv` and set the exit code  |
-| `execute`                | Run the command against supplied I/O; returns an exit code |
-| `CliIo`                  | The I/O interface `execute` takes                          |
-| `packageName`, `version` | This package's name and version                            |
+| Export    | Purpose                                                    |
+| --------- | ---------------------------------------------------------- |
+| `run`     | Run the command with `process.argv` and set the exit code  |
+| `execute` | Run the command against supplied I/O; returns an exit code |
+| `CliIo`   | The I/O interface `execute` takes                          |
+| `version` | This package's version                                     |
 
 ## Usage
 

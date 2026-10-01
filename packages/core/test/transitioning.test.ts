@@ -65,14 +65,6 @@ describe('stop, completion, and retry clear overrides and keep host tracks', () 
     });
   }
 
-  it('applyRetry preserves host tracks specifically (the retry rule)', () => {
-    const state = loadedState();
-    const next = applyRetry(state);
-    expect(next.hostTracks).toEqual(state.hostTracks);
-    expect(next.staged).toEqual([]);
-    expect(next.live).toEqual([]);
-  });
-
   it('after stop, the authored document alone determines effective state', () => {
     // No host tracks here, so a stopped state should derive identically to a
     // freshly loaded one — the "authored document alone" sentence, tested literally.

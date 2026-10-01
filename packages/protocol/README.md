@@ -6,7 +6,7 @@ connector interfaces, with the JSON Schemas that define them. It depends on no o
 
 [![npm](https://img.shields.io/npm/v/@luna-estelar/gas-protocol)](https://www.npmjs.com/package/@luna-estelar/gas-protocol)
 [![license](https://img.shields.io/npm/l/@luna-estelar/gas-protocol)](https://github.com/luna-estelar/gas/blob/main/LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/ci.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/release.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/release.yml)
 
 ## Install
 
@@ -35,7 +35,8 @@ if (!result.ok) console.log(result.issues);
 | `.`            | `Renderer`, `Connector`, `MonotonicClock`, `AudioChunk`, `RendererFailure`, …        | Renderer, connector, clock and audio contracts                  |
 | `.`            | `ConnectorConfigProblem`, `ConnectorConfigValidation`                                | Connector-owned configuration validation results                |
 | `.`            | `ConnectorError`, `isCloseCode`                                                      | The connector failure class, and the one close-code range check |
-| `.`            | `packageName`, `version`                                                             | This package's name and version                                 |
+| `.`            | `slugify`                                                                            | How a display name becomes a timeline id segment                |
+| `.`            | `version`                                                                            | This package's version                                          |
 | `./validation` | `validateTimelinePayload`, `PROTOCOL_SCHEMA_IDS`                                     | Structural timeline validation with a precompiled validator     |
 | `./schemas/*`  | `schemas/1.0/*.schema.json`                                                          | Draft 2020-12 JSON Schemas for every JSON-compatible value      |
 
@@ -127,8 +128,8 @@ unchanged.
 A connector validates its own configuration through the optional `validateConfig`. It takes a
 proposed `ConnectorConfig` and returns `ConnectorConfigValidation`, either `{ ok: true }` or
 `{ ok: false, problems }` with a list of `ConnectorConfigProblem`s. The Renderer calls it for the
-initial configuration and every edit, and, with `checkConnectorContract`, for the connector's own
-defaults. It never compiles a schema itself, which keeps it usable under a Content Security Policy
+connector's own defaults, the initial configuration and every edit. It never compiles a schema
+itself, which keeps it usable under a Content Security Policy
 without `'unsafe-eval'`.
 
 A `ConnectorConfigProblem` is a JSON Pointer `path` (the empty string for the root), a stable

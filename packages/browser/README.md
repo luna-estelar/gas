@@ -6,7 +6,7 @@ connector → model`.
 
 [![npm](https://img.shields.io/npm/v/@luna-estelar/gas-browser)](https://www.npmjs.com/package/@luna-estelar/gas-browser)
 [![license](https://img.shields.io/npm/l/@luna-estelar/gas-browser)](https://github.com/luna-estelar/gas/blob/main/LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/ci.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/release.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/release.yml)
 
 ## Install
 

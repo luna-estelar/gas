@@ -18,7 +18,7 @@ import {
 } from '../src/connector.js';
 import { DEFAULT_LYRIA_CONFIG } from '../src/config.js';
 import { LYRIA_MODEL_ID } from '../src/constants.js';
-import { VirtualClock } from './support/virtual-clock.js';
+import { VirtualClock } from '../../../test/support/virtual-clock.js';
 
 async function flushAsync(): Promise<void> {
   for (let index = 0; index < 12; index++) await Promise.resolve();
@@ -163,10 +163,11 @@ async function beginStart(
   connector: Connector,
   sink: AudioSink,
   sdk: SdkHarness,
-  runId = 'run-1'
+  runId = 'run-1',
+  timing: ConnectorTiming = TIMING
 ): Promise<{ readonly started: Promise<void> }> {
   const expectedCallbacks = sdk.callbacks.length + 1;
-  const started = connector.start(sink, TIMING, runId);
+  const started = connector.start(sink, timing, runId);
   await flushAsync();
   expect(sdk.callbacks).toHaveLength(expectedCallbacks);
   return { started };
@@ -176,11 +177,22 @@ async function completeStart(
   connector: Connector,
   sink: AudioSink,
   sdk: SdkHarness,
-  runId = 'run-1'
+  runId = 'run-1',
+  timing: ConnectorTiming = TIMING
 ): Promise<void> {
-  const { started } = await beginStart(connector, sink, sdk, runId);
+  const { started } = await beginStart(connector, sink, sdk, runId, timing);
   sdk.callbacks.at(-1)!.onmessage({ setupComplete: {} });
   await started;
+}
+
+/** `TIMING` in another meter, at a tempo counted in that meter's beat unit. */
+function timingIn(beatsPerBar: number, beatUnit: number, tempo: number): ConnectorTiming {
+  return {
+    ...TIMING,
+    tempo,
+    timeSignature: { beatsPerBar, beatUnit },
+    secondsPerBar: (60 / tempo) * beatsPerBar
+  };
 }
 
 describe('Lyria connector description and settings', () => {
@@ -354,6 +366,47 @@ describe('Lyria connector startup and model configuration', () => {
       guidance: 4,
       topK: 40
     });
+  });
+
+  // A GAS tempo counts the meter's beat unit; Lyria's bpm counts quarter notes.
+  // Without the conversion every non-quarter meter would be generated at the
+  // wrong tempo, and clamping would be decided against the wrong number.
+  it.each([
+    { meter: '4/4', beatsPerBar: 4, beatUnit: 4, tempo: 120, bpm: 120, clamped: false },
+    { meter: '6/8', beatsPerBar: 6, beatUnit: 8, tempo: 120, bpm: 60, clamped: false },
+    { meter: '6/8', beatsPerBar: 6, beatUnit: 8, tempo: 90, bpm: 60, clamped: true },
+    { meter: '2/2', beatsPerBar: 2, beatUnit: 2, tempo: 120, bpm: 200, clamped: true }
+  ])(
+    'sends $tempo bpm in $meter as $bpm quarter-note bpm',
+    async ({ beatsPerBar, beatUnit, tempo, bpm, clamped }) => {
+      const { connector, sdk, sink, warnings } = setup();
+      const state = { ...INITIAL_STATE, globals: { ...INITIAL_STATE.globals, tempo } };
+      await prepare(connector, { apiKey: 'test-key' }, state);
+      await completeStart(connector, sink, sdk, 'run-1', timingIn(beatsPerBar, beatUnit, tempo));
+
+      expect(sdk.sessions[0].calls[0].value).toMatchObject({ bpm });
+      expect(warnings.map((warning) => warning.code)).toEqual(
+        clamped ? ['lyria-tempo-clamped'] : []
+      );
+    }
+  );
+
+  it('converts a live tempo change in a non-quarter meter and resets context', async () => {
+    const { connector, sdk, sink } = setup();
+    const state = { ...INITIAL_STATE, globals: { ...INITIAL_STATE.globals, tempo: 120 } };
+    await prepare(connector, { apiKey: 'test-key' }, state);
+    await completeStart(connector, sink, sdk, 'run-1', timingIn(6, 8, 120));
+    expect(sdk.sessions[0].calls[0].value).toMatchObject({ bpm: 60 });
+    sdk.sessions[0].calls.length = 0;
+
+    await connector.update(
+      { state: { ...state, globals: { ...state.globals, tempo: 160 } } },
+      { bar: 3 }
+    );
+    // Config and reset, but no prompt send: a tempo change alters the model
+    // context without altering a single prompt.
+    expect(sdk.sessions[0].calls.map((call) => call.kind)).toEqual(['config', 'reset']);
+    expect(sdk.sessions[0].calls[0].value).toMatchObject({ bpm: 80 });
   });
 
   it('clamps tempo and warns once for each distinct out-of-range value', async () => {

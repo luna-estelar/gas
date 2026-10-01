@@ -36,8 +36,6 @@ export interface PlaybackEngine {
   push(chunk: AudioChunk): void;
   /** Drop everything, ramping the gain to 0 over about 20 ms first. */
   flush(): void;
-  fadeOut(seconds: number): Promise<void>;
-  restoreGain(): void;
   status(): AudioStatus;
   on(event: 'status', listener: (status: AudioStatus) => void): () => void;
   on(event: 'warning', listener: (warning: AudioWarning) => void): () => void;

@@ -12,7 +12,18 @@ import {
   type CommandFailure,
   type InputState
 } from '@luna-estelar/gas-core';
-import { compileSource, parseLiveCommands } from '@luna-estelar/gas-language';
+// Not imported statically. The compiler carries Langium and Chevrotain, which
+// together dwarf everything else in the GAS tree, and a host that only drives a
+// session — loading a compiled timeline, sending commands, playing — never needs
+// them. A static import would put that graph on the eager path of every entry
+// point that reaches a session, including the umbrella's root. Every method that
+// compiles is already async, so the cost of loading on demand is a chunk fetch
+// on first use and nothing at all otherwise.
+type LanguageModule = typeof import('@luna-estelar/gas-language');
+let languageModule: Promise<LanguageModule> | undefined;
+function language(): Promise<LanguageModule> {
+  return (languageModule ??= import('@luna-estelar/gas-language'));
+}
 import type {
   CapabilitiesTable,
   Command,
@@ -34,7 +45,6 @@ export type { CompileResult, LoadResult } from '@luna-estelar/gas-protocol';
 
 import { liveStatementToCommand } from './commands.js';
 import { EventHub, type SessionEvent, type SessionEventMap } from './events.js';
-import { AcceptedRun } from './run.js';
 import { resolveSource, type SourceInput } from './source.js';
 import type { SessionWiring } from './wiring.js';
 import {
@@ -78,7 +88,9 @@ export async function createSession(wiring: SessionWiring): Promise<GasSession> 
 
 export class GasSession {
   private readonly events = new EventHub();
-  private readonly acceptedRun = new AcceptedRun();
+  // The renderer run whose audio, positions and terminal status this session
+  // accepts. Events tagged with any other run are from an older run and dropped.
+  private acceptedRunId: string | undefined;
   private rendererInstance: Renderer;
   private rendererUnsubs: Array<() => void> = [];
   private capabilities: CapabilitiesTable;
@@ -107,7 +119,8 @@ export class GasSession {
   async compileSource(input: SourceInput, options: CompileOptions = {}): Promise<CompileResult> {
     const { text, name } = await resolveSource(input);
     const sourceName = options.name ?? name;
-    const result = compileSource(text, {
+    const lang = await language();
+    const result = lang.compileSource(text, {
       ...(sourceName !== undefined ? { name: sourceName } : {}),
       ...(options.timelineId !== undefined ? { timelineId: options.timelineId } : {})
     });
@@ -125,7 +138,7 @@ export class GasSession {
   // document and playback untouched.
   async loadSource(input: SourceInput, options: CompileOptions = {}): Promise<LoadResult> {
     const compiled = await this.compileSource(input, options);
-    const result = await this.commitTimeline(compiled.timeline, 'load');
+    const result = await this.commitTimeline(compiled.timeline);
     if (compiled.diagnostics.length > 0) {
       this.events.emit('diagnostic', { source: 'compile', diagnostics: compiled.diagnostics });
     }
@@ -134,7 +147,7 @@ export class GasSession {
 
   // Commit a canonical protocol 1.0 timeline. Core validates it before any
   // Renderer call; an invalid timeline rejects and leaves the session unchanged.
-  async loadTimeline(timeline: Timeline, _options: CompileOptions = {}): Promise<LoadResult> {
+  async loadTimeline(timeline: Timeline): Promise<LoadResult> {
     const validation = validateTimeline(timeline);
     if (!validation.ok) {
       throw new GasOperationError('The timeline is not valid.', {
@@ -143,12 +156,12 @@ export class GasSession {
         cause: validation.problems
       });
     }
-    return this.commitTimeline(timeline, 'load');
+    return this.commitTimeline(timeline);
   }
 
-  private async commitTimeline(timeline: Timeline, reason: 'load' | 'retry'): Promise<LoadResult> {
+  private async commitTimeline(timeline: Timeline): Promise<LoadResult> {
     this.ensureOpen();
-    if (reason === 'load' && this.phase !== 'stopped') {
+    if (this.phase !== 'stopped') {
       throw new GasOperationError('Stop the session before loading a new document.', {
         kind: 'lifecycle'
       });
@@ -165,7 +178,7 @@ export class GasSession {
       });
     }
     this.input = next;
-    this.acceptedRun.clear();
+    this.acceptedRunId = undefined;
     this.phase = 'stopped';
     this.emitState();
     const warnings = warningsForTimeline(timeline, this.capabilities).map((warning) =>
@@ -246,16 +259,26 @@ export class GasSession {
   // successes stay committed; a later failure resolves with a failure payload
   // (partial success). A failure before anything commits rejects.
   async submitLiveCommands(input: SourceInput): Promise<LiveCommandResult> {
+    // Checked up front so an unloaded or closed session fails before any work,
+    // and so those errors keep precedence over a parse error.
     this.ensureOpen();
-    let state = this.requireInput();
+    this.requireInput();
     const { text } = await resolveSource(input);
-    const parsed = parseLiveCommands(text);
+    const parsed = (await language()).parseLiveCommands(text);
     if (!parsed.ok) {
       throw new GasOperationError('The live commands could not be parsed.', {
         kind: 'live',
         diagnostics: parsed.diagnostics
       });
     }
+
+    // Read the state only now. Resolving the source and loading the compiler
+    // both yield, and a programmatic command accepted while this submission was
+    // preparing has already committed its own state — applying onto a snapshot
+    // taken before those awaits would silently discard it on the write below.
+    // Everything from here to `this.input = state` runs without yielding, so
+    // there is no window left.
+    let state = this.requireInput();
 
     const options = this.applyOptions();
     const warnings: SessionWarning[] = [];
@@ -322,7 +345,7 @@ export class GasSession {
     } finally {
       this.playPending = false;
     }
-    this.acceptedRun.accept(runId);
+    this.acceptedRunId = runId;
     this.phase = 'active';
     this.emitState();
   }
@@ -332,7 +355,7 @@ export class GasSession {
   // stopped even if the Renderer stop fails.
   async stop(): Promise<void> {
     this.ensureOpen();
-    this.acceptedRun.clear();
+    this.acceptedRunId = undefined;
     if (this.lifecycle === 'ready') {
       try {
         await this.rendererInstance.stop();
@@ -365,7 +388,7 @@ export class GasSession {
     } catch {
       // A failed Renderer may reject on close; the point is to discard it.
     }
-    this.acceptedRun.clear();
+    this.acceptedRunId = undefined;
     this.phase = 'stopped';
     if (this.input !== undefined) {
       this.input = applyRetry(this.input);
@@ -415,7 +438,7 @@ export class GasSession {
     if (this.closed) return;
     this.closed = true;
     this.detachRenderer();
-    this.acceptedRun.clear();
+    this.acceptedRunId = undefined;
     this.phase = 'stopped';
     try {
       await this.rendererInstance.close();
@@ -511,7 +534,7 @@ export class GasSession {
       lifecycle: this.lifecycle,
       playback: this.phase,
       timelineLoaded: this.input !== undefined,
-      ...(this.acceptedRun.id !== undefined ? { runId: this.acceptedRun.id } : {}),
+      ...(this.acceptedRunId !== undefined ? { runId: this.acceptedRunId } : {}),
       tracks: this.trackViews()
     };
   }
@@ -536,7 +559,7 @@ export class GasSession {
 
   private markRendererFailed(): void {
     this.lifecycle = 'failed';
-    this.acceptedRun.clear();
+    this.acceptedRunId = undefined;
     this.phase = 'stopped';
   }
 
@@ -569,14 +592,18 @@ export class GasSession {
     }
   }
 
+  private acceptsRun(runId: string): boolean {
+    return this.acceptedRunId !== undefined && runId === this.acceptedRunId;
+  }
+
   private attachRenderer(renderer: Renderer): void {
     this.rendererUnsubs = [
       renderer.on('status', (status) => this.onRendererStatus(status)),
       renderer.on('position', (position) => {
-        if (this.acceptedRun.accepts(position.runId)) this.events.emit('position', position);
+        if (this.acceptsRun(position.runId)) this.events.emit('position', position);
       }),
       renderer.on('audio', (chunk) => {
-        if (this.acceptedRun.accepts(chunk.runId)) this.events.emit('audio', chunk);
+        if (this.acceptsRun(chunk.runId)) this.events.emit('audio', chunk);
       }),
       renderer.on('warning', (warning) => {
         this.events.warnRenderer(warning);
@@ -607,16 +634,15 @@ export class GasSession {
     // during our pending play call so initial audio/position events pass the
     // stale-run guard without weakening it for any later status.
     if (this.playPending && status.playback === 'starting' && status.runId !== undefined) {
-      this.acceptedRun.accept(status.runId);
+      this.acceptedRunId = status.runId;
     }
     // Apply completion before emitting lifecycle events so phase and state agree.
     // Only the Renderer's own `completed` flag ends a session: a provider that
     // ends its stream early is a stream that stopped, not a piece that finished.
     const endedThisRun =
-      status.completed === true &&
-      (status.runId === undefined || this.acceptedRun.accepts(status.runId));
+      status.completed === true && (status.runId === undefined || this.acceptsRun(status.runId));
     if (this.phase === 'active' && endedThisRun) {
-      this.acceptedRun.clear();
+      this.acceptedRunId = undefined;
       if (this.input !== undefined) this.input = applyCompletion(this.input);
       this.phase = 'stopped';
       this.emitState();

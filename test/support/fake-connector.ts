@@ -1,3 +1,8 @@
+// A scriptable Connector for tests. Shared from here rather than copied into
+// each package's test directory: the renderer, the browser session and the root
+// end-to-end tests all drive a connector, and three copies of this drifted apart
+// only by accident. It depends on Protocol alone, so it stays independent of
+// every implementation it is used to test.
 import type {
   AudioSink,
   CapabilitiesTable,

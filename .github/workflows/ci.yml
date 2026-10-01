@@ -1,8 +1,9 @@
+# Pull request verification. Pushes to main are covered by the Release workflow,
+# which runs this same `pnpm test` before it publishes, so main is verified once
+# rather than by two workflows racing each other.
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
 
 permissions:

@@ -6,7 +6,7 @@ playback, and observe state, warnings, positions and audio. It is the session st
 
 [![npm](https://img.shields.io/npm/v/@luna-estelar/gas-api)](https://www.npmjs.com/package/@luna-estelar/gas-api)
 [![license](https://img.shields.io/npm/l/@luna-estelar/gas-api)](https://github.com/luna-estelar/gas/blob/main/LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/ci.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/release.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/release.yml)
 
 ## Install
 
@@ -55,7 +55,7 @@ try {
 | `SessionWiring`, `RendererControl`                                                        | The renderer factory a host supplies, and the control the session keeps |
 | `SessionState`, `TrackView`, `CommandResult`, `LiveCommandResult`, `LoadResult`, …        | Results and state the session hands back                                |
 | `SessionEvent`, `SessionEventMap`, `LifecycleEvent`, `DiagnosticEvent`, `WarningEvent`, … | Event names and payloads                                                |
-| `packageName`, `version`                                                                  | This package's name and version                                         |
+| `version`                                                                                 | This package's version                                                  |
 
 ## Completion and failures
 

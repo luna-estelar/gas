@@ -6,7 +6,7 @@ configuration. It is the connector stage of `document → language → timeline 
 
 [![npm](https://img.shields.io/npm/v/@luna-estelar/gas-connector-lyria)](https://www.npmjs.com/package/@luna-estelar/gas-connector-lyria)
 [![license](https://img.shields.io/npm/l/@luna-estelar/gas-connector-lyria)](https://github.com/luna-estelar/gas/blob/main/LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/ci.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/release.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/release.yml)
 
 ## Install
 
@@ -41,7 +41,7 @@ A host passes the connector to `createRenderer` (or to `@luna-estelar/gas-browse
 | `translatePrompts`, `createPromptTransition`                                         | Turn effective state into weighted prompts and blend changes |
 | `classifyKey`, `LYRIA_SCALES`                                                        | Map a GAS key to the nearest Lyria scale                     |
 | `LyriaConnectorConfig`, `WeightedPrompt`, `PromptTransition`, `KeyClassification`, … | The type families above                                      |
-| `packageName`, `version`                                                             | This package's name and version                              |
+| `version`                                                                            | This package's version                                       |
 
 ## Settings
 
