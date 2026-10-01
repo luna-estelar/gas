@@ -1,6 +1,6 @@
 {
   "name": "@luna-estelar/gas-renderer",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Audio generation and playback: clock, scheduling, musical-to-clock conversion, and session state derived through gas-core.",
   "keywords": [
     "gas",

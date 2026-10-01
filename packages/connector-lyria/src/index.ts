@@ -1,6 +1,6 @@
 // Lyria prompt translation and transport. Vendor types remain behind the protocol boundary.
 
-export const version = '0.2.0';
+export const version = '0.2.1';
 
 export {
   LYRIA_CONFIG_SCHEMA,
