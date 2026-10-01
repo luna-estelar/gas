@@ -3,7 +3,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { compileSource, type GasDiagnostic } from '@luna-estelar/gas-language';
 
-export const version = '0.1.2';
+export const version = '0.1.3';
 
 export interface CliIo {
   readonly readFile: (path: string) => string;

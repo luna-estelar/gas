@@ -139,4 +139,4 @@ export { ConnectorError, isCloseCode } from './errors.js';
 
 export { slugify } from './ids.js';
 
-export const version = '0.2.0';
+export const version = '0.3.0';

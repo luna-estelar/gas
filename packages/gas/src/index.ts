@@ -7,4 +7,4 @@
 export * from '@luna-estelar/gas-api';
 
 // Local exports take precedence over the star export's own.
-export const version = '0.1.0';
+export const version = '0.2.0';
