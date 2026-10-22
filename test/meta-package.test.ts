@@ -43,6 +43,7 @@ const MIRRORS: Readonly<Record<string, string>> = {
   './notation': '@luna-estelar/gas-notation',
   './highlight': '@luna-estelar/gas-highlight',
   './lyria': '@luna-estelar/gas-connector-lyria',
+  './magenta': '@luna-estelar/gas-connector-magenta',
   './browser/session': '@luna-estelar/gas-browser/session',
   './browser/audio': '@luna-estelar/gas-browser/audio',
   './browser/capture': '@luna-estelar/gas-browser/capture',

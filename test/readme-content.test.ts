@@ -35,7 +35,8 @@ const STALE_CLAIMS = [
   'subsequent runtime update',
   'still validates configuration with AJV',
   'also installs this connector',
-  'first public preview'
+  'first public preview',
+  'Lyria is currently the only connector'
 ];
 
 // Package-specific sections may sit between Exports and Runtime support.

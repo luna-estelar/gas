@@ -33,6 +33,7 @@ sound; the same document does not guarantee the same performance on every render
 [Sessions](./packages/api/README.md) ·
 [Browser hosting](./packages/browser/README.md) ·
 [Lyria connector](./packages/connector-lyria/README.md) ·
+[Magenta connector](./packages/connector-magenta/README.md) ·
 [Examples](./examples/README.md)
 
 ## Try it
@@ -44,7 +45,9 @@ npx @luna-estelar/gas compile song.gas
 ```
 
 The CLI prints timeline JSON. Use `--out timeline.json` to write a file. Audio generation
-requires model access; see the [Lyria manual guide](./packages/connector-lyria/manual/README.md).
+requires model access: a Gemini key for Lyria (see the
+[Lyria manual guide](./packages/connector-lyria/manual/README.md)), or Magenta RealTime 2 running on
+your own machine (see the [Magenta bridge](./packages/connector-magenta/bridge/README.md)).
 
 ## Install
 
@@ -52,7 +55,7 @@ requires model access; see the [Lyria manual guide](./packages/connector-lyria/m
 npm install @luna-estelar/gas
 ```
 
-`@luna-estelar/gas` installs the language, the session runtime, the renderer, the Lyria connector
+`@luna-estelar/gas` installs the language, the session runtime, the renderer, the Lyria and Magenta connectors
 and the `gas` command. Its root is the application API; every package is also available at a
 subpath that mirrors it:
 
@@ -72,26 +75,27 @@ Each package is also published on its own. Use either the umbrella or individual
 both: the umbrella pins exact versions, so a separately installed package at another version is a
 second copy.
 
-| Package                             | Purpose                                                |
-| ----------------------------------- | ------------------------------------------------------ |
-| `@luna-estelar/gas`                 | Everything below, pinned to one tested set             |
-| `@luna-estelar/gas-protocol`        | Shared contracts and JSON Schemas                      |
-| `@luna-estelar/gas-language`        | Parsing, validation, compilation and live commands     |
-| `@luna-estelar/gas-core`            | Session state, command validation and state derivation |
-| `@luna-estelar/gas-api`             | Application-facing sessions and commands               |
-| `@luna-estelar/gas-renderer`        | Scheduling, clocks and audio delivery                  |
-| `@luna-estelar/gas-connector-lyria` | Lyria transport and prompt translation                 |
-| `@luna-estelar/gas-browser`         | Browser playback, composition and timeline helpers     |
-| `@luna-estelar/gas-cli`             | The `gas` command                                      |
-| `@luna-estelar/gas-notation`        | Alda notation and MIDI encoding                        |
-| `@luna-estelar/gas-highlight`       | Syntax classes and code-fence helpers                  |
+| Package                               | Purpose                                                |
+| ------------------------------------- | ------------------------------------------------------ |
+| `@luna-estelar/gas`                   | Everything below, pinned to one tested set             |
+| `@luna-estelar/gas-protocol`          | Shared contracts and JSON Schemas                      |
+| `@luna-estelar/gas-language`          | Parsing, validation, compilation and live commands     |
+| `@luna-estelar/gas-core`              | Session state, command validation and state derivation |
+| `@luna-estelar/gas-api`               | Application-facing sessions and commands               |
+| `@luna-estelar/gas-renderer`          | Scheduling, clocks and audio delivery                  |
+| `@luna-estelar/gas-connector-lyria`   | Lyria transport and prompt translation                 |
+| `@luna-estelar/gas-connector-magenta` | Magenta RealTime 2 transport, prompts and pitches      |
+| `@luna-estelar/gas-browser`           | Browser playback, composition and timeline helpers     |
+| `@luna-estelar/gas-cli`               | The `gas` command                                      |
+| `@luna-estelar/gas-notation`          | Alda notation and MIDI encoding                        |
+| `@luna-estelar/gas-highlight`         | Syntax classes and code-fence helpers                  |
 
 Each package has its own README, with exports and usage examples, and a changelog. Packages are
 ESM-only and versioned independently; internal dependencies use caret ranges, and the umbrella
 pins exact versions.
 
 For Node consumers, Protocol, Core, Notation, Renderer and the Lyria connector require
-Node 20 or newer. Language, Highlight, API, CLI and Browser require Node 22 or newer
+Node 20 or newer; the Magenta connector needs Node 22 for its global `WebSocket`. Language, Highlight, API, CLI and Browser require Node 22 or newer
 because their dependency tree includes Chevrotain. Browser runtime use is independent of
 these Node requirements.
 
@@ -107,7 +111,8 @@ controls. Each stage is its own package:
 [language](./packages/language/README.md), [protocol](./packages/protocol/README.md) (the
 timeline and every other shared contract), [core](./packages/core/README.md) and
 [api](./packages/api/README.md) (the session), [renderer](./packages/renderer/README.md) and
-[connector-lyria](./packages/connector-lyria/README.md). [browser](./packages/browser/README.md)
+[connector-lyria](./packages/connector-lyria/README.md) and
+[connector-magenta](./packages/connector-magenta/README.md). [browser](./packages/browser/README.md)
 composes them for a web page. `scripts/check-boundaries.mjs` enforces which package may import
 which.
 
@@ -118,21 +123,27 @@ and changelog; APIs may change in a minor release before 1.0, and breaking chang
 the changelog of the package they affect. The packages implement **Protocol 1.0**, which is
 distinct from any npm release version.
 
-Lyria is currently the only connector:
+There are two connectors. Lyria RealTime is Google's hosted model; Magenta RealTime 2 is its
+open-weights sibling, which runs on the listener's own machine behind a small local bridge.
 
-- `flavor`, `tempo` and `timbre` are supported.
-- `key` and `level` are approximated.
-- `time_signature`, `notes` and `motif` compile and remain in session state, but Lyria
-  cannot render them. GAS reports capability warnings.
+| Intent             | Lyria        | Magenta      |
+| ------------------ | ------------ | ------------ |
+| `flavor`, `timbre` | supported    | supported    |
+| `tempo`            | supported    | approximated |
+| `key`, `level`     | approximated | approximated |
+| `notes`, `motif`   | unsupported  | approximated |
+| `time_signature`   | unsupported  | unsupported  |
 
-See [what Lyria can and cannot do](./packages/connector-lyria/README.md#what-lyria-can-and-cannot-do)
+Unsupported intents compile and remain in session state, and GAS reports capability warnings. See
+[what Lyria can and cannot do](./packages/connector-lyria/README.md#what-lyria-can-and-cannot-do)
+and [what Magenta can and cannot do](./packages/connector-magenta/README.md#what-magenta-can-and-cannot-do)
 for details. The GAS website and its demos are maintained separately from this library.
 
 ## Repository and development
 
 | Path                                | Contents                                            |
 | ----------------------------------- | --------------------------------------------------- |
-| [`packages/`](./packages)           | The ten library packages and the umbrella           |
+| [`packages/`](./packages)           | The eleven library packages and the umbrella        |
 | [`examples/`](./examples/README.md) | Seven GAS documents and their shared manifest       |
 | [`test/`](./test/README.md)         | Integration and publication checks                  |
 | [`scripts/`](./scripts)             | Formatting, schema, boundary and publication checks |
@@ -162,7 +173,9 @@ pnpm test
 | `pnpm clean`                    | Remove TypeScript build outputs                                                      |
 
 The automated gate does not make model calls. Manual transport and listening checks are
-kept in the Lyria connector's manual guide.
+kept in the [Lyria](./packages/connector-lyria/manual/README.md) and
+[Magenta](./packages/connector-magenta/manual/README.md) connectors' manual guides. The Magenta
+bridge has its own Python tests (`python -m pytest` in `packages/connector-magenta/bridge`).
 
 ## Contributing and license
 

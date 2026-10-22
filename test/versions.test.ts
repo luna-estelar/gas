@@ -12,6 +12,7 @@ import { version as apiVersion } from '../packages/api/src/index.js';
 import { version as browserVersion } from '../packages/browser/src/session.js';
 import { version as cliVersion } from '../packages/cli/src/index.js';
 import { version as connectorVersion } from '../packages/connector-lyria/src/index.js';
+import { version as magentaVersion } from '../packages/connector-magenta/src/index.js';
 import { version as coreVersion } from '../packages/core/src/index.js';
 import { version as gasVersion } from '../packages/gas/src/index.js';
 import { compileSource, version as languageVersion } from '../packages/language/src/index.js';
@@ -39,6 +40,7 @@ const EXPORTED: ReadonlyArray<readonly [string, string]> = [
   ['browser', browserVersion],
   ['cli', cliVersion],
   ['connector-lyria', connectorVersion],
+  ['connector-magenta', magentaVersion],
   ['core', coreVersion],
   ['gas', gasVersion],
   ['language', languageVersion],

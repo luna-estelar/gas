@@ -106,6 +106,19 @@
     "validateLyriaConfig",
     "version"
   ],
+  "./magenta": [
+    "DEFAULT_MAGENTA_CONFIG",
+    "MAGENTA_BRIDGE_PROTOCOL",
+    "MAGENTA_CAPABILITIES",
+    "MAGENTA_CONFIG_SCHEMA",
+    "MAGENTA_DEFAULT_ENDPOINT",
+    "createMagentaConnector",
+    "resolveMagentaConfig",
+    "selectPitches",
+    "translatePrompts",
+    "validateMagentaConfig",
+    "version"
+  ],
   "./browser/session": ["createBrowserSession", "version"],
   "./browser/audio": ["AudioClock", "ChainedSourceEngine", "detectSupport", "openAudioContext"],
   "./browser/capture": ["PcmCapture", "decodeS16lePcm", "encodeWave"],

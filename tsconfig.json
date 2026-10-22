@@ -9,6 +9,7 @@
     { "path": "packages/core" },
     { "path": "packages/renderer" },
     { "path": "packages/connector-lyria" },
+    { "path": "packages/connector-magenta" },
     { "path": "packages/cli" },
     { "path": "packages/browser" },
     { "path": "packages/gas" }

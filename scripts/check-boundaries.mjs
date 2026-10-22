@@ -14,6 +14,7 @@ export const ALLOW_MAP = {
   core: ['protocol'],
   renderer: ['protocol', 'core', 'notation'],
   'connector-lyria': ['protocol'],
+  'connector-magenta': ['protocol', 'notation'],
   cli: ['language'],
   browser: ['protocol', 'language', 'core', 'api', 'renderer'],
   gas: [
@@ -25,6 +26,7 @@ export const ALLOW_MAP = {
     'notation',
     'highlight',
     'connector-lyria',
+    'connector-magenta',
     'cli',
     'browser'
   ]
@@ -44,14 +46,17 @@ export const FIXTURE_ALLOW_MAP = {
   fixtures: ['protocol']
 };
 
-const CONCRETE_RUNTIME = new Set(['renderer', 'connector-lyria']);
+const CONCRETE_RUNTIME = new Set(['renderer', 'connector-lyria', 'connector-magenta']);
 
 /**
  * Runtime composition modules, keyed by package: the only files in that package
  * that may import a concrete runtime. A facade that re-exports several of them
  * lists one module per runtime.
  */
-export const WIRING_MODULES = { browser: 'session.ts', gas: ['renderer.ts', 'lyria.ts'] };
+export const WIRING_MODULES = {
+  browser: 'session.ts',
+  gas: ['renderer.ts', 'lyria.ts', 'magenta.ts']
+};
 
 // Units allowed to contain no scannable source files.
 const EXPECTED_EMPTY = new Set();

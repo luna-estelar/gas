@@ -1,7 +1,7 @@
 # @luna-estelar/gas
 
 GAS (Generative Audio Syntax) in one install: the language, the session runtime, the renderer and
-the Lyria connector, with the `gas` command. It re-exports the individual `@luna-estelar/gas-*`
+the Lyria and Magenta connectors, with the `gas` command. It re-exports the individual `@luna-estelar/gas-*`
 packages, pinned to one tested set of versions.
 
 [![npm](https://img.shields.io/npm/v/@luna-estelar/gas)](https://www.npmjs.com/package/@luna-estelar/gas)
@@ -61,6 +61,7 @@ subpath that mirrors it:
 | `@luna-estelar/gas/notation`                                                 | `@luna-estelar/gas-notation`            |
 | `@luna-estelar/gas/highlight`                                                | `@luna-estelar/gas-highlight`           |
 | `@luna-estelar/gas/lyria`                                                    | `@luna-estelar/gas-connector-lyria`     |
+| `@luna-estelar/gas/magenta`                                                  | `@luna-estelar/gas-connector-magenta`   |
 | `@luna-estelar/gas/browser/{session,audio,capture,compile,timeline,inspect}` | `@luna-estelar/gas-browser/*`           |
 
 The root exports `version` for this package; each subpath exports the
@@ -95,8 +96,8 @@ globally, not both; npm refuses to link a second `gas` over the first.
 
 - ESM only.
 - Node.js 22 or newer.
-- The root, `api`, `protocol`, `core`, `renderer`, `notation`, `highlight`, `language` and `lyria`
-  run in Node and in browsers. `browser/*` targets browsers and imports without touching browser
+- The root, `api`, `protocol`, `core`, `renderer`, `notation`, `highlight`, `language`, `lyria` and
+  `magenta` run in Node and in browsers. `browser/*` targets browsers and imports without touching browser
   globals.
 - TypeScript types ship with every entry point.
 

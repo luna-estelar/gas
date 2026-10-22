@@ -1,12 +1,13 @@
 {
   "name": "@luna-estelar/gas",
   "version": "0.2.0",
-  "description": "GAS — Generative Audio Syntax. Language, runtime and Lyria connector in one install.",
+  "description": "GAS \u2014 Generative Audio Syntax. Language, runtime and the Lyria and Magenta connectors in one install.",
   "keywords": [
     "gas",
     "generative-audio",
     "music",
     "lyria",
+    "magenta",
     "dsl"
   ],
   "homepage": "https://gas.lunaestelar.com",
@@ -75,6 +76,10 @@
       "types": "./out/lyria.d.ts",
       "default": "./out/lyria.js"
     },
+    "./magenta": {
+      "types": "./out/magenta.d.ts",
+      "default": "./out/magenta.js"
+    },
     "./browser/session": {
       "types": "./out/browser/session.d.ts",
       "default": "./out/browser/session.js"
@@ -113,6 +118,7 @@
     "@luna-estelar/gas-browser": "workspace:*",
     "@luna-estelar/gas-cli": "workspace:*",
     "@luna-estelar/gas-connector-lyria": "workspace:*",
+    "@luna-estelar/gas-connector-magenta": "workspace:*",
     "@luna-estelar/gas-core": "workspace:*",
     "@luna-estelar/gas-highlight": "workspace:*",
     "@luna-estelar/gas-language": "workspace:*",

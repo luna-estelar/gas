@@ -1,0 +1,59 @@
+{
+  "name": "@luna-estelar/gas-connector-magenta",
+  "version": "0.0.0",
+  "description": "Model-specific Magenta RealTime 2 boundary: style prompts, notes, transport and config interpretation.",
+  "keywords": [
+    "gas",
+    "generative-audio",
+    "music",
+    "magenta",
+    "connector"
+  ],
+  "homepage": "https://gas.lunaestelar.com",
+  "bugs": {
+    "url": "https://github.com/luna-estelar/gas/issues"
+  },
+  "license": "MIT",
+  "author": "sathira10 (https://github.com/sathira10)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/luna-estelar/gas.git",
+    "directory": "packages/connector-magenta"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "main": "./out/index.js",
+  "module": "./out/index.js",
+  "types": "./out/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./out/index.d.ts",
+      "default": "./out/index.js"
+    }
+  },
+  "files": [
+    "bridge/gas_magenta_bridge.py",
+    "bridge/PROTOCOL.md",
+    "bridge/README.md",
+    "out",
+    "src"
+  ],
+  "scripts": {
+    "clean": "tsc -b --clean",
+    "manual:render": "node manual/render.mjs"
+  },
+  "dependencies": {
+    "@luna-estelar/gas-notation": "workspace:^",
+    "@luna-estelar/gas-protocol": "workspace:^"
+  },
+  "devDependencies": {
+    "@luna-estelar/gas-core": "workspace:^",
+    "@luna-estelar/gas-language": "workspace:^"
+  }
+}

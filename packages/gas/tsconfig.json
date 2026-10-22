@@ -32,6 +32,9 @@
       "path": "../connector-lyria"
     },
     {
+      "path": "../connector-magenta"
+    },
+    {
       "path": "../cli"
     },
     {

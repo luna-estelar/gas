@@ -94,6 +94,22 @@ importers:
         specifier: workspace:^
         version: link:../language
 
+  packages/connector-magenta:
+    dependencies:
+      '@luna-estelar/gas-notation':
+        specifier: workspace:^
+        version: link:../notation
+      '@luna-estelar/gas-protocol':
+        specifier: workspace:^
+        version: link:../protocol
+    devDependencies:
+      '@luna-estelar/gas-core':
+        specifier: workspace:^
+        version: link:../core
+      '@luna-estelar/gas-language':
+        specifier: workspace:^
+        version: link:../language
+
   packages/core:
     dependencies:
       '@luna-estelar/gas-protocol':
@@ -114,6 +130,9 @@ importers:
       '@luna-estelar/gas-connector-lyria':
         specifier: workspace:*
         version: link:../connector-lyria
+      '@luna-estelar/gas-connector-magenta':
+        specifier: workspace:*
+        version: link:../connector-magenta
       '@luna-estelar/gas-core':
         specifier: workspace:*
         version: link:../core

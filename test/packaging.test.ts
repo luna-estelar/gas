@@ -69,8 +69,8 @@ function exportTargets(node: unknown, out: string[] = []): string[] {
 }
 
 describe('publishable packages', () => {
-  test('there are eleven of them', () => {
-    expect(packages).toHaveLength(11);
+  test('there are twelve of them', () => {
+    expect(packages).toHaveLength(12);
   });
 
   test.each(packages)('$manifest.name carries its own LICENSE', ({ root }) => {

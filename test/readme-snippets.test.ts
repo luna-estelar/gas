@@ -84,6 +84,7 @@ const PACKAGE_DIRS: Readonly<Record<string, string>> = {
   'gas-renderer': 'renderer',
   'gas-api': 'api',
   'gas-connector-lyria': 'connector-lyria',
+  'gas-connector-magenta': 'connector-magenta',
   'gas-cli': 'cli'
 };
 

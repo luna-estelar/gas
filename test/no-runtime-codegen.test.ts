@@ -27,6 +27,7 @@ const ENTRYPOINTS = [
   '@luna-estelar/gas-core',
   '@luna-estelar/gas-renderer',
   '@luna-estelar/gas-api',
+  '@luna-estelar/gas-connector-magenta',
   '@luna-estelar/gas-browser/session',
   '@luna-estelar/gas',
   '@luna-estelar/gas/browser/session'

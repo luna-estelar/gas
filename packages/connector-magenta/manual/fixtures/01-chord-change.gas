@@ -1,0 +1,26 @@
+# Pitches from notes and a style change, two bars apart.
+tempo 120
+key "C major"
+time_signature 4/4
+length bars 4
+flavor "warm lo-fi, soft and unhurried"
+
+track piano "Soft felt piano"
+
+section changes:
+    length bars 4
+    piano.timbre "close-miked, gentle hammers"
+    piano.notes alda(
+        o4 c4 e g
+    )
+
+    bar 1:
+        piano.play
+
+    bar 3:
+        piano.flavor "brighter, a little more movement"
+        piano.notes alda(
+            o3 a4 > c e
+        )
+
+changes()
