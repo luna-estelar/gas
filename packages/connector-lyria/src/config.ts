@@ -12,7 +12,7 @@ import type {
 } from '@luna-estelar/gas-protocol';
 import { ConnectorError } from '@luna-estelar/gas-protocol';
 
-export type LyriaPromptStrategy = 'per-track' | 'global-plus-tracks';
+export type LyriaPromptStrategy = 'per-track' | 'global-plus-tracks' | 'stable-identity';
 
 export type LyriaPromptConfig = {
   readonly strategy: LyriaPromptStrategy;
@@ -71,8 +71,10 @@ export const LYRIA_CONFIG_SCHEMA: ConnectorConfigSchema = deepFreeze({
         strategy: {
           description:
             'Whether global mood folds into every track prompt (per-track) or rides in its own ' +
-            'prompt alongside the tracks (global-plus-tracks).',
-          enum: ['per-track', 'global-plus-tracks'],
+            'prompt alongside the tracks (global-plus-tracks). stable-identity is ' +
+            'global-plus-tracks with each track description sent as its own unchanging prompt, ' +
+            'so flavor and timbre changes re-steer a part without dropping the instrument.',
+          enum: ['per-track', 'global-plus-tracks', 'stable-identity'],
           default: 'global-plus-tracks'
         },
         trackWeight: {
@@ -204,7 +206,8 @@ function optionalBoolean(value: JsonValue | undefined): boolean | undefined {
 }
 
 function asStrategy(value: JsonValue | undefined): LyriaPromptStrategy {
-  return value === 'per-track' ? 'per-track' : 'global-plus-tracks';
+  if (value === 'per-track' || value === 'stable-identity') return value;
+  return 'global-plus-tracks';
 }
 
 function asMode(value: JsonValue | undefined): LyriaGenerationMode {
@@ -280,7 +283,7 @@ const GENERATION_KEYS = new Set([
   'brightness'
 ]);
 
-const PROMPT_STRATEGIES = ['per-track', 'global-plus-tracks'];
+const PROMPT_STRATEGIES = ['per-track', 'global-plus-tracks', 'stable-identity'];
 const GENERATION_MODES = ['quality', 'diversity'];
 
 /**

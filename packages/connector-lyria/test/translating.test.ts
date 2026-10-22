@@ -219,3 +219,43 @@ describe('translatePrompts — key handling', () => {
     ]);
   });
 });
+
+describe('translatePrompts — stable-identity', () => {
+  const STABLE: PromptTranslationOptions = { ...PER_TRACK, strategy: 'stable-identity' };
+
+  it('sends identity alone at full weight and modifiers at half weight', () => {
+    const state = makeState({ flavor: text('noir') }, [
+      makeTrack({
+        name: 'Piano',
+        description: 'Grand piano',
+        flavor: text('chord stabs'),
+        timbre: text('dry'),
+        level: level(0.8)
+      })
+    ]);
+
+    expect(translatePrompts(state, STABLE)).toEqual([
+      { text: 'noir.', weight: 0.8 },
+      { text: 'Grand piano.', weight: 0.8 },
+      { text: 'Grand piano. chord stabs. dry.', weight: 0.4 }
+    ]);
+  });
+
+  it('keeps the identity prompt unchanged when the flavor changes', () => {
+    const before = makeState({}, [
+      makeTrack({ name: 'Strings', description: 'String section', flavor: text('held notes') })
+    ]);
+    const after = makeState({}, [
+      makeTrack({ name: 'Strings', description: 'String section', flavor: text('full bow') })
+    ]);
+
+    const identity = { text: 'String section.', weight: 1 };
+    expect(translatePrompts(before, STABLE)).toContainEqual(identity);
+    expect(translatePrompts(after, STABLE)).toContainEqual(identity);
+  });
+
+  it('sends only the identity prompt for a track with no flavor or timbre', () => {
+    const state = makeState({}, [makeTrack({ name: 'Bass', description: 'Upright bass' })]);
+    expect(translatePrompts(state, STABLE)).toEqual([{ text: 'Upright bass.', weight: 1 }]);
+  });
+});

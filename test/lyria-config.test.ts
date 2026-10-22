@@ -52,7 +52,7 @@ const ENUM_MEMBERS: readonly {
   readonly path: readonly [section: 'prompt' | 'generation', key: string];
   readonly allowed: readonly string[];
 }[] = [
-  { path: ['prompt', 'strategy'], allowed: ['per-track', 'global-plus-tracks'] },
+  { path: ['prompt', 'strategy'], allowed: ['per-track', 'global-plus-tracks', 'stable-identity'] },
   { path: ['generation', 'mode'], allowed: ['quality', 'diversity'] }
 ];
 

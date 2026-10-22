@@ -42,8 +42,8 @@ if (values.fixture === undefined) {
   console.error('Pass --fixture <path to .gas>.');
   process.exit(1);
 }
-if (values.strategy !== 'per-track' && values.strategy !== 'global-plus-tracks') {
-  console.error("--strategy must be 'per-track' or 'global-plus-tracks'.");
+if (!['per-track', 'global-plus-tracks', 'stable-identity'].includes(values.strategy)) {
+  console.error("--strategy must be 'per-track', 'global-plus-tracks' or 'stable-identity'.");
   process.exit(1);
 }
 

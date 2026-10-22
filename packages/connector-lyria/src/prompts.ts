@@ -1,6 +1,7 @@
 // Translate effective state into weighted Lyria prompts. Authored phrases retain their wording
 // with whitespace normalized. Per-track prompts include global mood; global-plus-tracks
-// sends global mood separately alongside the track prompts.
+// sends global mood separately alongside the track prompts; stable-identity also sends each
+// track's identity on its own, so a flavor or timbre change never removes the instrument.
 
 import type { EffectiveState, EffectiveTrack, IntentValue } from '@luna-estelar/gas-protocol';
 import type { LyriaPromptStrategy } from './config.js';
@@ -10,6 +11,12 @@ export type WeightedPrompt = {
   readonly text: string;
   readonly weight: number;
 };
+
+/**
+ * In stable-identity, a track's flavor-and-timbre prompt carries this share of the track's
+ * weight, on top of its identity prompt at full weight.
+ */
+export const STABLE_IDENTITY_MODIFIER_SHARE = 0.5;
 
 export type PromptTranslationOptions = {
   readonly strategy: LyriaPromptStrategy;
@@ -82,6 +89,7 @@ export function translatePrompts(
 ): readonly WeightedPrompt[] {
   const { strategy, trackWeight, globalWeight, minimumPositiveWeight } = options;
   const foldGlobal = strategy === 'per-track';
+  const stableIdentity = strategy === 'stable-identity';
 
   const globalFlavor = textFragment(state.globals.flavor);
 
@@ -100,6 +108,24 @@ export function translatePrompts(
     const level = effectiveLevel(track);
     if (level === 0) continue;
 
+    const weight = Math.max(minimumPositiveWeight, trackWeight * level);
+
+    if (stableIdentity) {
+      // The identity prompt's text never changes while the track plays, so Lyria keeps the
+      // instrument through every flavor and timbre change; only the modifier prompt swaps.
+      const identity = trackIdentity(track);
+      const modifiers = [textFragment(track.flavor), textFragment(track.timbre)].filter(isDefined);
+      if (identity !== undefined) trackPrompts.push({ text: joinFragments([identity]), weight });
+      if (modifiers.length > 0) {
+        const modifierFragments = identity !== undefined ? [identity, ...modifiers] : modifiers;
+        trackPrompts.push({
+          text: joinFragments(modifierFragments),
+          weight: Math.max(minimumPositiveWeight, weight * STABLE_IDENTITY_MODIFIER_SHARE)
+        });
+      }
+      continue;
+    }
+
     const fragments = foldGlobal
       ? [
           globalFlavor,
@@ -112,7 +138,7 @@ export function translatePrompts(
     const text = joinFragments(fragments.filter(isDefined));
     if (text.length === 0) continue;
 
-    trackPrompts.push({ text, weight: Math.max(minimumPositiveWeight, trackWeight * level) });
+    trackPrompts.push({ text, weight });
   }
 
   let prompts: readonly WeightedPrompt[] = trackPrompts;
