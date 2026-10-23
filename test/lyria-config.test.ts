@@ -62,44 +62,44 @@ function at(section: string, key: string, value: JsonValue): ConnectorConfig {
   return { [section]: { [key]: value } };
 }
 
-/** Every edge a bound has, plus the wrong types and an unknown sibling. */
+/** Field-specific bounds; shared type and member checks have representative cases below. */
 function edgeCases(member: NumericMember): { label: string; config: ConnectorConfig }[] {
   const [section, key] = member.path;
   const low = member.minimum ?? member.exclusiveMinimum ?? 0;
-  const high = member.maximum ?? low + 10;
   const step = member.integer === true ? 1 : 0.5;
   const values: [string, JsonValue][] = [
     ['below the low bound', low - step],
     ['at the low bound', low],
-    ['just above the low bound', low + step],
-    ['at the high bound', high],
-    ['above the high bound', high + step],
-    ['a string', 'loud'],
-    ['null', null],
-    ['a boolean', true],
-    ['an array', [1]]
+    ['just above the low bound', low + step]
   ];
+  if (member.maximum !== undefined) {
+    values.push(
+      ['at the high bound', member.maximum],
+      ['above the high bound', member.maximum + step]
+    );
+  }
   if (member.integer === true) values.push(['a fraction', low + 0.5]);
-  const cases = values.map(([label, value]) => ({
+  return values.map(([label, value]) => ({
     label: `${section}/${key} ${label}`,
     config: at(section, key, value)
   }));
-  cases.push({
-    label: `${section}/${key} beside an unknown sibling`,
-    config: { [section]: { [key]: low === 0 && member.exclusiveMinimum === 0 ? 1 : low, nope: 1 } }
-  });
-  return cases;
 }
 
 const CASES: { label: string; config: ConnectorConfig }[] = [
   { label: 'the advertised defaults', config: DEFAULT_LYRIA_CONFIG },
   { label: 'an empty patch', config: {} },
   { label: 'an unknown root member', config: { tempo: 120 } },
-  { label: 'two unknown root members', config: { tempo: 120, key: 'C major' } },
+  { label: 'an unknown prompt member', config: { prompt: { trackWeight: 1, nope: 1 } } },
   { label: 'a prompt section that is an array', config: { prompt: [] as unknown as JsonValue } },
   { label: 'a prompt section that is null', config: { prompt: null } },
   // The transport derives scale from state; it must not be configurable.
   { label: 'a derived generation member', config: { generation: { scale: 'C_MAJOR_A_MINOR' } } },
+  { label: 'a numeric member that is a string', config: { generation: { temperature: 'loud' } } },
+  { label: 'a numeric member that is null', config: { generation: { temperature: null } } },
+  { label: 'a numeric member that is a boolean', config: { generation: { temperature: true } } },
+  { label: 'a numeric member that is an array', config: { generation: { temperature: [1] } } },
+  { label: 'a boolean member that is a string', config: { generation: { muteBass: 'yes' } } },
+  { label: 'a boolean member that is a number', config: { generation: { muteBass: 1 } } },
   ...NUMERIC_MEMBERS.flatMap(edgeCases),
   ...ENUM_MEMBERS.flatMap(({ path: [section, key], allowed }) =>
     [...allowed, 'neither', ''].map((value) => ({
@@ -108,7 +108,7 @@ const CASES: { label: string; config: ConnectorConfig }[] = [
     }))
   ),
   ...BOOLEAN_MEMBERS.flatMap(([section, key]) =>
-    ([true, false, 'yes', 1] as JsonValue[]).map((value) => ({
+    [true, false].map((value) => ({
       label: `${section}/${key} is ${JSON.stringify(value)}`,
       config: at(section, key, value)
     }))

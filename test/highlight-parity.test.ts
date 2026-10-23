@@ -28,28 +28,26 @@ describe('highlight token parity', () => {
     expect(Object.keys(TOKEN_CLASS).sort()).toEqual(declared);
   });
 
-  it('classifies every kind the compiler emits across the corpus', () => {
-    const files = exampleFiles();
-    const unclassified = new Set<string>();
-    let seen = 0;
+  it.each(exampleFiles())('%s renders classified spans that reconstruct its source', (file) => {
+    const source = readExample(file);
+    const { tokens } = highlightSource(source);
+    expect(tokens.length).toBeGreaterThan(0);
+    for (const token of tokens) expect(TOKEN_CLASS[token.kind]).toBeDefined();
 
-    for (const file of files) {
-      const source = readExample(file);
-      const { tokens } = highlightSource(source);
-      seen += tokens.length;
-      for (const token of tokens) {
-        if (!(token.kind in TOKEN_CLASS)) unclassified.add(token.kind);
-      }
-
-      // Spans must reconstruct the source, which only holds while from and to
-      // mean what highlight assumes. toLines drops one trailing newline.
-      const rebuilt = toLines(source, tokens)
-        .map((line) => line.map((span) => span.text).join(''))
-        .join('\n');
-      expect(rebuilt, file).toBe(source.replace(/\n$/, ''));
+    // toLines drops exactly one trailing newline.
+    const lines = toLines(source, tokens);
+    const displayedSource = source.replace(/\n$/, '');
+    expect(lines.map((line) => line.map((span) => span.text).join('')).join('\n')).toBe(
+      displayedSource
+    );
+    expect(lines).toHaveLength(displayedSource.split('\n').length);
+    for (const line of lines) {
+      for (const span of line) expect(span.text).not.toContain('\n');
     }
+  });
 
-    expect(seen).toBeGreaterThan(0);
-    expect([...unclassified]).toEqual([]);
+  it('exercises every highlight kind in spec-example.gas', () => {
+    const { tokens } = highlightSource(readExample('spec-example'));
+    expect(new Set(tokens.map((token) => token.kind)).size).toBe(Object.keys(TOKEN_CLASS).length);
   });
 });

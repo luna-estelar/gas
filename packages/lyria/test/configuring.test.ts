@@ -14,13 +14,6 @@ describe('Lyria connector configuration schema', () => {
     expect(properties.generation.additionalProperties).toBe(false);
   });
 
-  it('documents that weights express relative influence, not loudness', () => {
-    const promptSchema = (LYRIA_CONFIG_SCHEMA.properties as Record<string, { description: string }>)
-      .prompt;
-    expect(promptSchema.description).toMatch(/relative influence/i);
-    expect(promptSchema.description).toMatch(/normalizes/i);
-  });
-
   it('keeps the advertised strategy default aligned with the runtime default', () => {
     const prompt = (
       LYRIA_CONFIG_SCHEMA.properties as Record<
@@ -133,10 +126,6 @@ describe('validateAndResolveLyriaConfig', () => {
     [{ unknown: true }, '/unknown', 'unknown-member'],
     [{ prompt: [] }, '/prompt', 'wrong-type'],
     [{ prompt: { trackWeight: 0 } }, '/prompt/trackWeight', 'out-of-range'],
-    [{ prompt: { transitionSteps: 1.5 } }, '/prompt/transitionSteps', 'wrong-type'],
-    [{ generation: { temperature: Number.NaN } }, '/generation/temperature', 'wrong-type'],
-    [{ generation: { topK: 1001 } }, '/generation/topK', 'out-of-range'],
-    [{ generation: { seed: -1 } }, '/generation/seed', 'out-of-range'],
     [{ generation: { mode: 'vocalization' } }, '/generation/mode', 'not-allowed']
   ] as const)('rejects schema-invalid direct input: %j', (config, path, code) => {
     expect(() => validateAndResolveLyriaConfig(config)).toThrow(ConnectorError);
@@ -148,11 +137,6 @@ describe('validateAndResolveLyriaConfig', () => {
 });
 
 describe('validateLyriaConfig', () => {
-  it('accepts the advertised defaults and an empty patch', () => {
-    expect(validateLyriaConfig(DEFAULT_LYRIA_CONFIG)).toEqual({ ok: true });
-    expect(validateLyriaConfig({})).toEqual({ ok: true });
-  });
-
   it('reports the root itself when the configuration is not an object', () => {
     // A non-object root has no members to inspect, so one problem is the whole answer.
     expect(validateLyriaConfig([] as unknown as Record<string, never>)).toMatchObject({

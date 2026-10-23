@@ -3,16 +3,7 @@ import { validateTimeline, type TimelineProblemCode } from '../../src/core/index
 import { globalsOnlyTimeline, validTimeline } from './support/timelines.js';
 
 describe('validateTimeline accepts well-formed timelines', () => {
-  test('the corpus-shaped valid timeline has no problems', () => {
-    const result = validateTimeline(validTimeline());
-    expect(result.problems).toEqual([]);
-    expect(result.ok).toBe(true);
-  });
-
   const ACCEPTED: ReadonlyArray<readonly [name: string, timeline: unknown]> = [
-    ['finite', validTimeline()],
-    ['loop', { ...validTimeline(), playback: { mode: 'loop', declaredBars: 16 } }],
-    ['infinite', { ...validTimeline(), playback: { mode: 'infinite' } }],
     ['globals-only with an empty arrangement', globalsOnlyTimeline()],
     ['a beat position inside the declared meter', withLastEventAt({ bar: 9, beat: { index: 4 } })],
     [

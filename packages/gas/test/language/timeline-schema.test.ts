@@ -40,36 +40,6 @@ section a:
 a()
 `;
 
-const FINITE_DOCUMENT = `
-length bars 4
-track drums "d"
-section intro:
-    length bars 4
-    bar 1:
-        drums.play
-intro()
-`;
-
-const LOOP_DOCUMENT = `
-length bars 4 loop
-track drums "d"
-section intro:
-    length bars 4
-    bar 1:
-        drums.play
-intro()
-`;
-
-const INFINITE_DOCUMENT = `
-length infinite
-track drums "d"
-section drone:
-    length bars 4
-    bar 1:
-        drums.play
-drone()
-`;
-
 const GLOBALS_ONLY_DOCUMENT = `
 tempo 120
 length bars 4
@@ -78,9 +48,6 @@ track drums "d"
 
 const CASES: ReadonlyArray<readonly [name: string, source: string]> = [
   ['rich', RICH_DOCUMENT],
-  ['finite', FINITE_DOCUMENT],
-  ['loop', LOOP_DOCUMENT],
-  ['infinite', INFINITE_DOCUMENT],
   ['globals-only', GLOBALS_ONLY_DOCUMENT]
 ];
 

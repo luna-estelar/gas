@@ -36,18 +36,6 @@ describe('toLines', () => {
     }
   });
 
-  it('reproduces the source exactly when the spans are rejoined', () => {
-    const source = '# c\ntrack a "b"\n\nsection s:\n    a.play\n';
-    const lines = toLines(source, [
-      token(source, '# c', 'comment'),
-      token(source, 'track', 'keyword'),
-      token(source, '"b"', 'string'),
-      token(source, 'section', 'keyword'),
-      token(source, 'play', 'action')
-    ]);
-    expect(lines.map(text).join('\n')).toBe(source.replace(/\n$/, ''));
-  });
-
   it('keeps interior blank lines as empty span lists', () => {
     const lines = toLines('a\n\nb\n', []);
     expect(lines).toEqual([[{ text: 'a' }], [], [{ text: 'b' }]]);
