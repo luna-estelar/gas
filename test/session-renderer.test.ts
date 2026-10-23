@@ -6,6 +6,7 @@ import { createRenderer } from '../packages/gas/src/renderer/index.js';
 import type { LifecycleEvent, WarningEvent } from '../packages/gas/src/protocol/index.js';
 import { FakeConnector } from './support/fake-connector.js';
 import { VirtualClock } from './support/virtual-clock.js';
+import { flushAsync } from './support/deferred.js';
 
 const SOURCE = `tempo 120
 time_signature 4/4
@@ -113,7 +114,3 @@ describe('a session playing a finite document through the real renderer', () => 
     await session.close();
   });
 });
-
-async function flushAsync(): Promise<void> {
-  for (let index = 0; index < 12; index += 1) await Promise.resolve();
-}

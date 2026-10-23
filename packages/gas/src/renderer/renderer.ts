@@ -51,6 +51,7 @@ import { applyS16leGain, BufferLedger } from './audio.js';
 import {
   BUFFER_HARD_LIMIT_SECONDS,
   BUFFER_WARNING_SECONDS,
+  CONNECTOR_CLEANUP_TIMEOUT_SECONDS,
   LOOKAHEAD_CHUNKS,
   MAX_LOOKAHEAD_SECONDS
 } from './constants.js';
@@ -115,7 +116,8 @@ interface ActiveRun {
   readonly audioTimers: Set<ClockTimer>;
   loopIteration: number;
   connectorStartAttempted: boolean;
-  connectorStopAttempted: boolean;
+  /** The one `connector.stop` call for this run, shared by everyone who needs it. */
+  connectorStop: Promise<void> | undefined;
   readonly ledger: BufferLedger;
   readonly heldAudio: BufferedAudio[];
   audioCursor: number;
@@ -131,7 +133,14 @@ interface ActiveRun {
    * is what decides that, and a failure still needs to get out.
    */
   audioClosed: boolean;
+  /**
+   * The run is over and its outcome has been decided. Set exactly once, by Stop,
+   * a failure or completion, before anything is awaited: every continuation that
+   * resumes afterwards checks it on this object and backs off.
+   */
   ended: boolean;
+  /** The failure that ended the run, when one did. */
+  failure: RendererFailure | undefined;
   chain: Promise<void>;
 }
 
@@ -362,7 +371,7 @@ class RendererSession implements Renderer {
       audioTimers: new Set(),
       loopIteration: 1,
       connectorStartAttempted: false,
-      connectorStopAttempted: false,
+      connectorStop: undefined,
       ledger: new BufferLedger(),
       heldAudio: [],
       audioCursor: this.options.clock.now(),
@@ -374,6 +383,7 @@ class RendererSession implements Renderer {
       stream: undefined,
       audioClosed: false,
       ended: false,
+      failure: undefined,
       chain: Promise.resolve()
     };
     loaded.tempoMap = createTempoSegmentMap(loaded.timing, run.startTime);
@@ -391,6 +401,9 @@ class RendererSession implements Renderer {
         run.startTime
       );
       await this.options.connector.prepare(initialState, this.connectorConfig);
+      // Stop, Close or a failure may have ended the run while prepare was in
+      // flight; a run that has ended must not reach the provider at all.
+      if (run.ended) throw this.endedBeforeStart(run);
       run.connectorStartAttempted = true;
       await this.options.connector.start(
         this.createAudioSink(run),
@@ -402,11 +415,12 @@ class RendererSession implements Renderer {
         },
         runId
       );
+      if (run.ended) throw this.endedBeforeStart(run);
       const initialUpdate = this.buildConnectorUpdate(initialState, run);
       if (initialUpdate.notation !== undefined) {
         await this.options.connector.update(initialUpdate, initialPosition);
       }
-      if (run.ended) return runId;
+      if (run.ended) throw this.endedBeforeStart(run);
       // A timeline with no notation sends no initial update, so "both settled"
       // includes the case where there was nothing to send.
       run.startSettled = true;
@@ -414,12 +428,13 @@ class RendererSession implements Renderer {
       this.maybeAnchor(loaded, run);
       return runId;
     } catch (error) {
+      // Whoever ended the run already published its outcome. A late rejection
+      // from the provider is the stopped attempt winding down, not a failure.
+      if (run.ended) throw error instanceof RendererError ? error : this.endedBeforeStart(run);
       run.ended = true;
       this.cancelTimers(run);
       this.rejectHeldAudio(run, 'Buffered audio was rejected because renderer startup failed.');
-      if (run.connectorStartAttempted) await this.stopConnector(run, true);
-      this.lifecycle = 'failed';
-      this.playback = 'failed';
+      if (run.connectorStartAttempted) void this.stopConnector(run).catch(() => undefined);
       const failure = classifyConnectorFailure(error, {
         code: 'generation-failed',
         message: 'The connector could not start this renderer run.',
@@ -427,10 +442,23 @@ class RendererSession implements Renderer {
         runId,
         retryable: true
       });
-      this.emit('failure', failure);
-      this.emitStatus();
+      run.failure = failure;
+      this.publishFailure(failure);
       throw new RendererError('connector-unavailable', failure.message, { failure });
     }
+  }
+
+  /** Why `start()` rejects for a run that something else ended first. */
+  private endedBeforeStart(run: ActiveRun): RendererError {
+    if (this.lifecycle === 'closing' || this.lifecycle === 'closed') {
+      return new RendererError('renderer-closed', 'The renderer closed before playback started.');
+    }
+    if (run.failure !== undefined) {
+      return new RendererError('connector-unavailable', run.failure.message, {
+        failure: run.failure
+      });
+    }
+    return new RendererError('renderer-state-conflict', 'Playback stopped before it started.');
   }
 
   async stop(): Promise<void> {
@@ -448,9 +476,11 @@ class RendererSession implements Renderer {
     run.ended = true;
     this.cancelTimers(run);
     this.rejectHeldAudio(run, 'Buffered audio was rejected because playback stopped.');
-    await run.chain;
+    // Not behind run.chain: a state update the provider never answers must not
+    // hold Stop hostage. Updates still queued see `ended` and do nothing.
+    let released: boolean;
     try {
-      await this.stopConnector(run, false);
+      released = await this.withinCleanupTimeout(this.stopConnector(run));
     } catch (error) {
       const failure = classifyConnectorFailure(error, {
         code: 'connector-unavailable',
@@ -459,12 +489,11 @@ class RendererSession implements Renderer {
         runId: run.id,
         retryable: true
       });
-      this.lifecycle = 'failed';
-      this.playback = 'failed';
-      this.emit('failure', failure);
-      this.emitStatus();
+      run.failure = failure;
+      this.publishFailure(failure);
       throw new RendererError('connector-unavailable', failure.message, { failure });
     }
+    if (!released) this.warnCleanupTimeout('connector-stop-timeout', run.id);
     if (this.run === run) this.run = undefined;
     this.playback = 'stopped';
     this.emitStatus();
@@ -486,7 +515,8 @@ class RendererSession implements Renderer {
     this.lifecycle = 'closing';
     this.emitStatus();
     try {
-      await this.options.connector.close();
+      const released = await this.withinCleanupTimeout(this.options.connector.close());
+      if (!released) this.warnCleanupTimeout('connector-close-timeout');
       this.lifecycle = 'closed';
       this.playback = 'stopped';
       this.emitStatus();
@@ -574,7 +604,19 @@ class RendererSession implements Renderer {
       }
       return [];
     }
-    const result = validate.call(this.options.connector, candidate);
+    let result: ReturnType<typeof validate>;
+    try {
+      result = validate.call(this.options.connector, candidate);
+    } catch {
+      // A validator that throws has not said the configuration is fine.
+      return [
+        Object.freeze({
+          path: '',
+          code: 'validator-failed',
+          message: 'The connector could not check this configuration.'
+        })
+      ];
+    }
     return result.ok ? [] : result.problems;
   }
 
@@ -775,14 +817,12 @@ class RendererSession implements Renderer {
     run.firstAudioTimer = this.options.clock.schedule(deadline, () => {
       run.firstAudioTimer = undefined;
       if (run.ended || run.anchored) return;
-      this.enqueue(run, () =>
-        this.failRun(run, {
-          code: 'generation-failed',
-          message: 'The connector produced no audio before the renderer timeout.',
-          reason: 'provider',
-          retryable: true
-        })
-      );
+      this.failRun(run, {
+        code: 'generation-failed',
+        message: 'The connector produced no audio before the renderer timeout.',
+        reason: 'provider',
+        retryable: true
+      });
     });
   }
 
@@ -851,14 +891,14 @@ class RendererSession implements Renderer {
     return result;
   }
 
-  private async failRunFromThrown(run: ActiveRun, error: unknown): Promise<void> {
+  private failRunFromThrown(run: ActiveRun, error: unknown): void {
     const failure = classifyConnectorFailure(error, {
       code: 'generation-failed',
       message: 'Audio generation failed during playback.',
       reason: 'internal',
       retryable: true
     });
-    await this.failRun(run, {
+    this.failRun(run, {
       code: failure.code,
       message: failure.message,
       reason: failure.reason ?? 'internal',
@@ -875,7 +915,8 @@ class RendererSession implements Renderer {
    * generated during that round trip is refused rather than accepted into a run
    * that is over. It becomes `ended` only once the stop succeeds: a stop that
    * rejects has to reach the host as a failure, and `failRun` treats an ended run
-   * as already reported.
+   * as already reported. A host Stop landing meanwhile shares the same connector
+   * stop, so it hears that rejection too, and then owns the outcome.
    */
   private async completeFiniteRun(run: ActiveRun): Promise<void> {
     if (run.ended) return;
@@ -884,7 +925,8 @@ class RendererSession implements Renderer {
     run.audioClosed = true;
     this.cancelTimers(run);
     this.rejectHeldAudio(run, 'Buffered audio was rejected when the finite run completed.');
-    await this.stopConnector(run, false);
+    await this.stopConnector(run);
+    if (run.ended) return;
     run.ended = true;
     const loaded = this.loaded;
     const playback = loaded?.timeline.playback;
@@ -901,7 +943,12 @@ class RendererSession implements Renderer {
     this.emitStatus();
   }
 
-  private async failRun(
+  /**
+   * Ends the run as failed and tells the host straight away. The connector is
+   * stopped in the background: a provider that hangs on stop must not delay a
+   * failure the host needs to hear about.
+   */
+  private failRun(
     run: ActiveRun,
     {
       code = 'generation-failed',
@@ -916,14 +963,12 @@ class RendererSession implements Renderer {
       readonly retryable?: boolean;
       readonly closeCode?: number;
     } = {}
-  ): Promise<void> {
+  ): void {
     if (run.ended) return;
     run.ended = true;
     this.cancelTimers(run);
     this.rejectHeldAudio(run, 'Buffered audio was rejected after renderer failure.');
-    await this.stopConnector(run, true);
-    this.lifecycle = 'failed';
-    this.playback = 'failed';
+    void this.stopConnector(run).catch(() => undefined);
     const failure = Object.freeze({
       code,
       message,
@@ -932,6 +977,15 @@ class RendererSession implements Renderer {
       retryable,
       ...(closeCode !== undefined ? { closeCode } : {})
     });
+    run.failure = failure;
+    this.publishFailure(failure);
+  }
+
+  /** Makes the renderer failed and reports it, unless Close already made it terminal. */
+  private publishFailure(failure: RendererFailure): void {
+    if (this.lifecycle === 'closing' || this.lifecycle === 'closed') return;
+    this.lifecycle = 'failed';
+    this.playback = 'failed';
     this.emit('failure', failure);
     this.emitStatus();
   }
@@ -1108,14 +1162,40 @@ class RendererSession implements Renderer {
     run.timers.clear();
   }
 
-  private async stopConnector(run: ActiveRun, bestEffort: boolean): Promise<void> {
-    if (run.connectorStopAttempted) return;
-    run.connectorStopAttempted = true;
-    try {
-      await this.options.connector.stop(run.id);
-    } catch (error) {
-      if (!bestEffort) throw error;
+  private stopConnector(run: ActiveRun): Promise<void> {
+    if (run.connectorStop === undefined) {
+      const connector = this.options.connector;
+      run.connectorStop = (async () => connector.stop(run.id))();
+      // Callers that stop waiting (a timeout, a best-effort failure path) must
+      // not leave the rejection unhandled; those still waiting see it.
+      run.connectorStop.catch(() => undefined);
     }
+    return run.connectorStop;
+  }
+
+  /** Resolves true once `work` settles, or false if the cleanup timeout passes first. */
+  private async withinCleanupTimeout(work: Promise<void>): Promise<boolean> {
+    const clock = this.options.clock;
+    let timer: ClockTimer | undefined;
+    const timeout = new Promise<false>((resolve) => {
+      timer = clock.schedule(clock.now() + CONNECTOR_CLEANUP_TIMEOUT_SECONDS, () => resolve(false));
+    });
+    try {
+      return await Promise.race([work.then(() => true as const), timeout]);
+    } finally {
+      if (timer !== undefined) clock.cancel(timer);
+    }
+  }
+
+  private warnCleanupTimeout(code: string, runId?: string): void {
+    this.emit(
+      'warning',
+      Object.freeze({
+        code,
+        message: 'The connector did not finish cleaning up in time; the renderer moved on.',
+        ...(runId !== undefined ? { runId } : {})
+      })
+    );
   }
 
   private createRunId(): string {
@@ -1133,8 +1213,11 @@ class RendererSession implements Renderer {
         run.stream = status;
         this.emitStatus();
       },
+      // Run ids are labels a host may reuse, so a sink answers only while its own
+      // run object is current.
       warning: (warning) => {
-        if (warning.runId !== undefined && warning.runId !== this.run?.id) return;
+        if (this.run !== run) return;
+        if (warning.runId !== undefined && warning.runId !== run.id) return;
         this.emit(
           'warning',
           Object.freeze({
@@ -1145,25 +1228,41 @@ class RendererSession implements Renderer {
         );
       },
       failure: (failure) => {
-        if (failure.runId !== undefined && failure.runId !== this.run?.id) return;
-        this.enqueue(run, () =>
-          this.failRun(run, {
-            code: failure.code,
-            message: 'The connector reported an audio generation failure.',
-            ...(failure.reason !== undefined ? { reason: failure.reason } : {}),
-            retryable: failure.retryable,
-            // A connector calls this directly, so the range is enforced here
-            // rather than trusted.
-            ...(isCloseCode(failure.closeCode) ? { closeCode: failure.closeCode } : {})
-          })
-        );
+        if (this.run !== run) return;
+        if (failure.runId !== undefined && failure.runId !== run.id) return;
+        // Straight to failRun, not behind run.chain: a blocked update must not
+        // keep the failure that probably explains it from reaching the host.
+        this.failRun(run, {
+          code: failure.code,
+          message: 'The connector reported an audio generation failure.',
+          ...(failure.reason !== undefined ? { reason: failure.reason } : {}),
+          retryable: failure.retryable,
+          // A connector calls this directly, so the range is enforced here
+          // rather than trusted.
+          ...(isCloseCode(failure.closeCode) ? { closeCode: failure.closeCode } : {})
+        });
       }
     };
   }
 
   private receiveAudio(run: ActiveRun, chunk: ConnectorAudioChunk): void {
-    run.ledger.receive(chunk.durationSeconds);
-    if (run.ended || run.audioClosed || chunk.runId !== run.id || this.run !== run) {
+    const stale = run.ended || run.audioClosed || chunk.runId !== run.id || this.run !== run;
+    try {
+      run.ledger.receive(chunk.durationSeconds);
+    } catch {
+      // The connector called push; throwing back into it would only break the
+      // provider's own callback. A chunk with no usable duration fails the run.
+      if (!stale) {
+        this.failRun(run, {
+          code: 'invalid-audio',
+          message: 'The connector delivered audio with an invalid duration.',
+          reason: 'provider',
+          retryable: false
+        });
+      }
+      return;
+    }
+    if (stale) {
       run.ledger.reject(chunk.durationSeconds);
       this.emit(
         'warning',
@@ -1249,12 +1348,10 @@ class RendererSession implements Renderer {
       this.enqueue(run, () => this.options.connector.setGenerationPaused!(true));
       return;
     }
-    this.enqueue(run, () =>
-      this.failRun(run, {
-        code: 'audio-backpressure-overflow',
-        message: 'Generated audio exceeded the renderer buffer limit.'
-      })
-    );
+    this.failRun(run, {
+      code: 'audio-backpressure-overflow',
+      message: 'Generated audio exceeded the renderer buffer limit.'
+    });
   }
 
   private maybeResumeGeneration(run: ActiveRun): void {

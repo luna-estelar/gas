@@ -16,6 +16,7 @@ import type {
 import { describe, expect, it } from 'vitest';
 import { createRenderer } from '../../src/renderer/index.js';
 import { FakeConnector, anchorChunk } from '../../../../test/support/fake-connector.js';
+import { deferred, flushAsync } from '../../../../test/support/deferred.js';
 import { testTimeline } from '../../../../test/support/timeline.js';
 import { VirtualClock } from '../../../../test/support/virtual-clock.js';
 
@@ -325,16 +326,4 @@ function applyActive(state: InputState, command: Parameters<typeof applyCommand>
   });
   if (!result.ok) throw new Error(result.failure.message);
   return result.state;
-}
-
-function deferred(): { promise: Promise<void>; resolve: () => void } {
-  let resolve: () => void = () => undefined;
-  const promise = new Promise<void>((settle) => {
-    resolve = () => settle();
-  });
-  return { promise, resolve };
-}
-
-async function flushAsync(): Promise<void> {
-  for (let index = 0; index < 12; index += 1) await Promise.resolve();
 }

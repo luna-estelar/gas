@@ -644,3 +644,79 @@ describe('close', () => {
     await expect(session.play()).rejects.toBeInstanceOf(GasOperationError);
   });
 });
+
+// A Play that settles after Stop, Close or a renderer replacement belongs to a
+// run the host already abandoned; it must not move the session.
+describe('pending play ownership', () => {
+  function gated(session: Awaited<ReturnType<typeof loadedSession>>) {
+    let release!: () => void;
+    let fail!: (error: unknown) => void;
+    session.wiring.current().startGate = new Promise<void>((resolve, reject) => {
+      release = resolve;
+      fail = reject;
+    });
+    return { release: () => release(), fail: (error: unknown) => fail(error) };
+  }
+
+  it('stays stopped when Play succeeds after Stop', async () => {
+    const loaded = await loadedSession();
+    const gate = gated(loaded);
+    const play = loaded.session.play();
+    await Promise.resolve();
+
+    await loaded.session.stop();
+    gate.release();
+    await expect(play).rejects.toBeInstanceOf(GasOperationError);
+
+    expect(loaded.session.getState().playback).toBe('stopped');
+    expect(loaded.session.getState().runId).toBeUndefined();
+  });
+
+  it('reports nothing when Play rejects after Stop', async () => {
+    const loaded = await loadedSession();
+    const gate = gated(loaded);
+    const errors: unknown[] = [];
+    loaded.session.on('error', (error) => errors.push(error));
+    const play = loaded.session.play();
+    await Promise.resolve();
+
+    await loaded.session.stop();
+    gate.fail(new Error('late start failure'));
+    await expect(play).rejects.toBeInstanceOf(GasOperationError);
+
+    expect(errors).toEqual([]);
+    expect(loaded.session.getState().lifecycle).toBe('ready');
+  });
+
+  it('stays closed when Play settles after Close', async () => {
+    const loaded = await loadedSession();
+    const gate = gated(loaded);
+    const errors: unknown[] = [];
+    loaded.session.on('error', (error) => errors.push(error));
+    const play = loaded.session.play();
+    await Promise.resolve();
+
+    await loaded.session.close();
+    gate.fail(new Error('late start failure'));
+    await expect(play).rejects.toBeInstanceOf(GasOperationError);
+
+    expect(errors).toEqual([]);
+    expect(loaded.session.getState()).toMatchObject({ lifecycle: 'closed', playback: 'stopped' });
+  });
+
+  it('keeps an old renderer result off its replacement', async () => {
+    const loaded = await loadedSession();
+    const gate = gated(loaded);
+    const play = loaded.session.play();
+    await Promise.resolve();
+
+    await loaded.session.retryRenderer();
+    gate.fail(new Error('late start failure'));
+    await expect(play).rejects.toBeInstanceOf(GasOperationError);
+
+    expect(loaded.wiring.renderers).toHaveLength(2);
+    expect(loaded.session.getState()).toMatchObject({ lifecycle: 'ready', playback: 'stopped' });
+    await loaded.session.play();
+    expect(loaded.session.getState().playback).toBe('active');
+  });
+});

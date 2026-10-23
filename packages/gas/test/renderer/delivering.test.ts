@@ -3,6 +3,7 @@ import type { ConnectorAudioChunk, Renderer, Timeline } from '../../src/protocol
 import { describe, expect, it } from 'vitest';
 import { applyS16leGain, BufferLedger, createRenderer } from '../../src/renderer/index.js';
 import { FakeConnector } from '../../../../test/support/fake-connector.js';
+import { deferred, flushAsync } from '../../../../test/support/deferred.js';
 import { testTimeline } from '../../../../test/support/timeline.js';
 import { VirtualClock } from '../../../../test/support/virtual-clock.js';
 
@@ -66,7 +67,8 @@ describe('audio delivery', () => {
     await flushAsync();
     await renderer.stop();
     gate.resolve();
-    await starting;
+    // The run was stopped before it started, so start() says so.
+    await expect(starting).rejects.toMatchObject({ code: 'renderer-state-conflict' });
 
     expect(audio).toEqual([]);
     expect(warnings).toContain('buffered-audio-rejected');
@@ -271,16 +273,4 @@ function decodeSamples(bytes: Uint8Array): number[] {
     samples.push(view.getInt16(offset, true));
   }
   return samples;
-}
-
-async function flushAsync(): Promise<void> {
-  for (let index = 0; index < 12; index += 1) await Promise.resolve();
-}
-
-function deferred(): { promise: Promise<void>; resolve: () => void } {
-  let resolve!: () => void;
-  const promise = new Promise<void>((done) => {
-    resolve = done;
-  });
-  return { promise, resolve };
 }

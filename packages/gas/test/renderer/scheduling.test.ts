@@ -8,6 +8,7 @@ import type {
 import { describe, expect, it } from 'vitest';
 import { createRenderer } from '../../src/renderer/index.js';
 import { FakeConnector } from '../../../../test/support/fake-connector.js';
+import { deferred, flushAsync } from '../../../../test/support/deferred.js';
 import { testTimeline } from '../../../../test/support/timeline.js';
 import { VirtualClock } from '../../../../test/support/virtual-clock.js';
 
@@ -383,16 +384,4 @@ async function scriptedLog(): Promise<readonly string[]> {
   clock.advanceTo(8);
   await flushAsync();
   return [...connector.calls, ...events];
-}
-
-async function flushAsync(): Promise<void> {
-  for (let index = 0; index < 8; index += 1) await Promise.resolve();
-}
-
-function deferred(): { promise: Promise<void>; resolve: () => void } {
-  let resolve!: () => void;
-  const promise = new Promise<void>((done) => {
-    resolve = done;
-  });
-  return { promise, resolve };
 }

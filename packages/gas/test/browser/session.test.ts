@@ -192,6 +192,25 @@ describe('lifecycle', () => {
     await browser.close();
   });
 
+  it('silences playing audio on close before the connector finishes stopping', async () => {
+    const { context, browser, deliver } = await harness({
+      connector: { stopGate: new Promise(() => undefined) }
+    });
+    await browser.session.play();
+    deliver(0);
+    deliver(1);
+    await advanceTo(context, 1);
+    expect(context.started).toHaveLength(2);
+
+    // The connector never answers stop, so session close is still pending here.
+    const closing = browser.close();
+    const closedAt = context.currentTime;
+    for (const source of context.started) expect(source.stoppedAt).toBeCloseTo(closedAt + 0.02, 9);
+
+    await advanceTo(context, 7);
+    await closing;
+  });
+
   it('silences playing audio within the ramp when the host stops', async () => {
     const { context, browser, deliver } = await harness();
     await browser.session.play();

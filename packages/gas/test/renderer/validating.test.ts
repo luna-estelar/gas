@@ -11,6 +11,7 @@ import { createRenderer, RendererError } from '../../src/renderer/index.js';
 import { FakeConnector } from '../../../../test/support/fake-connector.js';
 import { testTimeline } from '../../../../test/support/timeline.js';
 import { VirtualClock } from '../../../../test/support/virtual-clock.js';
+import { flushAsync } from '../../../../test/support/deferred.js';
 
 const CONFIG_SCHEMA: ConnectorConfigSchema = {
   type: 'object',
@@ -422,7 +423,3 @@ describe('renderer connector configuration validation', () => {
     await renderer.stop();
   });
 });
-
-async function flushAsync(): Promise<void> {
-  for (let index = 0; index < 12; index += 1) await Promise.resolve();
-}

@@ -11,6 +11,7 @@ import { createRenderer } from '../../src/renderer/index.js';
 import { FakeConnector } from '../../../../test/support/fake-connector.js';
 import { testTimeline } from '../../../../test/support/timeline.js';
 import { VirtualClock } from '../../../../test/support/virtual-clock.js';
+import { flushAsync } from '../../../../test/support/deferred.js';
 
 describe('running renderer changes', () => {
   it('re-anchors live tempo without moving the current position', async () => {
@@ -210,8 +211,4 @@ function allSupportedCapabilities(): CapabilitiesTable {
       motif: 'supported'
     }
   };
-}
-
-async function flushAsync(): Promise<void> {
-  for (let index = 0; index < 8; index += 1) await Promise.resolve();
 }

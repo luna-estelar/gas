@@ -4,6 +4,7 @@ import { createRenderer, RendererError } from '../../src/renderer/index.js';
 import { FakeConnector } from '../../../../test/support/fake-connector.js';
 import { testTimeline } from '../../../../test/support/timeline.js';
 import { VirtualClock } from '../../../../test/support/virtual-clock.js';
+import { flushAsync } from '../../../../test/support/deferred.js';
 
 describe('renderer initialization and loading', () => {
   it('describes and opens the connector before resolving ready', async () => {
@@ -181,10 +182,6 @@ describe('renderer initialization and loading', () => {
     expect(connector.calls.filter((call) => call === 'close')).toHaveLength(1);
   });
 });
-
-async function flushAsync(): Promise<void> {
-  for (let index = 0; index < 12; index += 1) await Promise.resolve();
-}
 
 function audioChunk(runId: string) {
   return {

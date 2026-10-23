@@ -6,6 +6,7 @@ import { createRenderer, RendererError } from '../../src/renderer/index.js';
 import { FakeConnector } from '../../../../test/support/fake-connector.js';
 import { testTimeline } from '../../../../test/support/timeline.js';
 import { VirtualClock } from '../../../../test/support/virtual-clock.js';
+import { flushAsync } from '../../../../test/support/deferred.js';
 
 describe('renderer connector failure propagation', () => {
   it('preserves a ConnectorError thrown from describe', async () => {
@@ -305,8 +306,4 @@ function allSupportedCapabilities(): CapabilitiesTable {
       motif: 'supported'
     }
   };
-}
-
-async function flushAsync(): Promise<void> {
-  for (let index = 0; index < 12; index += 1) await Promise.resolve();
 }

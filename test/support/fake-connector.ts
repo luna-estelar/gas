@@ -61,7 +61,15 @@ export interface FakeConnectorOptions {
    * generated when the stop was sent. The renderer must refuse it: the run is over.
    */
   readonly chunkOnStop?: boolean;
+  /**
+   * Hold the named call open until the promise settles; a rejection fails the
+   * call. Lifecycle tests use these to land Stop or Close mid-call.
+   */
+  readonly prepareGate?: Promise<void>;
   readonly startGate?: Promise<void>;
+  readonly updateGate?: Promise<void>;
+  readonly stopGate?: Promise<void>;
+  readonly closeGate?: Promise<void>;
   readonly updateFailure?: Error;
   readonly stopFailure?: Error;
   readonly closeFailure?: Error;
@@ -137,6 +145,7 @@ export class FakeConnector implements Connector {
   async prepare(initialState: EffectiveState, config: ConnectorConfig): Promise<void> {
     this.calls.push('prepare');
     this.prepared.push({ state: initialState, config });
+    if (this.options.prepareGate !== undefined) await this.options.prepareGate;
     if (this.options.prepareFailure !== undefined) throw this.options.prepareFailure;
   }
 
@@ -158,6 +167,7 @@ export class FakeConnector implements Connector {
   ): Promise<MusicalPosition> {
     this.calls.push('update');
     this.updates.push({ update, requested: requestedBoundary });
+    if (this.options.updateGate !== undefined) await this.options.updateGate;
     if (this.options.updateFailure !== undefined) throw this.options.updateFailure;
     return this.options.appliedBoundary ?? requestedBoundary;
   }
@@ -165,11 +175,13 @@ export class FakeConnector implements Connector {
   async stop(runId: string): Promise<void> {
     this.calls.push(`stop:${runId}`);
     if (this.options.chunkOnStop === true) this.sink?.push(anchorChunk(runId));
+    if (this.options.stopGate !== undefined) await this.options.stopGate;
     if (this.options.stopFailure !== undefined) throw this.options.stopFailure;
   }
 
   async close(): Promise<void> {
     this.calls.push('close');
+    if (this.options.closeGate !== undefined) await this.options.closeGate;
     if (this.options.closeFailure !== undefined) throw this.options.closeFailure;
   }
 

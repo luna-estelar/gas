@@ -104,6 +104,9 @@ export async function createBrowserSession(
         return position === undefined ? undefined : { position, seconds };
       },
       async close() {
+        // Silence first: closing the session waits on the connector, which may
+        // be slow or never answer, and the listener should not hear it.
+        activeEngine.flush();
         unsubscribe();
         try {
           await session.close();

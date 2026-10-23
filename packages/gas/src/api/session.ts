@@ -93,7 +93,10 @@ export class GasSession {
   private phase: PlaybackPhase = 'stopped';
   private input: InputState | undefined;
   private closed = false;
-  private playPending = false;
+  // The Play call currently allowed to settle the session. Stop, Close and a
+  // renderer replacement clear it, so a start that settles afterwards can tell
+  // it no longer speaks for the session, whatever run id it carries.
+  private pendingPlay: { readonly renderer: Renderer } | undefined;
 
   readonly renderer: RendererControl;
 
@@ -311,7 +314,7 @@ export class GasSession {
     if (this.input === undefined) {
       throw new GasOperationError('Load a timeline before playing.', { kind: 'playback' });
     }
-    if (this.phase === 'active' || this.playPending) {
+    if (this.phase === 'active' || this.pendingPlay !== undefined) {
       throw new GasOperationError('The session is already playing.', { kind: 'playback' });
     }
     if (this.lifecycle !== 'ready') {
@@ -320,10 +323,13 @@ export class GasSession {
       });
     }
     let runId: string;
-    this.playPending = true;
+    const attempt = { renderer: this.rendererInstance };
+    this.pendingPlay = attempt;
     try {
-      runId = await this.rendererInstance.start();
+      runId = await attempt.renderer.start();
     } catch (error) {
+      if (this.pendingPlay !== attempt) throw abandonedPlay(error);
+      this.pendingPlay = undefined;
       this.markRendererFailed();
       const rendererFailure = getRendererFailureFields(error);
       const failure = new GasOperationError('The Renderer failed to start.', {
@@ -334,9 +340,21 @@ export class GasSession {
       this.events.emit('error', failure);
       this.emitState();
       throw failure;
-    } finally {
-      this.playPending = false;
     }
+    if (this.pendingPlay !== attempt) {
+      // The renderer started a run nobody wants any more. If it is still this
+      // session's renderer and nothing newer is starting, stop that run.
+      if (
+        !this.closed &&
+        attempt.renderer === this.rendererInstance &&
+        this.pendingPlay === undefined &&
+        this.phase === 'stopped'
+      ) {
+        void attempt.renderer.stop().catch(() => undefined);
+      }
+      throw abandonedPlay();
+    }
+    this.pendingPlay = undefined;
     this.acceptedRunId = runId;
     this.phase = 'active';
     this.emitState();
@@ -347,6 +365,7 @@ export class GasSession {
   // stopped even if the Renderer stop fails.
   async stop(): Promise<void> {
     this.ensureOpen();
+    this.pendingPlay = undefined;
     this.acceptedRunId = undefined;
     if (this.lifecycle === 'ready') {
       try {
@@ -374,6 +393,7 @@ export class GasSession {
   // bar 1, and remain stopped.
   async retryRenderer(): Promise<void> {
     this.ensureOpen();
+    this.pendingPlay = undefined;
     this.detachRenderer();
     try {
       await this.rendererInstance.close();
@@ -429,6 +449,7 @@ export class GasSession {
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
+    this.pendingPlay = undefined;
     this.detachRenderer();
     this.acceptedRunId = undefined;
     this.phase = 'stopped';
@@ -625,7 +646,11 @@ export class GasSession {
     // its connector setup promise settles. Trust only that `starting` status
     // during a pending play call so initial audio/position events pass the
     // stale-run guard without weakening it for any later status.
-    if (this.playPending && status.playback === 'starting' && status.runId !== undefined) {
+    if (
+      this.pendingPlay !== undefined &&
+      status.playback === 'starting' &&
+      status.runId !== undefined
+    ) {
       this.acceptedRunId = status.runId;
     }
     // Apply completion before emitting lifecycle events so phase and state agree.
@@ -647,6 +672,16 @@ export class GasSession {
       ...(status.completed === true ? { completed: true } : {})
     });
   }
+}
+
+// Play rejects when the session moved on before the renderer answered: the
+// caller asked for playback and did not get it. Nothing is emitted; whoever
+// stopped, closed or replaced the renderer already settled the session.
+function abandonedPlay(cause?: unknown): GasOperationError {
+  return new GasOperationError('Playback was stopped before it started.', {
+    kind: 'playback',
+    ...(cause !== undefined ? { cause } : {})
+  });
 }
 
 function operationFailureFields(failure: RendererFailure): {

@@ -17,6 +17,7 @@ import type {
 import { FakeConnector } from './support/fake-connector.js';
 import { VirtualClock } from './support/virtual-clock.js';
 import { exampleFiles, readExample } from '../examples/support.js';
+import { flushAsync } from './support/deferred.js';
 
 const corpusFiles = exampleFiles();
 
@@ -131,8 +132,4 @@ function allSupportedCapabilities(): CapabilitiesTable {
       motif: 'supported'
     }
   };
-}
-
-async function flushAsync(): Promise<void> {
-  for (let index = 0; index < 12; index += 1) await Promise.resolve();
 }
