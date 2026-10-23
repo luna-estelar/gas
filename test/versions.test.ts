@@ -7,6 +7,7 @@ import { execute, type CliIo } from '../packages/gas/src/cli/index.js';
 import { compileSource } from '../packages/gas/src/language/index.js';
 import { version as gasVersion } from '../packages/gas/src/version.js';
 import { version as lyriaVersion } from '../packages/lyria-rt/src/index.js';
+import { version as magentaVersion } from '../packages/magenta-rt2/src/index.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -54,13 +55,23 @@ describe('lyria version', () => {
   });
 });
 
+describe('magenta-rt2 version', () => {
+  test('src/index.ts matches the manifest', () => {
+    expect(magentaVersion).toBe(manifestVersion('magenta-rt2'));
+  });
+});
+
 // Discovered from the filesystem, so a module literal cannot come back unnoticed.
-test('only the two package literals exist', () => {
+test('only the package literals exist', () => {
   const literal = /^export const version\b/m;
-  const found = ['gas', 'lyria-rt']
+  const found = ['gas', 'lyria-rt', 'magenta-rt2']
     .flatMap((pkg) => sourceFiles(path.join(root, 'packages', pkg, 'src')))
     .filter((file) => literal.test(readFileSync(file, 'utf8')))
     .map((file) => path.relative(root, file).split(path.sep).join('/'))
     .sort();
-  expect(found).toEqual(['packages/gas/src/version.ts', 'packages/lyria-rt/src/index.ts']);
+  expect(found).toEqual([
+    'packages/gas/src/version.ts',
+    'packages/lyria-rt/src/index.ts',
+    'packages/magenta-rt2/src/index.ts'
+  ]);
 });

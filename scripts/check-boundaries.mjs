@@ -46,14 +46,16 @@ const FIXTURE_ALLOW = ['protocol'];
 const RUNTIME_MODULE = 'renderer';
 const RUNTIME_WIRING = ['browser/session.ts', 'index.ts'];
 
-// The only package specifier lyria-rt may use: it peers on gas for the protocol.
-const LYRIA_ALLOWED = ['@luna-estelar/gas/protocol'];
+// The only package specifier a connector package may use: each peers on gas for
+// the protocol, and nothing else.
+const CONNECTOR_ALLOWED = ['@luna-estelar/gas/protocol'];
+const CONNECTOR_UNITS = ['lyria-rt', 'magenta-rt2'];
 
-const PACKAGE_UNITS = ['gas', 'lyria-rt'];
+const PACKAGE_UNITS = ['gas', ...CONNECTOR_UNITS];
 
 // Units that are not modules. A module directory with one of these names would
 // share its permissions, so it is rejected.
-const RESERVED_UNITS = [VERSION_UNIT, 'lyria-rt', 'fixtures', 'examples'];
+const RESERVED_UNITS = [VERSION_UNIT, ...CONNECTOR_UNITS, 'fixtures', 'examples'];
 
 // Export-map keys that load assets rather than code, with their exact targets.
 const ASSET_EXPORTS = { './protocol/schemas/1.0/*': './schemas/1.0/*' };
@@ -196,7 +198,7 @@ export function findViolations(files, srcRoot = path.join(ROOT, 'packages', 'gas
       }
       if (specifier.startsWith(SCOPE)) {
         // Inside gas nothing imports a package by name, itself included.
-        if (file.unit === 'lyria-rt' && LYRIA_ALLOWED.includes(specifier)) continue;
+        if (CONNECTOR_UNITS.includes(file.unit) && CONNECTOR_ALLOWED.includes(specifier)) continue;
         report(file, specifier, specifier);
         continue;
       }
@@ -295,13 +297,13 @@ export async function collectGasFiles(gasRoot) {
   return files;
 }
 
-/** Collect the lyria-rt package's sources and tests. */
-export async function collectLyriaFiles(lyriaRoot) {
+/** Collect a connector package's sources and tests as one unit named after it. */
+export async function collectConnectorFiles(packageRoot, unit) {
   const paths = [
-    ...(await walkSource(path.join(lyriaRoot, 'src'), { required: true })),
-    ...(await walkSource(path.join(lyriaRoot, 'test')))
+    ...(await walkSource(path.join(packageRoot, 'src'), { required: true })),
+    ...(await walkSource(path.join(packageRoot, 'test')))
   ];
-  return readFiles(paths, () => ({ unit: 'lyria-rt' }));
+  return readFiles(paths, () => ({ unit }));
 }
 
 /**
@@ -336,7 +338,11 @@ export async function collectAll(root = ROOT) {
   const packagesRoot = path.join(root, 'packages');
   return [
     ...(await collectGasFiles(path.join(packagesRoot, 'gas'))),
-    ...(await collectLyriaFiles(path.join(packagesRoot, 'lyria-rt'))),
+    ...(
+      await Promise.all(
+        CONNECTOR_UNITS.map((unit) => collectConnectorFiles(path.join(packagesRoot, unit), unit))
+      )
+    ).flat(),
     ...(await collectExampleFiles(path.join(root, 'examples'))),
     ...(await collectFixtureFiles(path.join(root, 'test', 'support')))
   ];
@@ -448,7 +454,7 @@ export async function assertCoverage(files, root = ROOT) {
     ...modules,
     ...Object.keys(FACADES).map(facadeUnit),
     VERSION_UNIT,
-    'lyria-rt',
+    ...CONNECTOR_UNITS,
     'fixtures',
     'examples'
   ];

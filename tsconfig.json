@@ -1,4 +1,8 @@
 {
   "files": [],
-  "references": [{ "path": "packages/gas" }, { "path": "packages/lyria-rt" }]
+  "references": [
+    { "path": "packages/gas" },
+    { "path": "packages/lyria-rt" },
+    { "path": "packages/magenta-rt2" }
+  ]
 }

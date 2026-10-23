@@ -32,6 +32,7 @@ sound; the same document does not guarantee the same performance on every render
 
 [Package guide](./packages/gas/README.md) ·
 [Lyria connector](./packages/lyria-rt/README.md) ·
+[Magenta RT2 connector](./packages/magenta-rt2/README.md) ·
 [Examples](./examples/README.md)
 
 ## Try it
@@ -43,7 +44,9 @@ npx @luna-estelar/gas compile song.gas
 ```
 
 The CLI prints timeline JSON. Use `--out timeline.json` to write a file. Audio generation
-requires model access; see the [Lyria manual guide](./packages/lyria-rt/manual/README.md).
+requires a model: a Gemini key for Lyria (see the [Lyria manual guide](./packages/lyria-rt/manual/README.md)),
+or a Magenta RT2 bridge running on your own Apple Silicon Mac (see the
+[Magenta RT2 connector](./packages/magenta-rt2/README.md)).
 
 ## Install
 
@@ -66,13 +69,14 @@ See the [package README](./packages/gas/README.md) for every entry point.
 
 ### Packages
 
-| Package                      | Purpose                                                                  |
-| ---------------------------- | ------------------------------------------------------------------------ |
-| `@luna-estelar/gas`          | The language, sessions, renderer, browser playback and the `gas` command |
-| `@luna-estelar/gas-lyria-rt` | Plays GAS through Google's Lyria RealTime; a peer of `@luna-estelar/gas` |
+| Package                         | Purpose                                                                  |
+| ------------------------------- | ------------------------------------------------------------------------ |
+| `@luna-estelar/gas`             | The language, sessions, renderer, browser playback and the `gas` command |
+| `@luna-estelar/gas-lyria-rt`    | Plays GAS through Google's Lyria RealTime; a peer of `@luna-estelar/gas` |
+| `@luna-estelar/gas-magenta-rt2` | Plays GAS through Magenta RealTime 2 via a local or hosted bridge        |
 
-Each has its own README and changelog. Both are ESM-only and need Node 22 or newer; in browsers
-that does not apply.
+Each has its own README and changelog. All are ESM-only and need Node 22 or newer; in browsers
+that does not apply. The two connectors are not yet published to npm.
 
 ## Architecture
 
@@ -84,32 +88,35 @@ Language compilation is independent of playback. Core derives session state, the
 schedules changes against a supplied clock, and the connector translates them into model
 controls. Each stage is a module under [`packages/gas/src`](./packages/gas/src): `language`,
 `protocol` (the timeline and every other shared contract), `core` and `api` (the session) and
-`renderer`; `browser` composes them for a web page, and the connector lives in
-[`packages/lyria-rt`](./packages/lyria-rt). `scripts/check-boundaries.mjs` enforces which module may
-import which.
+`renderer`; `browser` composes them for a web page, and the connectors live in
+[`packages/lyria-rt`](./packages/lyria-rt) and [`packages/magenta-rt2`](./packages/magenta-rt2).
+`scripts/check-boundaries.mjs` enforces which module may import which.
 
 ## Status
 
-GAS ships as two packages, `@luna-estelar/gas` and `@luna-estelar/gas-lyria-rt`, each with its own
-version and changelog. APIs may change in a minor release before 1.0, and breaking changes are
-recorded in the changelog of the package they affect. Both implement **Protocol 1.0**, which is
-distinct from any npm release version.
+GAS is `@luna-estelar/gas` plus one package per model connector, each with its own version and
+changelog. APIs may change in a minor release before 1.0, and breaking changes are recorded in the
+changelog of the package they affect. All implement **Protocol 1.0**, which is distinct from any
+npm release version.
 
-Lyria is currently the only connector:
+Each connector reports what its model can render:
 
-- `flavor`, `tempo` and `timbre` are supported.
-- `key` and `level` are approximated.
-- `time_signature`, `notes` and `motif` compile and remain in session state, but Lyria
-  cannot render them. GAS reports capability warnings.
+| Intent                             | Lyria RealTime | Magenta RT2  |
+| ---------------------------------- | -------------- | ------------ |
+| `flavor`, `timbre`                 | supported      | supported    |
+| `tempo`                            | supported      | approximated |
+| `key`, `level`                     | approximated   | approximated |
+| `time_signature`, `notes`, `motif` | unsupported    | unsupported  |
 
-See [what Lyria can and cannot do](./packages/lyria-rt/README.md#what-lyria-can-and-cannot-do)
-for details. The GAS website and its demos are maintained separately from this library.
+Unsupported intents compile and remain in session state, and GAS reports capability warnings. See
+[Lyria](./packages/lyria-rt/README.md#what-lyria-can-and-cannot-do) and
+[Magenta RT2](./packages/magenta-rt2/README.md#what-magenta-rt2-can-and-cannot-do) for details. The GAS website and its demos are maintained separately from this library.
 
 ## Repository and development
 
 | Path                                | Contents                                            |
 | ----------------------------------- | --------------------------------------------------- |
-| [`packages/`](./packages)           | The gas package and the Lyria connector             |
+| [`packages/`](./packages)           | The gas package and the model connectors            |
 | [`examples/`](./examples/README.md) | Seven GAS documents and their shared manifest       |
 | [`test/`](./test/README.md)         | Integration and publication checks                  |
 | [`scripts/`](./scripts)             | Formatting, schema, boundary and publication checks |

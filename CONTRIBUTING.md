@@ -102,7 +102,8 @@ maintained here and included in npm tarballs.
 
 ## Releases
 
-GAS publishes two packages, `@luna-estelar/gas` and `@luna-estelar/gas-lyria-rt`, each versioned on
+GAS publishes `@luna-estelar/gas` and its connector packages (`@luna-estelar/gas-lyria-rt`,
+`@luna-estelar/gas-magenta-rt2`), each versioned on
 its own with [Changesets](https://github.com/changesets/changesets). Every PR that changes a
 published package adds a changeset:
 

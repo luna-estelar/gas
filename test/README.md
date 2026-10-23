@@ -1,7 +1,8 @@
 # Tests
 
 Module tests live under `packages/gas/test/<module>/` and follow that module's import
-boundaries; the Lyria connector's tests live under `packages/lyria-rt/test/`. Integration tests
+boundaries; each connector's tests live under its own `test/` directory, and
+`test/support/connector-conformance.ts` holds the lifecycle cases every connector runs. Integration tests
 that combine modules live in the root `test/` directory.
 
 ```bash
