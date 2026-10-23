@@ -40,5 +40,3 @@ export {
   MAX_LOOKAHEAD_SECONDS,
   MIN_FIRST_AUDIO_TIMEOUT_SECONDS
 } from './constants.js';
-
-export const version = '0.3.0';

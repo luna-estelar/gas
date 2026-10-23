@@ -1,67 +1,66 @@
-// Exported version literals must match their package's manifest version.
+// Each published package has one version literal, and it matches the manifest.
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, test } from 'vitest';
-import { version as apiVersion } from '../packages/api/src/index.js';
-import { version as browserVersion } from '../packages/browser/src/session.js';
-import { version as cliVersion } from '../packages/cli/src/index.js';
-import { version as connectorVersion } from '../packages/connector-lyria/src/index.js';
-import { version as coreVersion } from '../packages/core/src/index.js';
-import { version as gasVersion } from '../packages/gas/src/index.js';
-import { compileSource, version as languageVersion } from '../packages/language/src/index.js';
-import { version as notationVersion } from '../packages/notation/src/index.js';
-import { version as protocolVersion } from '../packages/protocol/src/index.js';
-import { version as rendererVersion } from '../packages/renderer/src/index.js';
+import { execute, type CliIo } from '../packages/gas/src/cli/index.js';
+import { compileSource } from '../packages/gas/src/language/index.js';
+import { version as gasVersion } from '../packages/gas/src/version.js';
+import { version as lyriaVersion } from '../packages/lyria/src/index.js';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const packagesRoot = path.join(here, '..', 'packages');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function manifestVersion(pkg: string): string {
-  const file = path.join(packagesRoot, pkg, 'package.json');
+  const file = path.join(root, 'packages', pkg, 'package.json');
   return (JSON.parse(readFileSync(file, 'utf8')) as { version: string }).version;
 }
 
-function packageDirectories(): string[] {
-  return readdirSync(packagesRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .sort();
+function sourceFiles(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(directory, entry.name);
+    if (entry.isDirectory()) return entry.name === 'generated' ? [] : sourceFiles(full);
+    return entry.name.endsWith('.ts') ? [full] : [];
+  });
 }
 
-const EXPORTED: ReadonlyArray<readonly [string, string]> = [
-  ['api', apiVersion],
-  ['browser', browserVersion],
-  ['cli', cliVersion],
-  ['connector-lyria', connectorVersion],
-  ['core', coreVersion],
-  ['gas', gasVersion],
-  ['language', languageVersion],
-  ['notation', notationVersion],
-  ['protocol', protocolVersion],
-  ['renderer', rendererVersion]
-];
-
-// Highlight exports no version constant.
-const NO_VERSION_LITERAL = new Set(['highlight']);
-
-describe('exported version constants', () => {
-  test.each(EXPORTED)('%s exports its package.json version', (pkg, exported) => {
-    expect(exported).toBe(manifestVersion(pkg));
+describe('gas version', () => {
+  test('src/version.ts matches the manifest', () => {
+    expect(gasVersion).toBe(manifestVersion('gas'));
   });
 
-  // The compiler stamps its version into every timeline it emits.
-  test('the language compiler reports the language package version', () => {
+  // The compiler stamps the package version into every timeline it emits.
+  test('compiled timelines carry it as compilerVersion', () => {
     const result = compileSource('tempo 90\nlength bars 1\n');
     if (!result.ok) throw new Error('expected the minimal document to compile');
-    expect(result.timeline.compilerVersion).toBe(manifestVersion('language'));
+    expect(result.timeline.compilerVersion).toBe(manifestVersion('gas'));
   });
 
-  // Discovered from the filesystem rather than restated, so a new package cannot
-  // arrive without a literal or an explicit exemption.
-  test('every package with a literal is covered, and only those lack one', () => {
-    expect(EXPORTED.map(([pkg]) => pkg).sort()).toEqual(
-      packageDirectories().filter((pkg) => !NO_VERSION_LITERAL.has(pkg))
-    );
+  test('gas --version prints it', () => {
+    const stdout: string[] = [];
+    const io: CliIo = {
+      readFile: () => '',
+      writeFile: () => undefined,
+      stdout: (value) => stdout.push(value),
+      stderr: () => undefined
+    };
+    expect(execute(['--version'], io)).toBe(0);
+    expect(stdout).toEqual([`${manifestVersion('gas')}\n`]);
   });
+});
+
+describe('lyria version', () => {
+  test('src/index.ts matches the manifest', () => {
+    expect(lyriaVersion).toBe(manifestVersion('lyria'));
+  });
+});
+
+// Discovered from the filesystem, so a module literal cannot come back unnoticed.
+test('only the two package literals exist', () => {
+  const literal = /^export const version\b/m;
+  const found = ['gas', 'lyria']
+    .flatMap((pkg) => sourceFiles(path.join(root, 'packages', pkg, 'src')))
+    .filter((file) => literal.test(readFileSync(file, 'utf8')))
+    .map((file) => path.relative(root, file).split(path.sep).join('/'))
+    .sort();
+  expect(found).toEqual(['packages/gas/src/version.ts', 'packages/lyria/src/index.ts']);
 });

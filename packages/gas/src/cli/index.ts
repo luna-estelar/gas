@@ -1,9 +1,8 @@
-// CLI file I/O and command dispatch. The language package handles compilation.
+// CLI file I/O and command dispatch. The language module handles compilation.
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { compileSource, type GasDiagnostic } from '../language/index.js';
-
-export const version = '0.1.3';
+import { version } from '../version.js';
 
 export interface CliIo {
   readonly readFile: (path: string) => string;

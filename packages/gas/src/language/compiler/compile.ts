@@ -32,12 +32,13 @@ import type {
   TrackDefault,
   ValuedTrackAction
 } from '../../protocol/index.js';
+import { version } from '../../version.js';
 
 const FORMAT_VERSION = { major: 1, minor: 0 } as const;
 // The GAS language spec version this compiler targets, and the compiler's own
-// version. COMPILER_VERSION mirrors the language package's `version`.
+// version, which is the GAS package version.
 const LANGUAGE_VERSION = '1.0';
-const COMPILER_VERSION = '0.1.3';
+const COMPILER_VERSION = version;
 const SOURCE_MEDIA_TYPE = 'text/vnd.gas';
 const DEFAULT_TIMELINE_ID = 'timeline';
 

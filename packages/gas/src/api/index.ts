@@ -39,5 +39,3 @@ export type {
   TrackView,
   WarningEvent
 } from './types.js';
-
-export const version = '0.2.1';

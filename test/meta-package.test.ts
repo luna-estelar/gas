@@ -1,9 +1,7 @@
-// The umbrella package @luna-estelar/gas: what it depends on, what each entry
-// point exposes, what importing it loads, and how its releases track the
-// packages it pins.
+// The @luna-estelar/gas package: its export map, its entry files, and what
+// importing each entry point loads.
 import { execFile } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
@@ -12,98 +10,121 @@ import { describe, expect, it } from 'vitest';
 
 const run = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const umbrellaRoot = path.join(root, 'packages', 'gas');
-const UMBRELLA = '@luna-estelar/gas';
+const gasRoot = path.join(root, 'packages', 'gas');
+const lyriaRoot = path.join(root, 'packages', 'lyria');
+const GAS = '@luna-estelar/gas';
+
+type ExportTarget = string | { readonly types: string; readonly default: string };
 
 interface Manifest {
-  readonly name: string;
-  readonly dependencies?: Record<string, string>;
-  readonly exports: Record<string, { readonly types: string; readonly default: string }>;
+  readonly version: string;
+  readonly exports: Readonly<Record<string, ExportTarget>>;
+  readonly dependencies?: Readonly<Record<string, string>>;
+  readonly devDependencies?: Readonly<Record<string, string>>;
+  readonly peerDependencies?: Readonly<Record<string, string>>;
+  readonly optionalDependencies?: Readonly<Record<string, string>>;
 }
 
-function readManifest(dir: string): Manifest {
-  return JSON.parse(readFileSync(path.join(dir, 'package.json'), 'utf8')) as Manifest;
-}
+const manifest = JSON.parse(readFileSync(path.join(gasRoot, 'package.json'), 'utf8')) as Manifest;
 
-const umbrella = readManifest(umbrellaRoot);
-const siblings = readdirSync(path.join(root, 'packages'))
-  .filter((dir) => dir !== 'gas')
-  .map((dir) => readManifest(path.join(root, 'packages', dir)).name)
+/** The asset wildcard; every other key loads code through an entry file. */
+const SCHEMA_EXPORT = './protocol/schemas/1.0/*';
+
+const CODE_SUBPATHS = [
+  '.',
+  './language',
+  './browser',
+  './protocol',
+  './protocol/validation',
+  './highlight'
+];
+
+/** The entry files: top-level sources other than the version leaf. */
+const FACADES = readdirSync(path.join(gasRoot, 'src'), { withFileTypes: true })
+  .filter((entry) => entry.isFile() && entry.name.endsWith('.ts') && entry.name !== 'version.ts')
+  .map((entry) => entry.name)
   .sort();
 
-/** Each subpath and the package entry it mirrors; the root mirrors the api. */
-const MIRRORS: Readonly<Record<string, string>> = {
-  '.': '@luna-estelar/gas-api',
-  './protocol': '@luna-estelar/gas-protocol',
-  './protocol/validation': '@luna-estelar/gas-protocol/validation',
-  './language': '@luna-estelar/gas-language',
-  './core': '@luna-estelar/gas-core',
-  './api': '@luna-estelar/gas-api',
-  './renderer': '@luna-estelar/gas-renderer',
-  './notation': '@luna-estelar/gas-notation',
-  './highlight': '@luna-estelar/gas-highlight',
-  './lyria': '@luna-estelar/gas-connector-lyria',
-  './browser/session': '@luna-estelar/gas-browser/session',
-  './browser/audio': '@luna-estelar/gas-browser/audio',
-  './browser/capture': '@luna-estelar/gas-browser/capture',
-  './browser/compile': '@luna-estelar/gas-browser/compile',
-  './browser/timeline': '@luna-estelar/gas-browser/timeline',
-  './browser/inspect': '@luna-estelar/gas-browser/inspect'
-};
-
-async function namesOf(url: string): Promise<string[]> {
-  return Object.keys((await import(url)) as object).sort();
+function dependencyNames(...fields: (Readonly<Record<string, string>> | undefined)[]): string[] {
+  return fields.flatMap((field) => Object.keys(field ?? {}));
 }
 
-describe('umbrella manifest', () => {
-  it('depends on every other workspace package at an exact version', () => {
-    expect(Object.keys(umbrella.dependencies ?? {}).sort()).toEqual(siblings);
-    for (const range of Object.values(umbrella.dependencies ?? {})) {
-      expect(range).toBe('workspace:*');
-    }
+describe('gas manifest', () => {
+  it('exports the six code subpaths and the schema assets, and nothing else', () => {
+    expect(Object.keys(manifest.exports).sort()).toEqual([...CODE_SUBPATHS, SCHEMA_EXPORT].sort());
+    expect(manifest.exports[SCHEMA_EXPORT]).toBe('./schemas/1.0/*');
   });
 
-  it('exposes the root and one subpath per package entry, and nothing else', () => {
-    expect(Object.keys(umbrella.exports).sort()).toEqual(Object.keys(MIRRORS).sort());
+  it('never installs the Google GenAI SDK', () => {
+    const names = dependencyNames(
+      manifest.dependencies,
+      manifest.peerDependencies,
+      manifest.optionalDependencies
+    );
+    expect(names).not.toContain('@google/genai');
+  });
+
+  it('depends on no other @luna-estelar package', () => {
+    const names = dependencyNames(
+      manifest.dependencies,
+      manifest.devDependencies,
+      manifest.peerDependencies,
+      manifest.optionalDependencies
+    );
+    expect(names.filter((name) => name.startsWith('@luna-estelar/'))).toEqual([]);
   });
 });
 
-describe('umbrella entry points', () => {
-  const resolveFromUmbrella = createRequire(path.join(umbrellaRoot, 'package.json'));
+describe('gas entry files', () => {
+  it('maps each code subpath to its own entry file, and each entry file to one subpath', () => {
+    const loaded = CODE_SUBPATHS.map((subpath) => {
+      const target = manifest.exports[subpath];
+      if (typeof target === 'string' || target === undefined) {
+        throw new Error(`${subpath} should map types and default`);
+      }
+      const name = /^\.\/out\/([^/]+)\.js$/.exec(target.default)?.[1];
+      expect(name, `${subpath} default`).toBeDefined();
+      expect(target.types, `${subpath} types`).toBe(`./out/${name}.d.ts`);
+      return `${name}.ts`;
+    });
+    expect(loaded.sort()).toEqual(FACADES);
+  });
 
-  it.each(Object.keys(MIRRORS).filter((subpath) => subpath !== '.'))(
-    '%s mirrors its package exactly',
-    async (subpath) => {
-      const target = path.join(umbrellaRoot, umbrella.exports[subpath]!.default);
-      const mirrored = pathToFileURL(resolveFromUmbrella.resolve(MIRRORS[subpath]!)).href;
-      expect(await namesOf(pathToFileURL(target).href)).toEqual(await namesOf(mirrored));
-    }
-  );
-
-  // The root is the api plus its own version; the api's own version is shadowed
-  // rather than dropped, which is observable because the umbrella is versioned
-  // separately from the packages it pins.
-  it('the root is the api with its own version', async () => {
-    const rootModule = (await import(
-      pathToFileURL(path.join(umbrellaRoot, umbrella.exports['.']!.default)).href
-    )) as { version: string };
-    expect(rootModule.version).toBe(
-      (
-        JSON.parse(readFileSync(path.join(umbrellaRoot, 'package.json'), 'utf8')) as {
-          version: string;
-        }
-      ).version
+  // Facades only re-export, so a subpath exposes exactly what its modules do and
+  // the boundary rules on those modules hold for the subpath too.
+  it.each(FACADES)('src/%s only re-exports', (file) => {
+    const source = ts.createSourceFile(
+      file,
+      readFileSync(path.join(gasRoot, 'src', file), 'utf8'),
+      ts.ScriptTarget.Latest,
+      true
     );
+    for (const statement of source.statements) {
+      const reExport = ts.isExportDeclaration(statement) && statement.moduleSpecifier !== undefined;
+      expect(reExport, statement.getText()).toBe(true);
+    }
+  });
+
+  it('the root reports the package version', async () => {
+    const entry = manifest.exports['.'] as Exclude<ExportTarget, string>;
+    const rootModule = (await import(pathToFileURL(path.join(gasRoot, entry.default)).href)) as {
+      version: string;
+    };
+    expect(rootModule.version).toBe(manifest.version);
   });
 });
 
 // What an entry point loads, checked by loading it. Each import runs in its own
-// process from the umbrella's directory, under a resolve hook that throws on the
-// modules in question, because only a module graph's first evaluation can be
-// observed. This catches a transitive import that no source scan would see.
+// process under a resolve hook that throws on the modules in question, because
+// only a module graph's first evaluation can be observed. This catches a
+// transitive import that no source scan would see.
 const DENY_HOOK = path.join(root, 'test', 'support', 'deny-modules.mjs');
 
-async function importUnderHook(specifier: string, denied: readonly string[]): Promise<void> {
+async function importUnderHook(
+  specifier: string,
+  denied: readonly string[],
+  cwd = gasRoot
+): Promise<void> {
   await run(
     process.execPath,
     [
@@ -113,107 +134,49 @@ async function importUnderHook(specifier: string, denied: readonly string[]): Pr
       '-e',
       `await import(${JSON.stringify(specifier)});`
     ],
-    { cwd: umbrellaRoot, env: { ...process.env, DENY_MODULES: denied.join(',') } }
+    { cwd, env: { ...process.env, DENY_MODULES: denied.join(',') } }
   );
 }
 
-const SPECIFIERS = Object.keys(MIRRORS).map((subpath) =>
-  subpath === '.' ? UMBRELLA : `${UMBRELLA}/${subpath.slice(2)}`
+const SPECIFIERS = CODE_SUBPATHS.map((subpath) =>
+  subpath === '.' ? GAS : `${GAS}/${subpath.slice(2)}`
 );
 
 describe('the Google GenAI SDK', () => {
   const DENIED = ['@google/genai'];
 
-  it.concurrent.each(SPECIFIERS.filter((specifier) => specifier !== `${UMBRELLA}/lyria`))(
-    'is not loaded by %s',
-    async (specifier) => {
-      await expect(importUnderHook(specifier, DENIED)).resolves.toBeUndefined();
-    }
-  );
+  it.concurrent.each(SPECIFIERS)('is not loaded by %s', async (specifier) => {
+    await expect(importUnderHook(specifier, DENIED)).resolves.toBeUndefined();
+  });
 
   // Without this the hook could be broken and every case above would still pass.
-  it('is loaded by the lyria subpath, which the hook catches', async () => {
-    await expect(importUnderHook(`${UMBRELLA}/lyria`, DENIED)).rejects.toThrow(
+  it('is loaded by @luna-estelar/gas-lyria, which the hook catches', async () => {
+    await expect(importUnderHook('@luna-estelar/gas-lyria', DENIED, lyriaRoot)).rejects.toThrow(
       '@google/genai was loaded'
     );
   });
 });
 
 // The compiler carries Langium and Chevrotain, which dwarf everything else here.
-// A host that drives a session without compiling source must not pay for them, so
-// every entry point but the two that exist to compile is parser-free — including
-// the root, which re-exports the api, and the browser session, which composes it.
-// `gas-api` keeps the compiler behind a dynamic import to hold this line.
+// A host that drives a session without compiling source must not pay for them,
+// so every entry point but ./language is parser-free, including the root, whose
+// session loads the compiler through a dynamic import only when it compiles.
 describe('the GAS compiler', () => {
-  const DENIED = ['@luna-estelar/gas-language', 'langium', 'chevrotain'];
-  const COMPILING = [`${UMBRELLA}/language`, `${UMBRELLA}/browser/compile`];
+  const DENIED = ['langium', 'chevrotain'];
+  const COMPILING = `${GAS}/language`;
 
-  it.concurrent.each(SPECIFIERS.filter((specifier) => !COMPILING.includes(specifier)))(
+  it.concurrent.each(SPECIFIERS.filter((specifier) => specifier !== COMPILING))(
     'is not loaded by %s',
     async (specifier) => {
       await expect(importUnderHook(specifier, DENIED)).resolves.toBeUndefined();
     }
   );
 
-  // The controls: without these the hook could be broken and every case above
+  // The control: without it the hook could be broken and every case above
   // would still pass.
-  it.each(COMPILING)('is loaded by %s, which the hook catches', async (specifier) => {
-    await expect(importUnderHook(specifier, DENIED)).rejects.toThrow(
-      '@luna-estelar/gas-language was loaded'
+  it(`is loaded by ${COMPILING}, which the hook catches`, async () => {
+    await expect(importUnderHook(COMPILING, DENIED)).rejects.toThrow(
+      /(langium|chevrotain) was loaded/
     );
-  });
-});
-
-// The boundary check lets two umbrella modules reach the concrete runtimes.
-// That is safe only while the package is a pure facade.
-describe('umbrella sources', () => {
-  function sourceFiles(directory: string): string[] {
-    return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-      const full = path.join(directory, entry.name);
-      if (entry.isDirectory()) return sourceFiles(full);
-      return entry.name.endsWith('.ts') ? [full] : [];
-    });
-  }
-
-  const IDENTITY = new Set(['version']);
-
-  function isReExport(statement: ts.Statement): boolean {
-    return (
-      ts.isExportDeclaration(statement) &&
-      statement.moduleSpecifier !== undefined &&
-      statement.exportClause === undefined
-    );
-  }
-
-  function isIdentityConstant(statement: ts.Statement): boolean {
-    if (!ts.isVariableStatement(statement)) return false;
-    const exported = statement.modifiers?.some(
-      (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword
-    );
-    return (
-      exported === true &&
-      statement.declarationList.declarations.every(
-        (declaration) =>
-          ts.isIdentifier(declaration.name) &&
-          IDENTITY.has(declaration.name.text) &&
-          declaration.initializer !== undefined &&
-          ts.isStringLiteral(declaration.initializer)
-      )
-    );
-  }
-
-  it.each(
-    sourceFiles(path.join(umbrellaRoot, 'src')).map((file) => path.relative(umbrellaRoot, file))
-  )('%s only re-exports', (file) => {
-    const source = ts.createSourceFile(
-      file,
-      readFileSync(path.join(umbrellaRoot, file), 'utf8'),
-      ts.ScriptTarget.Latest,
-      true
-    );
-    const allowed = file === path.join('src', 'index.ts') ? isIdentityConstant : () => false;
-    for (const statement of source.statements) {
-      expect(isReExport(statement) || allowed(statement), statement.getText()).toBe(true);
-    }
   });
 });

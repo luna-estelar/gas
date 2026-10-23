@@ -22,6 +22,7 @@ interface Manifest {
   readonly engines?: { readonly node?: string };
   readonly dependencies?: Readonly<Record<string, string>>;
   readonly devDependencies?: Readonly<Record<string, string>>;
+  readonly peerDependencies?: Readonly<Record<string, string>>;
 }
 
 interface Package {
@@ -37,7 +38,6 @@ const packages: Package[] = readdirSync(packagesRoot, { withFileTypes: true })
     const manifest = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')) as Manifest;
     return { dir: entry.name, root, manifest };
   })
-  .filter((pkg) => pkg.manifest.private !== true)
   .sort((a, b) => a.dir.localeCompare(b.dir));
 
 function exists(file: string): boolean {
@@ -68,9 +68,22 @@ function exportTargets(node: unknown, out: string[] = []): string[] {
   return out;
 }
 
-describe('publishable packages', () => {
-  test('there are eleven of them', () => {
-    expect(packages).toHaveLength(11);
+// Every package, private or not, so lyria is ready to publish the moment its
+// private flag is removed.
+describe('packages', () => {
+  test('there are exactly gas and lyria', () => {
+    expect(packages.map((pkg) => pkg.dir)).toEqual(['gas', 'lyria']);
+  });
+
+  test('gas publishes, and lyria publishes once it is no longer private', () => {
+    const lyria = packages.find((pkg) => pkg.dir === 'lyria')!;
+    const publishable = packages
+      .filter((pkg) => pkg.manifest.private !== true)
+      .map((pkg) => pkg.manifest.name);
+    expect(publishable).toEqual([
+      '@luna-estelar/gas',
+      ...(lyria.manifest.private === true ? [] : ['@luna-estelar/gas-lyria'])
+    ]);
   });
 
   test.each(packages)('$manifest.name carries its own LICENSE', ({ root }) => {
@@ -123,7 +136,8 @@ describe('publishable packages', () => {
     const floor = minimumMajor(manifest.engines?.node);
     expect(floor, `${manifest.name} declares no Node floor`).toBeGreaterThan(0);
 
-    for (const dependency of Object.keys(manifest.dependencies ?? {})) {
+    const required = { ...manifest.dependencies, ...manifest.peerDependencies };
+    for (const dependency of Object.keys(required)) {
       const sibling = byName.get(dependency);
       if (sibling === undefined) continue;
       const siblingFloor = minimumMajor(sibling.manifest.engines?.node);
@@ -134,22 +148,27 @@ describe('publishable packages', () => {
     }
   });
 
-  test.each(packages)(
-    '$manifest.name depends on siblings through the right range',
-    ({ manifest }) => {
-      // Packages are versioned independently. pnpm packs workspace:^ as a caret
-      // range, so a patch to one package does not force a release of every
-      // dependant. The umbrella is the one exception: it ships a tested set, so
-      // it pins exact versions with workspace:*, and every internal release
-      // cascades a release of it.
-      const expected = manifest.name === '@luna-estelar/gas' ? 'workspace:*' : 'workspace:^';
-      const internal = Object.entries({
-        ...manifest.dependencies,
-        ...manifest.devDependencies
-      }).filter(([name]) => name.startsWith('@luna-estelar/'));
-      for (const [name, range] of internal) {
-        expect(range, `${manifest.name} -> ${name}`).toBe(expected);
-      }
-    }
-  );
+  test('gas depends on no other @luna-estelar package', () => {
+    const { manifest } = byName.get('@luna-estelar/gas')!;
+    const internal = Object.keys({
+      ...manifest.dependencies,
+      ...manifest.devDependencies,
+      ...manifest.peerDependencies
+    }).filter((name) => name.startsWith('@luna-estelar/'));
+    expect(internal).toEqual([]);
+  });
+
+  test('lyria peers on gas and develops against the workspace copy', () => {
+    // A peer, not a dependency: a host with two copies of gas would have two
+    // ConnectorError classes, and instanceof checks would fail across them.
+    // The range is written out because on 0.x `^0.3.0` means `<0.4.0`, which
+    // would force a lyria release for every gas minor.
+    const { manifest } = byName.get('@luna-estelar/gas-lyria')!;
+    expect(manifest.peerDependencies?.['@luna-estelar/gas']).toBe('>=0.3.0 <1.0.0');
+    expect(manifest.devDependencies?.['@luna-estelar/gas']).toBe('workspace:^');
+    const runtime = Object.keys(manifest.dependencies ?? {}).filter((name) =>
+      name.startsWith('@luna-estelar/')
+    );
+    expect(runtime).toEqual([]);
+  });
 });

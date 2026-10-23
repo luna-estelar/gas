@@ -66,5 +66,3 @@ export { effectiveStateAt, sectionInstanceAt } from './cascade.js';
 export { authoredEventSchedule } from './schedule.js';
 
 export { applyStop, applyCompletion, applyLoopBoundary, applyRetry } from './transitions.js';
-
-export const version = '0.2.1';

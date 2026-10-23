@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { compileSource } from '../../src/language/index.js';
-import { execute, version, type CliIo } from '../../src/cli/index.js';
+import { execute, type CliIo } from '../../src/cli/index.js';
+import { version } from '../../src/version.js';
 import { readExample } from '../../../../examples/support.js';
 
 function harness(files: Record<string, string> = {}): {

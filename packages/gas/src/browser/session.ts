@@ -10,8 +10,6 @@ import { openAudioContext } from './audio/context.js';
 import type { EngineOptions, PlaybackEngine } from './audio/engine.js';
 import { PcmCapture } from './capture.js';
 
-export const version = '0.3.0';
-
 export interface BrowserSessionOptions {
   /**
    * The connector, or a factory for one. A connector opens once, so only a
