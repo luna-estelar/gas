@@ -275,27 +275,72 @@ function decodeBase64Pcm(data: unknown): Uint8Array {
   return bytes;
 }
 
+/**
+ * How long an `onerror` waits for the close that usually follows it. The SDK
+ * reports a bare error first and the close code second, and only the close code
+ * says whether a key was rejected.
+ */
+const ERROR_CLOSE_GRACE_SECONDS = 0.25;
+
+/**
+ * One start of one run: everything the provider hands back for it, and every
+ * timer it arms. Callbacks, continuations and late connections hold on to the
+ * attempt object and act only while it is still the connector's current one,
+ * so a stale attempt can only ever clean up after itself.
+ */
+interface Attempt {
+  readonly runId: string;
+  readonly sink: AudioSink;
+  readonly timing: ConnectorTiming;
+  /** Resolves when the provider reports setup complete. */
+  readonly setup: Deferred<void>;
+  /** Rejects with whatever ends startup first: a callback failure, the timeout or Stop. */
+  readonly startup: Deferred<never>;
+  readonly timers: Set<ClockTimer>;
+  transition: PromptTransition | undefined;
+  session: LyriaMusicSession | undefined;
+  active: boolean;
+  /** Ended by Stop or Close rather than by a failure. */
+  cancelled: boolean;
+  starting: boolean;
+  setupReceived: boolean;
+  startupFailure: ConnectorError | undefined;
+  terminalFailureReported: boolean;
+  errorGrace: ClockTimer | undefined;
+  promptsNonEmpty: boolean;
+  flowPaused: boolean;
+  playbackState: 'paused' | 'playing';
+  stopSent: boolean;
+  lastModelContext: ModelContext | undefined;
+}
+
+function cancelledStart(): ConnectorError {
+  return connectorError('lyria-start-cancelled', 'internal', false);
+}
+
+/** Calls into the host's sink. Its exceptions are its own, never the provider's. */
+function hostCall(call: () => void): void {
+  try {
+    call();
+  } catch {
+    // Host callbacks are isolated and never stringified or logged here.
+  }
+}
+
+function closeQuietly(session: LyriaMusicSession): void {
+  try {
+    session.close();
+  } catch {
+    // Stop and close are best effort and never expose SDK details.
+  }
+}
+
 export class LyriaConnector implements Connector {
   private state: ConnectorState = 'new';
   private settings: LyriaConnectorSettings | undefined;
   private preparedState: EffectiveState | undefined;
   private config: LyriaConnectorConfig | undefined;
-  private client: LyriaSdkClient | undefined;
-  private session: LyriaMusicSession | undefined;
-  private sink: AudioSink | undefined;
-  private timing: ConnectorTiming | undefined;
-  private runId: string | undefined;
-  private transition: PromptTransition | undefined;
-  private sessionToken = 0;
-  private setupReceived = false;
-  private terminalFailureReported = false;
-  private startupFailure: ConnectorError | undefined;
-  private runActive = false;
-  private promptsNonEmpty = false;
-  private flowPaused = false;
-  private playbackState: 'paused' | 'playing' = 'paused';
-  private stopSent = false;
-  private lastModelContext: ModelContext | undefined;
+  private attempt: Attempt | undefined;
   private readonly warnedTempos = new Set<number>();
 
   constructor(private readonly dependencies: LyriaConnectorDependencies = DEFAULT_DEPENDENCIES) {}
@@ -318,11 +363,7 @@ export class LyriaConnector implements Connector {
     if (this.state !== 'opened' && this.state !== 'stopped') throw stateConflict();
     this.config = validateAndResolveLyriaConfig(config);
     this.preparedState = initialState;
-    this.lastModelContext = undefined;
     this.warnedTempos.clear();
-    this.flowPaused = false;
-    this.promptsNonEmpty = false;
-    this.playbackState = 'paused';
     this.state = 'prepared';
   }
 
@@ -333,82 +374,100 @@ export class LyriaConnector implements Connector {
     if (initialState === undefined || config === undefined) throw stateConflict();
 
     this.state = 'starting';
-    this.sink = sink;
-    this.timing = timing;
-    this.runId = runId;
-    this.runActive = true;
-    this.setupReceived = false;
-    this.terminalFailureReported = false;
-    this.startupFailure = undefined;
-    this.stopSent = false;
-    const token = ++this.sessionToken;
+    // Recorded before anything is awaited, so Stop and Close can always find it.
+    const attempt: Attempt = {
+      runId,
+      sink,
+      timing,
+      setup: deferred<void>(),
+      startup: deferred<never>(),
+      timers: new Set(),
+      transition: undefined,
+      session: undefined,
+      active: true,
+      cancelled: false,
+      starting: true,
+      setupReceived: false,
+      startupFailure: undefined,
+      terminalFailureReported: false,
+      errorGrace: undefined,
+      promptsNonEmpty: false,
+      flowPaused: false,
+      playbackState: 'paused',
+      stopSent: false,
+      lastModelContext: undefined
+    };
+    // Rejected on every ending, including after startup when nobody races it.
+    attempt.startup.promise.catch(() => undefined);
+    this.attempt = attempt;
 
-    this.transition = createPromptTransition({
+    const transition = createPromptTransition({
       clock: this.dependencies.clock,
       transitionDurationMs: config.prompt.transitionDurationMs,
       transitionSteps: config.prompt.transitionSteps,
       sender: {
-        send: (prompts) => this.sendPrompts(prompts, token, runId),
-        requestPlay: () => this.reconcilePlayback(token, runId),
-        requestPause: () => this.reconcilePlayback(token, runId)
+        send: (prompts) => this.sendPrompts(attempt, prompts),
+        requestPlay: () => this.reconcilePlayback(attempt),
+        requestPause: () => this.reconcilePlayback(attempt)
       },
-      onFailure: (failure) => this.reportTerminalFailure(failure, token, runId)
+      onFailure: (failure) => this.reportTerminalFailure(attempt, failure)
     });
-    this.transition.beginRun(runId);
+    attempt.transition = transition;
+    transition.beginRun(runId);
 
-    const setup = deferred<void>();
-    const callbackFailure = deferred<never>();
-    const timeout = this.dependencies.clock.schedule(
-      this.dependencies.clock.now() + this.dependencies.setupTimeoutSeconds,
-      () => callbackFailure.reject(connectorError('lyria-setup-timeout', 'network', true))
+    const setupTimeout = this.schedule(attempt, this.dependencies.setupTimeoutSeconds, () =>
+      this.failStartup(attempt, connectorError('lyria-setup-timeout', 'network', true))
     );
 
     try {
-      this.client = this.dependencies.createClient(this.clientOptions());
-      const connection = this.client
+      const client = this.dependencies.createClient(this.clientOptions());
+      // The connection belongs to this attempt whenever it lands. Arriving after
+      // Stop, Close or the timeout, it is closed at once: the SDK gives no way
+      // to cancel a connect in flight, so this is the earliest it can be.
+      const connected = client
         .connect({
           model: LYRIA_MODEL_ID,
           callbacks: {
-            onmessage: (message) =>
-              this.handleMessage(message, setup, callbackFailure, token, runId),
-            onerror: () =>
-              this.handleCallbackFailure(
-                connectorError('lyria-network-failure', 'network', true),
-                callbackFailure,
-                token,
-                runId
-              ),
-            onclose: (event) =>
-              this.handleCallbackFailure(
-                this.classifyClose(event.code, !this.setupReceived),
-                callbackFailure,
-                token,
-                runId
-              )
+            onmessage: (message) => this.handleMessage(attempt, message),
+            onerror: () => this.handleError(attempt),
+            onclose: (event) => this.handleClose(attempt, event.code)
           }
         })
-        .catch(() => {
-          throw connectorError('lyria-network-failure', 'network', true);
-        });
-      this.session = await Promise.race([connection, callbackFailure.promise]);
-      await Promise.race([setup.promise, callbackFailure.promise]);
-      if (!this.isActive(token, runId)) throw stateConflict();
+        .then(
+          (session) => {
+            if (attempt.active) attempt.session = session;
+            else closeQuietly(session);
+          },
+          () => {
+            throw connectorError('lyria-network-failure', 'network', true);
+          }
+        );
+      connected.catch(() => undefined);
+      await Promise.race([connected, attempt.startup.promise]);
+      await Promise.race([attempt.setup.promise, attempt.startup.promise]);
+      this.assertCurrent(attempt);
 
       const context = this.modelContext(initialState, timing);
-      await this.sendModelConfig(context, token, runId);
-      this.lastModelContext = context;
-      const prompts = translatePrompts(initialState, config.prompt);
-      await this.transition.update(prompts);
-      if (this.startupFailure !== undefined) throw this.startupFailure;
-      if (!this.isActive(token, runId)) throw stateConflict();
+      await this.sendModelConfig(attempt, context);
+      attempt.lastModelContext = context;
+      await transition.update(translatePrompts(initialState, config.prompt));
+      if (attempt.startupFailure !== undefined) throw attempt.startupFailure;
+      this.assertCurrent(attempt);
+      attempt.starting = false;
       this.state = 'running';
     } catch (error) {
-      const failure = safeError(error, connectorError('lyria-startup-failure', 'internal', false));
-      this.finishSession(runId, false);
-      this.state = 'stopped';
+      const failure = attempt.cancelled
+        ? cancelledStart()
+        : safeError(error, connectorError('lyria-startup-failure', 'internal', false));
+      // Only the current attempt may move the connector; a stale one has
+      // already been replaced or closed by whoever ended it.
+      if (this.attempt === attempt) {
+        this.finishAttempt(attempt, false);
+        this.state = 'stopped';
+      }
       throw failure;
     } finally {
-      this.dependencies.clock.cancel(timeout);
+      this.cancelTimer(attempt, setupTimeout);
     }
   }
 
@@ -416,49 +475,54 @@ export class LyriaConnector implements Connector {
     update: ConnectorUpdate,
     requestedBoundary: MusicalPosition
   ): Promise<MusicalPosition> {
-    if (this.state !== 'running' || this.timing === undefined || this.config === undefined) {
+    const attempt = this.attempt;
+    if (
+      this.state !== 'running' ||
+      attempt === undefined ||
+      !attempt.active ||
+      this.config === undefined
+    ) {
       throw stateConflict();
     }
-    const token = this.sessionToken;
-    const runId = this.runId;
-    if (runId === undefined || !this.isActive(token, runId)) throw stateConflict();
 
-    const context = this.modelContext(update.state, this.timing);
-    if (
-      this.lastModelContext === undefined ||
-      context.bpm !== this.lastModelContext.bpm ||
-      context.scale !== this.lastModelContext.scale
-    ) {
-      await this.sendModelConfig(context, token, runId);
-      this.requireSession(token, runId).resetContext();
-      this.lastModelContext = context;
+    const context = this.modelContext(update.state, attempt.timing);
+    const last = attempt.lastModelContext;
+    if (last === undefined || context.bpm !== last.bpm || context.scale !== last.scale) {
+      await this.sendModelConfig(attempt, context);
+      this.requireSession(attempt).resetContext();
+      attempt.lastModelContext = context;
     }
 
     const prompts = translatePrompts(update.state, this.config.prompt);
-    if (this.transition === undefined) throw stateConflict();
-    await this.transition.update(prompts);
+    if (attempt.transition === undefined) throw stateConflict();
+    await attempt.transition.update(prompts);
     return requestedBoundary;
   }
 
   async setGenerationPaused(paused: boolean): Promise<void> {
-    if (this.state !== 'running' || this.runId === undefined) throw stateConflict();
-    if (this.flowPaused === paused) return;
-    this.flowPaused = paused;
-    await this.reconcilePlayback(this.sessionToken, this.runId);
+    const attempt = this.attempt;
+    if (this.state !== 'running' || attempt === undefined) throw stateConflict();
+    if (attempt.flowPaused === paused) return;
+    attempt.flowPaused = paused;
+    await this.reconcilePlayback(attempt);
   }
 
   async stop(runId: string): Promise<void> {
     if (this.state === 'closed') return;
-    if (this.runId === undefined || this.runId !== runId) return;
-    this.finishSession(runId, true);
+    const attempt = this.attempt;
+    if (attempt === undefined || attempt.runId !== runId) return;
+    attempt.cancelled = true;
+    this.finishAttempt(attempt, true);
     this.state = 'stopped';
   }
 
   async close(): Promise<void> {
     if (this.state === 'closed') return;
-    const activeRunId = this.runId;
-    if (activeRunId !== undefined) this.finishSession(activeRunId, true);
-    else this.closeSessionBestEffort(false);
+    const attempt = this.attempt;
+    if (attempt !== undefined) {
+      attempt.cancelled = true;
+      this.finishAttempt(attempt, true);
+    }
     this.settings = undefined;
     this.preparedState = undefined;
     this.config = undefined;
@@ -519,13 +583,9 @@ export class LyriaConnector implements Connector {
     };
   }
 
-  private async sendModelConfig(
-    context: ModelContext,
-    token: number,
-    runId: string
-  ): Promise<void> {
+  private async sendModelConfig(attempt: Attempt, context: ModelContext): Promise<void> {
     try {
-      await this.requireSession(token, runId).setMusicGenerationConfig({
+      await this.requireSession(attempt).setMusicGenerationConfig({
         musicGenerationConfig: this.generationConfig(context)
       });
     } catch (error) {
@@ -533,63 +593,47 @@ export class LyriaConnector implements Connector {
     }
   }
 
-  private async sendPrompts(
-    prompts: readonly WeightedPrompt[],
-    token: number,
-    runId: string
-  ): Promise<void> {
+  private async sendPrompts(attempt: Attempt, prompts: readonly WeightedPrompt[]): Promise<void> {
     if (prompts.length === 0) {
-      this.promptsNonEmpty = false;
+      attempt.promptsNonEmpty = false;
       return;
     }
     try {
-      await this.requireSession(token, runId).setWeightedPrompts({
+      await this.requireSession(attempt).setWeightedPrompts({
         weightedPrompts: prompts.map(({ text, weight }) => ({ text, weight }))
       });
-      this.promptsNonEmpty = true;
+      attempt.promptsNonEmpty = true;
     } catch (error) {
       throw safeError(error, connectorError('lyria-network-failure', 'network', true));
     }
   }
 
-  private async reconcilePlayback(token: number, runId: string): Promise<void> {
-    const session = this.requireSession(token, runId);
-    const shouldPlay = this.runActive && this.promptsNonEmpty && !this.flowPaused;
+  private async reconcilePlayback(attempt: Attempt): Promise<void> {
+    const session = this.requireSession(attempt);
+    const shouldPlay = attempt.active && attempt.promptsNonEmpty && !attempt.flowPaused;
     const nextState = shouldPlay ? 'playing' : 'paused';
-    if (nextState === this.playbackState) return;
+    if (nextState === attempt.playbackState) return;
     try {
       if (shouldPlay) session.play();
       else session.pause();
-      this.playbackState = nextState;
-      const sink = this.sink;
-      if (sink !== undefined && shouldPlay) sink.status('streaming', runId);
-      else if (sink !== undefined && this.flowPaused) sink.status('throttled', runId);
+      attempt.playbackState = nextState;
     } catch (error) {
       throw safeError(error, connectorError('lyria-network-failure', 'network', true));
     }
+    if (shouldPlay) hostCall(() => attempt.sink.status('streaming', attempt.runId));
+    else if (attempt.flowPaused) hostCall(() => attempt.sink.status('throttled', attempt.runId));
   }
 
-  private handleMessage(
-    message: LyriaServerMessage,
-    setup: Deferred<void>,
-    callbackFailure: Deferred<never>,
-    token: number,
-    runId: string
-  ): void {
-    if (!this.isActive(token, runId)) return;
+  private handleMessage(attempt: Attempt, message: LyriaServerMessage): void {
+    if (!this.isCurrent(attempt)) return;
     if (message.setupComplete !== undefined) {
-      this.setupReceived = true;
-      setup.resolve(undefined);
+      attempt.setupReceived = true;
+      attempt.setup.resolve(undefined);
     }
     if (message.filteredPrompt !== undefined) {
       this.emitWarning('lyria-prompt-filtered');
-      if (this.state === 'starting') {
-        this.handleCallbackFailure(
-          connectorError('lyria-filtered-startup', 'provider', true),
-          callbackFailure,
-          token,
-          runId
-        );
+      if (attempt.starting) {
+        this.failStartup(attempt, connectorError('lyria-filtered-startup', 'provider', true));
       }
     }
     if (message.warning !== undefined) this.emitWarning('lyria-provider-warning');
@@ -597,37 +641,56 @@ export class LyriaConnector implements Connector {
     try {
       for (const chunk of message.serverContent?.audioChunks ?? []) {
         const bytes = decodeBase64Pcm(chunk.data);
-        this.sink?.push({
-          runId,
-          bytes,
-          codec: 'pcm',
-          sampleFormat: 's16le',
-          sampleRate: PCM_SAMPLE_RATE,
-          channels: PCM_CHANNELS,
-          durationSeconds: bytes.length / PCM_BYTES_PER_SECOND
-        });
+        hostCall(() =>
+          attempt.sink.push({
+            runId: attempt.runId,
+            bytes,
+            codec: 'pcm',
+            sampleFormat: 's16le',
+            sampleRate: PCM_SAMPLE_RATE,
+            channels: PCM_CHANNELS,
+            durationSeconds: bytes.length / PCM_BYTES_PER_SECOND
+          })
+        );
       }
     } catch (error) {
-      const failure = safeError(error, connectorError('lyria-internal-failure', 'internal', false));
-      if (this.state === 'starting') {
-        this.handleCallbackFailure(failure, callbackFailure, token, runId);
-      } else this.reportTerminalFailure(failure, token, runId);
+      this.handleCallbackFailure(
+        attempt,
+        safeError(error, connectorError('lyria-internal-failure', 'internal', false))
+      );
     }
   }
 
-  private handleCallbackFailure(
-    failure: ConnectorError,
-    startupGate: Deferred<never>,
-    token: number,
-    runId: string
-  ): void {
-    if (!this.isActive(token, runId)) return;
-    if (this.state === 'starting') {
-      this.startupFailure = failure;
-      startupGate.reject(failure);
-      return;
+  // The SDK's error event carries nothing usable; the close that normally
+  // follows carries the code that classifies it. Wait briefly for that close,
+  // and report a plain network failure only if none comes.
+  private handleError(attempt: Attempt): void {
+    if (!this.isCurrent(attempt) || attempt.errorGrace !== undefined) return;
+    attempt.errorGrace = this.schedule(attempt, ERROR_CLOSE_GRACE_SECONDS, () => {
+      attempt.errorGrace = undefined;
+      this.handleCallbackFailure(attempt, connectorError('lyria-network-failure', 'network', true));
+    });
+  }
+
+  private handleClose(attempt: Attempt, code: number | undefined): void {
+    if (!this.isCurrent(attempt)) return;
+    if (attempt.errorGrace !== undefined) {
+      this.cancelTimer(attempt, attempt.errorGrace);
+      attempt.errorGrace = undefined;
     }
-    this.reportTerminalFailure(failure, token, runId);
+    this.handleCallbackFailure(attempt, this.classifyClose(code, !attempt.setupReceived));
+  }
+
+  private handleCallbackFailure(attempt: Attempt, failure: ConnectorError): void {
+    if (!this.isCurrent(attempt)) return;
+    if (attempt.starting) this.failStartup(attempt, failure);
+    else this.reportTerminalFailure(attempt, failure);
+  }
+
+  private failStartup(attempt: Attempt, failure: ConnectorError): void {
+    if (!this.isCurrent(attempt)) return;
+    attempt.startupFailure ??= failure;
+    attempt.startup.reject(failure);
   }
 
   /**
@@ -652,84 +715,85 @@ export class LyriaConnector implements Connector {
   private emitWarning(
     code: 'lyria-tempo-clamped' | 'lyria-prompt-filtered' | 'lyria-provider-warning'
   ): void {
-    const sink = this.sink;
-    if (sink === undefined) return;
-    try {
-      sink.warning({
-        code,
-        message: LYRIA_WARNING_MESSAGE,
-        ...(this.runId ? { runId: this.runId } : {})
-      });
-    } catch {
-      // Host callbacks are isolated and never stringified or logged here.
-    }
+    const attempt = this.attempt;
+    if (attempt === undefined || !attempt.active) return;
+    hostCall(() =>
+      attempt.sink.warning({ code, message: LYRIA_WARNING_MESSAGE, runId: attempt.runId })
+    );
   }
 
-  private reportTerminalFailure(failure: ConnectorError, token: number, runId: string): void {
-    if (!this.isActive(token, runId) || this.terminalFailureReported) return;
-    this.terminalFailureReported = true;
-    const sink = this.sink;
+  private reportTerminalFailure(attempt: Attempt, failure: ConnectorError): void {
+    if (!this.isCurrent(attempt) || attempt.terminalFailureReported) return;
+    attempt.terminalFailureReported = true;
     const event: RendererFailure = {
       code: failure.code,
       message: LYRIA_FAILURE_MESSAGE,
       reason: failure.reason,
-      runId,
+      runId: attempt.runId,
       retryable: failure.retryable,
       ...(failure.closeCode !== undefined ? { closeCode: failure.closeCode } : {})
     };
-    this.finishSession(runId, false);
+    this.finishAttempt(attempt, false);
     this.state = 'stopped';
-    try {
-      sink?.failure(event);
-    } catch {
-      // Host callbacks are isolated and never stringified or logged here.
-    }
+    hostCall(() => attempt.sink.failure(event));
   }
 
-  private isActive(token: number, runId: string): boolean {
-    return this.sessionToken === token && this.runId === runId && this.runActive;
+  private isCurrent(attempt: Attempt): boolean {
+    return this.attempt === attempt && attempt.active;
   }
 
-  private requireSession(token: number, runId: string): LyriaMusicSession {
-    if (!this.isActive(token, runId) || this.session === undefined) throw stateConflict();
-    return this.session;
+  private assertCurrent(attempt: Attempt): void {
+    if (this.isCurrent(attempt)) return;
+    throw attempt.cancelled ? cancelledStart() : stateConflict();
   }
 
-  private finishSession(runId: string, sendStop: boolean): void {
-    this.transition?.endRun(runId);
-    this.runActive = false;
-    this.sessionToken++;
-    this.closeSessionBestEffort(sendStop);
-    this.transition = undefined;
-    this.sink = undefined;
-    this.timing = undefined;
-    this.runId = undefined;
-    this.promptsNonEmpty = false;
-    this.flowPaused = false;
-    this.playbackState = 'paused';
-    this.lastModelContext = undefined;
-    this.startupFailure = undefined;
+  private requireSession(attempt: Attempt): LyriaMusicSession {
+    if (!this.isCurrent(attempt) || attempt.session === undefined) throw stateConflict();
+    return attempt.session;
   }
 
-  private closeSessionBestEffort(sendStop: boolean): void {
-    const session = this.session;
-    if (session !== undefined) {
-      if (sendStop && !this.stopSent) {
-        this.stopSent = true;
-        try {
-          session.stop();
-        } catch {
-          // Stop and close are best effort and never expose SDK details.
-        }
-      }
+  private schedule(attempt: Attempt, delaySeconds: number, callback: () => void): ClockTimer {
+    const clock = this.dependencies.clock;
+    const timer = clock.schedule(clock.now() + delaySeconds, () => {
+      attempt.timers.delete(timer);
+      callback();
+    });
+    attempt.timers.add(timer);
+    return timer;
+  }
+
+  private cancelTimer(attempt: Attempt, timer: ClockTimer): void {
+    if (!attempt.timers.delete(timer)) return;
+    this.dependencies.clock.cancel(timer);
+  }
+
+  /**
+   * Ends an attempt: settles a startup still waiting on it, cancels its timers
+   * and releases its session. Safe to call more than once, and only ever touches
+   * this attempt's own resources.
+   */
+  private finishAttempt(attempt: Attempt, sendStop: boolean): void {
+    if (!attempt.active) return;
+    attempt.active = false;
+    if (this.attempt === attempt) this.attempt = undefined;
+    for (const timer of attempt.timers) this.dependencies.clock.cancel(timer);
+    attempt.timers.clear();
+    attempt.errorGrace = undefined;
+    attempt.transition?.endRun(attempt.runId);
+    attempt.transition = undefined;
+    attempt.startup.reject(attempt.cancelled ? cancelledStart() : stateConflict());
+    const session = attempt.session;
+    attempt.session = undefined;
+    if (session === undefined) return;
+    if (sendStop && !attempt.stopSent) {
+      attempt.stopSent = true;
       try {
-        session.close();
+        session.stop();
       } catch {
         // Stop and close are best effort and never expose SDK details.
       }
     }
-    this.session = undefined;
-    this.client = undefined;
+    closeQuietly(session);
   }
 }
 
