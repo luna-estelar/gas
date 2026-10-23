@@ -1,8 +1,4 @@
-// gas-highlight declares HighlightKind itself rather than importing it from the
-// language package, which removed the compile-time check that TOKEN_CLASS covers
-// every kind the compiler emits: nothing typechecks this directory, and an
-// unknown kind now yields undefined at runtime instead of failing the build.
-// These cases hold the parity the two packages' READMEs promise.
+// gas-highlight declares its token kinds itself, so check they match what the compiler emits.
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

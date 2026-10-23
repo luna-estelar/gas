@@ -14,9 +14,9 @@ boundary and publication checks, then Vitest. For a shorter test loop after buil
 Integration suites cover compiled examples through Core, Renderer, browser helpers and
 notation; protocol contracts; consumer command paths; and connector configuration.
 
-Release checks verify versions, package metadata and entrypoints, README snippets, README
-layout and stale claims, and formatting behavior. Corpus collectors must fail when their input directory is empty or
-missing so an incomplete checkout cannot pass with zero cases.
+Release checks verify versions, package metadata and entrypoints, and that README examples
+compile. Corpus collectors fail when their input directory is empty, so an incomplete checkout
+cannot pass with zero cases.
 
 The automated tests use deterministic clocks and fake transports. Live listening and
 transport checks are documented separately in the Lyria connector's manual guide.

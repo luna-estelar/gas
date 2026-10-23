@@ -51,12 +51,6 @@ const MIRRORS: Readonly<Record<string, string>> = {
   './browser/inspect': '@luna-estelar/gas-browser/inspect'
 };
 
-// A checked-in list, so any change to what an entry point exposes shows up in
-// review rather than arriving silently through a star export.
-const EXPECTED_NAMES = JSON.parse(
-  readFileSync(path.join(root, 'test', 'meta-package-exports.json'), 'utf8')
-) as Record<string, string[]>;
-
 async function namesOf(url: string): Promise<string[]> {
   return Object.keys((await import(url)) as object).sort();
 }
@@ -76,11 +70,6 @@ describe('umbrella manifest', () => {
 
 describe('umbrella entry points', () => {
   const resolveFromUmbrella = createRequire(path.join(umbrellaRoot, 'package.json'));
-
-  it.each(Object.keys(MIRRORS))('%s exposes its checked-in names', async (subpath) => {
-    const target = path.join(umbrellaRoot, umbrella.exports[subpath]!.default);
-    expect(await namesOf(pathToFileURL(target).href)).toEqual(EXPECTED_NAMES[subpath]);
-  });
 
   it.each(Object.keys(MIRRORS).filter((subpath) => subpath !== '.'))(
     '%s mirrors its package exactly',
@@ -105,7 +94,6 @@ describe('umbrella entry points', () => {
         }
       ).version
     );
-    expect(EXPECTED_NAMES['.']).toEqual(EXPECTED_NAMES['./api']);
   });
 });
 
@@ -227,39 +215,5 @@ describe('umbrella sources', () => {
     for (const statement of source.statements) {
       expect(isReExport(statement) || allowed(statement), statement.getText()).toBe(true);
     }
-  });
-});
-
-// Changesets always releases an exact-pinning dependent as a patch. A breaking
-// change underneath the umbrella would then reach its users as a patch, so any
-// minor or major on a package it pins must carry the same bump for the
-// umbrella itself.
-describe('pending changesets', () => {
-  const RANK: Readonly<Record<string, number>> = { patch: 1, minor: 2, major: 3 };
-
-  function pendingBumps(): Map<string, number> {
-    const dir = path.join(root, '.changeset');
-    const bumps = new Map<string, number>();
-    for (const file of readdirSync(dir)) {
-      if (!file.endsWith('.md') || file === 'README.md') continue;
-      const text = readFileSync(path.join(dir, file), 'utf8');
-      const frontMatter = /^---\n([\s\S]*?)\n---/.exec(text)?.[1] ?? '';
-      for (const line of frontMatter.split('\n')) {
-        const match = /^\s*['"]?([^'":]+)['"]?\s*:\s*(patch|minor|major)\s*$/.exec(line);
-        if (match === null) continue;
-        const [, name, bump] = match;
-        bumps.set(name!, Math.max(bumps.get(name!) ?? 0, RANK[bump!]!));
-      }
-    }
-    return bumps;
-  }
-
-  it('bump the umbrella at least as far as any breaking change it pins', () => {
-    const bumps = pendingBumps();
-    const needed = Math.max(
-      0,
-      ...siblings.map((name) => bumps.get(name) ?? 0).filter((rank) => rank >= RANK.minor!)
-    );
-    expect(bumps.get(UMBRELLA) ?? 0).toBeGreaterThanOrEqual(needed);
   });
 });

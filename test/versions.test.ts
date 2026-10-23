@@ -1,9 +1,4 @@
-// Check that exported version literals match their manifests. The literals exist
-// so browser consumers can read a version without importing Node APIs or package
-// metadata, and `changeset version` only rewrites manifests — so without this the
-// Version Packages PR would ship stale literals. Packages are versioned
-// independently, so each literal is checked against its own manifest only;
-// `scripts/sync-versions.mjs` keeps them in step on release.
+// Exported version literals must match their package's manifest version.
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

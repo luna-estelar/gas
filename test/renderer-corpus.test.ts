@@ -1,6 +1,4 @@
-// End-to-end: compiler output flows through Core derivation and the deterministic
-// Renderer scheduler for every corpus document. Root tests may compose package
-// surfaces; package boundary tests intentionally may not.
+// Every corpus document compiles, derives state in Core and schedules in the Renderer.
 
 import { describe, expect, test } from 'vitest';
 import {

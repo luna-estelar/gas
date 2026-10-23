@@ -1,13 +1,4 @@
-// The website ships a Content Security Policy without 'unsafe-eval', so nothing
-// a browser session imports may build code at runtime: `new Function` and `eval`
-// are blocked, and a throw during module evaluation takes the whole chunk with
-// it. LE-86 was exactly that — the protocol's canonical validator compiled its
-// schemas at import, so importing the renderer cost 33 generated functions
-// before any session code ran.
-//
-// Each entrypoint is imported in its own child process: only the first
-// evaluation of a module graph can be observed, and Vitest shares module caches
-// across the tests in a file.
+// Browser entry points must not generate code at runtime (the site's CSP blocks eval).
 import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,9 +8,7 @@ import { describe, expect, it } from 'vitest';
 const run = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-// The umbrella depends on every package, so its directory resolves each
-// workspace specifier, and Node's self-reference resolves the umbrella's own
-// name and subpaths from inside it.
+// Resolve from the umbrella, which depends on every package.
 const resolveFrom = path.join(root, 'packages', 'gas');
 
 const ENTRYPOINTS = [

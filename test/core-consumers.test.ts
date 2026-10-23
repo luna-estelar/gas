@@ -1,5 +1,4 @@
 // Exercise Core through the API session, renderer state derivation and compile-only inspection.
-// Root tests may compose package surfaces; package boundary tests may not.
 
 import { describe, expect, it } from 'vitest';
 import { compileSource, type Timeline } from '../packages/language/src/index.js';

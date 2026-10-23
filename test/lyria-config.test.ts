@@ -1,8 +1,4 @@
-// The configuration the Lyria connector validates by hand must agree with the
-// schema it advertises. The Renderer no longer compiles that schema — it cannot,
-// under a Content Security Policy without 'unsafe-eval' — so the only thing
-// keeping the hand-written validator honest is this comparison against AJV.
-// Root tests may compose package internals; package boundary tests may not.
+// The Lyria connector's hand-written config validator must agree with its JSON Schema.
 
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import addFormatsImport, { type FormatsPlugin } from 'ajv-formats';

@@ -1,8 +1,4 @@
-// The session driving the real Renderer. Every other test of finite completion
-// uses a fake on one side or the other, which is how the Renderer came to emit a
-// terminal status the session could not recognise: the Renderer cleared its run
-// before the last status, so the id the session matches on was already gone.
-// Root tests may compose package surfaces; package boundary tests may not.
+// The session driving the real Renderer, with no fakes on either side.
 
 import { describe, expect, it } from 'vitest';
 import { createSession } from '../packages/api/src/index.js';
