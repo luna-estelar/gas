@@ -1,0 +1,15 @@
+// Every module but browser/ must compile without the DOM lib; the browser host
+// gets DOM through tsconfig.json.
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2020"],
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/browser/**", "src/browser.ts"]
+}
