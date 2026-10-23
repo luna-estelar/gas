@@ -1,13 +1,6 @@
-// Deterministic identifier derivation for compiled timelines. Timeline ids use
-// the protocol LocalId grammar — lowercase segments joined by '.', '-', or '_',
-// with the first segment starting with a letter. We always prefix an id with a
-// fixed literal segment (`track`, `section`, `default`, `event`), so a
-// slugified name only ever appears as a trailing segment and never has to start
-// with a letter itself.
+// Deterministic identifier derivation for compiled timelines. The id format and
+// `slugify` live in protocol/ids.ts.
 
-// The name-to-segment rule itself belongs to the id format, so Protocol owns it:
-// a host deriving the id of a live track declaration has to land on the same
-// string this compiler does, without depending on the compiler to do it.
 export { slugify } from '../../protocol/index.js';
 
 // Return `base`, or `base-2`, `base-3`, ... if `base` is already taken. Records

@@ -37,7 +37,7 @@ async function countGeneratedFunctions(specifier: string): Promise<number> {
   return Number(stdout.trim());
 }
 
-// LE-87: importing cleanly is not enough if a later call compiles a schema. Every
+// Importing cleanly is not enough if a later call compiles a schema. Every
 // renderer config path runs here under a Function constructor that throws, as
 // a strict CSP would. The connector validates its own configuration.
 const CONFIG_PATHS_SCRIPT = `

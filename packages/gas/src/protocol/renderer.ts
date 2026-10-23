@@ -106,9 +106,8 @@ export interface RendererFailure {
   readonly reason?: ConnectorFailureReason;
   readonly runId?: string;
   readonly retryable: boolean;
-  // The raw transport close code, 1000-4999, when the failure came from a closed
-  // connection. Passed through unclassified: a connector classifies the standard
-  // codes and leaves the application range (4000-4999) for the host to interpret.
+  // The raw transport close code, when the failure came from a closed connection.
+  // See `ConnectorError`.
   readonly closeCode?: number;
 }
 
@@ -149,10 +148,8 @@ export interface Connector {
   close(): Promise<void>;
   setGenerationPaused?(paused: boolean): Promise<void>;
   /**
-   * Checks a configuration the host proposes, without compiling a schema.
-   * Renderers can use this instead of compiling `configSchema` to validate
-   * configuration under a Content Security Policy without `'unsafe-eval'`.
-   * Optional because `Connector` is a published interface.
+   * Checks a configuration the host proposes, so the Renderer never has to
+   * compile `configSchema`. Optional because `Connector` is a published interface.
    */
   validateConfig?(config: ConnectorConfig): ConnectorConfigValidation;
 }

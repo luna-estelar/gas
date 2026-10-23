@@ -139,10 +139,8 @@ describe('opening a context', () => {
     expect((await openAudioContext()).resumed).toBe(false);
   });
 
-  // A browser that refuses to start audio may reject, but it may also leave the
-  // promise pending forever. Awaiting that unconditionally hung every caller:
-  // `createBrowserSession` never resolved, so the host got no context at all and
-  // could not even offer the gesture that would have fixed it.
+  // A browser that refuses to start audio may leave `resume()` pending forever.
+  // The host still needs the context back, to offer the gesture that fixes it.
   it('yields a context whose resume never settles instead of hanging', async () => {
     vi.stubGlobal(
       'AudioContext',

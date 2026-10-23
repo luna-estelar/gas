@@ -45,10 +45,6 @@ export interface OperationErrorInit {
 // underlying Core failure, compile/validation diagnostics, any warnings already
 // produced, and safe connector classification when one is known. It never
 // derives its public message or fields from raw provider output.
-//
-// `closeCode` is passed through unclassified. A connector classifies the standard
-// codes; the application range (4000-4999) means whatever the service behind the
-// endpoint says it means, so only the host can map it.
 export class GasOperationError extends Error {
   readonly kind: OperationErrorKind;
   readonly failure?: CommandFailure;

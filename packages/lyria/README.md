@@ -1,25 +1,26 @@
-# @luna-estelar/gas-connector-lyria
+# @luna-estelar/gas-lyria
 
 Use Google's Lyria RealTime music model with GAS. It turns your tracks, tempo and sections into
 Lyria prompts and settings, and streams the audio back. You need a Gemini API key with Lyria
 access.
 
-[![npm](https://img.shields.io/npm/v/@luna-estelar/gas-connector-lyria)](https://www.npmjs.com/package/@luna-estelar/gas-connector-lyria)
+[![npm](https://img.shields.io/npm/v/@luna-estelar/gas-lyria)](https://www.npmjs.com/package/@luna-estelar/gas-lyria)
 
 ## Install
 
 ```bash
-npm install @luna-estelar/gas-connector-lyria
+npm install @luna-estelar/gas @luna-estelar/gas-lyria
 ```
 
-Also included in `@luna-estelar/gas` as `@luna-estelar/gas/lyria`.
+`@luna-estelar/gas` is a peer dependency, so your application and the connector share one copy of
+it.
 
 ## Example
 
 ```ts
-import { createLyriaConnector } from '@luna-estelar/gas-connector-lyria';
-import type { MonotonicClock } from '@luna-estelar/gas-protocol';
-import { createRenderer } from '@luna-estelar/gas-renderer';
+import { createRenderer } from '@luna-estelar/gas';
+import type { MonotonicClock } from '@luna-estelar/gas/protocol';
+import { createLyriaConnector } from '@luna-estelar/gas-lyria';
 
 declare const clock: MonotonicClock;
 declare const apiKey: string;
@@ -31,8 +32,8 @@ const renderer = await createRenderer({
 });
 ```
 
-Most applications hand this to a session instead: see `@luna-estelar/gas-api`, or
-`createBrowserSession` in `@luna-estelar/gas-browser`, which takes the connector the same way.
+Most applications hand this to a session instead: see `createSession` in `@luna-estelar/gas`, or
+`createBrowserSession` in `@luna-estelar/gas/browser`, which takes the connector the same way.
 
 ## Exports
 
@@ -53,7 +54,7 @@ Most applications hand this to a session instead: see `@luna-estelar/gas-api`, o
 `Renderer.open` passes the connector its settings, which are:
 
 ```ts
-import type { LyriaConnectorSettings } from '@luna-estelar/gas-connector-lyria';
+import type { LyriaConnectorSettings } from '@luna-estelar/gas-lyria';
 
 const settings: LyriaConnectorSettings = { apiKey: 'a key authorized for Lyria' };
 ```
@@ -107,19 +108,20 @@ warnings for intents the connector cannot render.
 
 Opening the Lyria transport requires a key and network access; compilation and state derivation
 run locally. The
-[manual listening and transport guide](https://github.com/luna-estelar/gas/tree/main/packages/connector-lyria/manual)
+[manual listening and transport guide](https://github.com/luna-estelar/gas/tree/main/packages/lyria/manual)
 covers provider checks that the automated tests cannot make.
 
 ## Runtime support
 
 - ESM-only.
-- Node.js 20 or newer; runs in browsers.
-- Uses the official `@google/genai` SDK, its only dependency outside GAS.
+- Node.js 22 or newer; runs in browsers.
+- Uses the official `@google/genai` SDK, its only dependency; GAS itself is a peer.
 
 ## Related packages
 
-Pass it to `@luna-estelar/gas-renderer` or `@luna-estelar/gas-browser`. Neither depends on this
-package, so you can swap in another connector.
+Pass it to `createRenderer` from `@luna-estelar/gas` or `createBrowserSession` from
+`@luna-estelar/gas/browser`. Neither depends on this package, so you can swap in another
+connector.
 
 ## License
 

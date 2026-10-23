@@ -1,13 +1,9 @@
 // Opening an AudioContext. Browsers keep a context suspended unless it resumes
 // during a user gesture, so these helpers do nothing asynchronous first.
 
-// How long to wait for `resume()` before reporting what the context's own state
-// says. A browser that refuses to start audio may reject, but it may also leave
-// the promise pending indefinitely, which the Web Audio specification permits.
-// Awaiting it unconditionally would hang every caller, so this is a bound on the
-// wait, not a policy: `resumed` is read from `context.state` either way, and a
-// context that starts later is still usable — the caller holds it and can watch
-// `statechange`.
+// How long to wait for `resume()`, which a browser may leave pending forever.
+// `resumed` is read from `context.state` either way, and a context that starts
+// later is still usable.
 const RESUME_TIMEOUT_MS = 1000;
 
 export interface OpenAudioContextOptions {

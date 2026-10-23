@@ -1,4 +1,4 @@
-// Hand-built timelines keep Core package tests independent of the compiler.
+// Hand-built timelines keep Core tests independent of the compiler.
 // Root integration tests cover real compiled documents.
 
 import type { Timeline } from '../../../src/protocol/index.js';

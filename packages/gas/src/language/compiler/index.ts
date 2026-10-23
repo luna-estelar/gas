@@ -1,5 +1,4 @@
-// Compiler package surface: the compile entry point and the timeline types it
-// produces. Consumed by the language package's public `src/index.ts`.
+// The compile entry point and the timeline types it produces.
 export { compileDocument } from './compile.js';
 export type { CompileOptions, CompileResult } from './compile.js';
 export type {

@@ -28,8 +28,8 @@ $('play').addEventListener('click', async () => {
   const apiKey = $('key').value.trim();
   if (apiKey === '') return log('Enter a key first.');
   $('play').disabled = true;
-  // Opened before any await, so the context starts inside this click.
   const rate = $('rate').value;
+  // Opened before any await, so the context starts inside this click.
   const opening = openAudioContext(rate === '' ? {} : { sampleRate: Number(rate) });
   try {
     const { context, resumed } = await opening;

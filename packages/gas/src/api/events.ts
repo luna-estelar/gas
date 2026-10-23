@@ -51,8 +51,8 @@ export class EventHub {
   }
 
   emit<K extends SessionEvent>(event: K, payload: SessionEventMap[K]): void {
-    // Snapshot first: a listener that unsubscribes mid-dispatch must not perturb
-    // the set we are iterating.
+    // Snapshot first, so a listener that unsubscribes mid-dispatch cannot perturb
+    // the iteration.
     const channel = this.channels[event] as Set<Listener<SessionEventMap[K]>>;
     for (const listener of [...channel]) {
       try {

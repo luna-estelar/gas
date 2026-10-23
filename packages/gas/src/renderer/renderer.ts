@@ -554,12 +554,10 @@ class RendererSession implements Renderer {
   /**
    * Asks the connector to check a configuration. An empty result means valid.
    *
-   * The renderer never compiles the advertised `configSchema`: AJV builds its
-   * validators with `new Function`, which a browser Content Security Policy
-   * without `'unsafe-eval'` blocks. A connector that does not implement
-   * `validateConfig` gets its configuration through unchecked, with one warning —
-   * which a host can only hear after initialization, since no listener exists
-   * before `createRenderer` resolves.
+   * The advertised `configSchema` is never compiled (see protocol/validation.ts).
+   * A connector without `validateConfig` gets its configuration through
+   * unchecked, with one warning, which a host only hears once `createRenderer`
+   * has resolved.
    */
   private checkConfig(candidate: ConnectorConfig): readonly ConnectorConfigProblem[] {
     const validate = this.options.connector.validateConfig;
@@ -633,11 +631,7 @@ class RendererSession implements Renderer {
         ? {
             runId: this.run.id,
             ...(this.run.stream !== undefined ? { stream: this.run.stream } : {}),
-            // The renderer's own flow control only. A provider that says it is
-            // throttling reports that through `stream`; folding the two together
-            // would leave a host unable to tell "the model is struggling" from
-            // "we are deliberately holding the model back", which want opposite
-            // handling.
+            // The renderer's own flow control; provider throttling is `stream`.
             ...(this.run.throttled ? { throttled: true } : {})
           }
         : {}),
@@ -874,10 +868,8 @@ class RendererSession implements Renderer {
   }
 
   /**
-   * A finite piece reaching its declared length is not the same event as a host
-   * stopping playback, so it is reported as one: a terminal status carrying both
-   * the run id and `completed`, which is what lets a session tell a piece that
-   * finished from one that was stopped. The ordinary `stopped` status follows.
+   * Reports a finite piece reaching its declared length: a terminal status
+   * carrying the run id and `completed`, then the ordinary `stopped` status.
    *
    * The run stops taking audio before the connector is stopped, so a chunk
    * generated during that round trip is refused rather than accepted into a run

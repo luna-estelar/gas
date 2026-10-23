@@ -1,8 +1,5 @@
-// The session input state: everything the host has asked for, stored as plain
-// immutable data. Only Core functions create or transform it, and every
-// transform returns a new frozen value — Core never mutates its inputs. Nothing
-// position-dependent lives here; effective state at a musical position is
-// derived through the cascade, never stored.
+// The session input state: everything the host has asked for, as frozen plain
+// data. Nothing position-dependent lives here; the cascade derives that.
 
 import type { InputState, Timeline } from '../protocol/index.js';
 

@@ -9,7 +9,7 @@ import {
 } from '../core/index.js';
 import type { GasDiagnostic, Timeline } from '../protocol/index.js';
 
-// Published defaults, taken from Core so the two packages cannot disagree.
+// Published defaults, taken from Core so the two cannot disagree.
 export const DEFAULT_TEMPO = CORE_DEFAULT_TEMPO;
 export const DEFAULT_BEATS_PER_BAR = DEFAULT_TIME_SIGNATURE.beatsPerBar;
 export const DEFAULT_BEAT_UNIT = DEFAULT_TIME_SIGNATURE.beatUnit;

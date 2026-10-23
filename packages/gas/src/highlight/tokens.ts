@@ -2,10 +2,9 @@
 // HTML. Pure and dependency-free, so the same function runs at build time and
 // in the browser with identical output.
 
-// Declared here rather than imported from the language package. Depending on
-// that package for a string union and three fields would pull Langium and
-// Chevrotain into every consumer that only wants to present tokens. The shapes
-// are structural, so tokens from `highlightSource` still pass straight in.
+// Declared here rather than imported from the language module, which would pull
+// Langium and Chevrotain in for a string union and three fields. The shapes are
+// structural, so tokens from `highlightSource` still pass straight in.
 type HighlightKind =
   | 'keyword'
   | 'builtin'

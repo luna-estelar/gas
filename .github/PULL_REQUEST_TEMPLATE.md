@@ -11,4 +11,4 @@
 
 - [ ] `pnpm test` passes
 - [ ] Tests added or updated for behaviour changes
-- [ ] Package imports stay within the direction in `scripts/check-boundaries.mjs`
+- [ ] Module imports stay within the rules in `scripts/check-boundaries.mjs`

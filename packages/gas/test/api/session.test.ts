@@ -126,12 +126,10 @@ describe('command forwarding', () => {
     expect(result.appliedPosition).toBeUndefined();
   });
 
-  // A live submission resolves its source and loads the compiler before it can
-  // apply anything, and both of those yield. It used to read the session state
-  // before that wait and write the result afterwards, so a programmatic command
-  // accepted in between was committed and then silently discarded. The source is
-  // gated here rather than timed, so the case holds however many times the
-  // implementation happens to await.
+  // A live submission yields while it resolves its source and loads the
+  // compiler. A programmatic command accepted in that window must survive the
+  // submission's own commit. The source is gated rather than timed, so the case
+  // holds however many times the implementation awaits.
   it('keeps a command accepted while a live submission was still preparing', async () => {
     const { session } = await loadedSession();
     let release = (): void => {};
@@ -255,11 +253,9 @@ describe('playback lifecycle', () => {
     await session.setGlobalFlavor('warm');
     await session.stop();
     expect(session.getState().playback).toBe('stopped');
-    // Stop forwards the override-cleared state to the Renderer.
     const last = wiring.current().updates.at(-1);
     expect(last?.staged).toEqual([]);
     expect(last?.live).toEqual([]);
-    // Calling stop again is a no-op that still lands stopped.
     await expect(session.stop()).resolves.toBeUndefined();
   });
 
@@ -498,7 +494,6 @@ describe('retryRenderer', () => {
     expect(wiring.renderers).toHaveLength(2);
     const fresh = wiring.renderers[1]!;
     expect(fresh.loads).toHaveLength(1);
-    // Host track survives; overrides are cleared.
     const reloaded = fresh.loads[0]!.inputState;
     expect(reloaded.hostTracks.map((t) => t.id)).toEqual(['track.bass']);
     expect(reloaded.staged).toEqual([]);
@@ -520,7 +515,6 @@ describe('retryRenderer', () => {
     // The new run is also 'run-1' but on the new renderer; it is accepted.
     wiring.renderers[1]!.emitAudio({ runId: 'run-1' });
     expect(chunks).toEqual(['run-1']);
-    // Exactly one delivery, from the fresh renderer.
     expect(chunks).toHaveLength(1);
   });
 

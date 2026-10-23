@@ -2,7 +2,6 @@
 import { describe, expect, it } from 'vitest';
 import { TOKEN_CLASS, toLines, type HighlightToken } from '../../src/highlight/index.js';
 
-/** Find token offsets in the source text. */
 function token(source: string, text: string, kind: HighlightToken['kind']): HighlightToken {
   const from = source.indexOf(text);
   if (from === -1) throw new Error(`fixture error: ${text} not in source`);

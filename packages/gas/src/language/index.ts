@@ -90,10 +90,8 @@ export type {
   SymbolOccurrence
 } from './highlight.js';
 
-// Deterministic name slug, shared with hosts (the GAS API) so live-declared
-// tracks get ids consistent with the compiler's authored `track.<slug>`
-// scheme. A pure string helper; it adds no dependency. Uniqueness across the
-// namespace stays Core's job (`defineTrack` rejects a duplicate id).
+// Uniqueness across the track namespace is Core's job: `defineTrack` rejects a
+// duplicate id.
 export { slugify } from './compiler/ids.js';
 
 export type GasParseDiagnostic = GasDiagnostic;

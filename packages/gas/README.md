@@ -59,14 +59,19 @@ npx @luna-estelar/gas compile song.gas
 
 ## Example
 
-Play a document in Node through Lyria RealTime. You need a Gemini API key, and you supply the
-clock the session schedules against.
+Play a document in Node through Lyria RealTime. The connector is a separate package, so install it
+too:
+
+```bash
+npm install @luna-estelar/gas @luna-estelar/gas-lyria
+```
+
+You need a Gemini API key, and you supply the clock the session schedules against.
 
 ```ts
-import { createSession, sourceText } from '@luna-estelar/gas';
-import { createLyriaConnector } from '@luna-estelar/gas/lyria';
+import { createRenderer, createSession, sourceText } from '@luna-estelar/gas';
 import type { MonotonicClock } from '@luna-estelar/gas/protocol';
-import { createRenderer } from '@luna-estelar/gas/renderer';
+import { createLyriaConnector } from '@luna-estelar/gas-lyria';
 
 declare const clock: MonotonicClock;
 declare const apiKey: string;
@@ -91,39 +96,24 @@ await session.play();
 await session.submitLiveCommands(sourceText('piano.flavor "busier, left hand walking"'));
 ```
 
-In a browser, `@luna-estelar/gas/browser/session` sets up the session, the renderer and Web Audio
-playback for you. See
-[`@luna-estelar/gas-browser`](https://github.com/luna-estelar/gas/tree/main/packages/browser).
+In a browser, `createBrowserSession` from `@luna-estelar/gas/browser` sets up the session, the
+renderer and Web Audio playback for you.
 
 ## Exports
 
-The root is the session API from [`@luna-estelar/gas-api`](https://github.com/luna-estelar/gas/tree/main/packages/api); everything else is a subpath:
+| Import                                  | What it gives you                                                                 |
+| --------------------------------------- | --------------------------------------------------------------------------------- |
+| `@luna-estelar/gas`                     | Sessions, sources, errors, `createRenderer` and `version`                         |
+| `@luna-estelar/gas/language`            | The parser, compiler, live commands and editor helpers                            |
+| `@luna-estelar/gas/browser`             | A browser session, Web Audio playback, capture, timeline views and inspection     |
+| `@luna-estelar/gas/protocol`            | The shared types, `ConnectorError` and JSON Schema types, for writing a connector |
+| `@luna-estelar/gas/protocol/validation` | Precompiled timeline validation                                                   |
+| `@luna-estelar/gas/highlight`           | Syntax highlighting classes without the parser                                    |
 
-| Import                                                                       | Re-exports                              |
-| ---------------------------------------------------------------------------- | --------------------------------------- |
-| `@luna-estelar/gas`                                                          | `@luna-estelar/gas-api`                 |
-| `@luna-estelar/gas/api`                                                      | `@luna-estelar/gas-api`                 |
-| `@luna-estelar/gas/protocol`                                                 | `@luna-estelar/gas-protocol`            |
-| `@luna-estelar/gas/protocol/validation`                                      | `@luna-estelar/gas-protocol/validation` |
-| `@luna-estelar/gas/language`                                                 | `@luna-estelar/gas-language`            |
-| `@luna-estelar/gas/core`                                                     | `@luna-estelar/gas-core`                |
-| `@luna-estelar/gas/renderer`                                                 | `@luna-estelar/gas-renderer`            |
-| `@luna-estelar/gas/notation`                                                 | `@luna-estelar/gas-notation`            |
-| `@luna-estelar/gas/highlight`                                                | `@luna-estelar/gas-highlight`           |
-| `@luna-estelar/gas/lyria`                                                    | `@luna-estelar/gas-connector-lyria`     |
-| `@luna-estelar/gas/browser/{session,audio,capture,compile,timeline,inspect}` | `@luna-estelar/gas-browser/*`           |
+The JSON Schemas themselves ship at `@luna-estelar/gas/protocol/schemas/1.0/*`.
 
-The root exports `version` for this package; each subpath exports the
-underlying package's own.
-
-Each subpath loads only what it needs. Only `/lyria` pulls in `@google/genai`, and only
-`browser/*` contains browser code.
-
-## One install or individual packages, not both
-
-Installing this package and an individual `@luna-estelar/gas-*` package at a different version gives
-you two copies that don't recognize each other's values. Pick one, or match the versions shown by
-`npm view @luna-estelar/gas dependencies`.
+Each subpath loads only what it needs. Only `/language` loads the parser, nothing here loads
+`@google/genai`, and only `/browser` contains browser code.
 
 ## The `gas` command
 
@@ -131,21 +121,22 @@ you two copies that don't recognize each other's values. Pick one, or match the 
 npx @luna-estelar/gas compile song.gas --out song.timeline.json
 ```
 
-This is the same command as [`@luna-estelar/gas-cli`](https://github.com/luna-estelar/gas/tree/main/packages/cli). Always run it through a scoped
-name: `npx gas` on its own fetches an unrelated npm package called `gas`. Install one of the two
-globally, not both; npm refuses to link a second `gas` over the first.
+Always run it through the scoped name: `npx gas` on its own fetches an unrelated npm package
+called `gas`.
 
 ## Runtime support
 
 - ESM only.
 - Node.js 22 or newer.
-- The root, `api`, `protocol`, `core`, `renderer`, `notation`, `highlight`, `language` and `lyria`
-  run in Node and in browsers. `browser/*` targets browsers.
+- The root, `/language`, `/protocol`, `/protocol/validation` and `/highlight` run in Node and in
+  browsers. `/browser` targets browsers.
 - TypeScript types ship with every entry point.
 
 ## Related packages
 
-Bundles every `@luna-estelar/gas-*` package listed above and adds the `gas` command.
+[`@luna-estelar/gas-lyria`](https://github.com/luna-estelar/gas/tree/main/packages/lyria) plays GAS
+through Google's Lyria RealTime. It peers on this package, so a host and its connector share one
+copy.
 
 ## License
 

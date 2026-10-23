@@ -174,10 +174,10 @@ describe('browser-global boundary', () => {
       [
         'void document.title;', // 1
         'void document["title"];', // 2
-        'const direct = document; void direct;', // 3 — the three forms the
-        'const { localStorage: alias } = window; void alias;', // 4   receiver-only rule
-        'if (typeof window !== "undefined") { void 1; }', // 5   used to miss
-        'void globalThis.document;', // 6 — the bypass globalThis closes
+        'const direct = document; void direct;', // 3
+        'const { localStorage: alias } = window; void alias;', // 4
+        'if (typeof window !== "undefined") { void 1; }', // 5
+        'void globalThis.document;', // 6
         'void self.document;', // 7
         'const shorthand = { localStorage }; void shorthand;', // 8
         'const holder = { key: navigator }; void holder;', // 9

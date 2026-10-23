@@ -98,7 +98,6 @@ describe('musical position conversion', () => {
 
   it('reports a whole beat as an integer bar and beat, never a fractional bar', () => {
     const map = mapFor(120, 4, 4);
-    // Two and a half bars in: what the old continuous conversion called bar 2.5.
     expect(timeToBarFraction(map, 3)).toBe(2.5);
     expect(timeToPosition(map, 3)).toEqual({ bar: 2, beat: { index: 3 } });
     expect(positionToTime(map, { bar: 2, beat: { index: 3 } })).toBe(3);

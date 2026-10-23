@@ -11,7 +11,7 @@ body:
     id: package
     attributes:
       label: Package and version
-      placeholder: '@luna-estelar/gas-language 0.1.0'
+      placeholder: '@luna-estelar/gas 0.3.0'
     validations:
       required: true
   - type: textarea

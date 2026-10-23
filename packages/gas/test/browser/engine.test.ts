@@ -1,6 +1,6 @@
 // The buffer-source engine against a scripted device clock. Unless a case says
 // otherwise: 2 s chunks, a 2 s prebuffer and a 48 kHz context, which is Lyria's
-// shape and the one LE-89 dropped out on.
+// shape.
 import { describe, expect, it } from 'vitest';
 import type { AudioStatus, AudioWarning } from '../../src/browser/audio/engine.js';
 import { ChainedSourceEngine } from '../../src/browser/audio/chained-source-engine.js';

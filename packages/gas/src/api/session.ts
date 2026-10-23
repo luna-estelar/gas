@@ -12,13 +12,8 @@ import {
   type CommandFailure,
   type InputState
 } from '../core/index.js';
-// Not imported statically. The compiler carries Langium and Chevrotain, which
-// together dwarf everything else in the GAS tree, and a host that only drives a
-// session — loading a compiled timeline, sending commands, playing — never needs
-// them. A static import would put that graph on the eager path of every entry
-// point that reaches a session, including the package root. Every method that
-// compiles is already async, so the cost of loading on demand is a chunk fetch
-// on first use and nothing at all otherwise.
+// Loaded on demand: the compiler pulls in Langium and Chevrotain, which a host
+// that only drives a session never needs. Every method that compiles is async.
 type LanguageModule = typeof import('../language/index.js');
 let languageModule: Promise<LanguageModule> | undefined;
 function language(): Promise<LanguageModule> {
@@ -272,12 +267,9 @@ export class GasSession {
       });
     }
 
-    // Read the state only now. Resolving the source and loading the compiler
-    // both yield, and a programmatic command accepted while this submission was
-    // preparing has already committed its own state — applying onto a snapshot
-    // taken before those awaits would silently discard it on the write below.
-    // Everything from here to `this.input = state` runs without yielding, so
-    // there is no window left.
+    // Read the state only after the awaits above: a programmatic command may have
+    // committed in the meantime, and a stale snapshot would discard it on the
+    // write below. Nothing from here to `this.input = state` yields.
     let state = this.requireInput();
 
     const options = this.applyOptions();
@@ -631,14 +623,12 @@ export class GasSession {
     this.lifecycle = status.lifecycle;
     // Renderer.start() reports the newly allocated run synchronously, before
     // its connector setup promise settles. Trust only that `starting` status
-    // during our pending play call so initial audio/position events pass the
+    // during a pending play call so initial audio/position events pass the
     // stale-run guard without weakening it for any later status.
     if (this.playPending && status.playback === 'starting' && status.runId !== undefined) {
       this.acceptedRunId = status.runId;
     }
     // Apply completion before emitting lifecycle events so phase and state agree.
-    // Only the Renderer's own `completed` flag ends a session: a provider that
-    // ends its stream early is a stream that stopped, not a piece that finished.
     const endedThisRun =
       status.completed === true && (status.runId === undefined || this.acceptsRun(status.runId));
     if (this.phase === 'active' && endedThisRun) {
@@ -669,8 +659,6 @@ function operationFailureFields(failure: RendererFailure): {
     code: failure.code,
     retryable: failure.retryable,
     ...(failure.reason !== undefined ? { reason: failure.reason } : {}),
-    // The Protocol's own range, so no gate here is looser than the one the
-    // structural guard and the JSON Schema apply.
     ...(isCloseCode(failure.closeCode) ? { closeCode: failure.closeCode } : {})
   };
 }

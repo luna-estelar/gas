@@ -1,13 +1,12 @@
 // Owns audio generation and playback: a host-supplied monotonic clock,
 // scheduled callbacks, musical-to-clock conversion, tempo/meter defaults, the
 // current session input state with effective-state derivation through
-// gas-core, and one active connector instance per session. Contains no
+// core, and one active connector instance per session. Contains no
 // application-facing GAS syntax parsing and does not depend on any specific
 // connector.
 
-// Musical-time conversion is owned by Core, so a host can share it without
-// depending on the Renderer. Re-exported here because these have always been
-// part of this package's surface.
+// Musical-time conversion lives in Core so a host can use it without the
+// Renderer; re-exported for Renderer consumers.
 export type { ResolvedTiming, TempoSegment, TempoSegmentMap } from '../core/index.js';
 export {
   barToTime,

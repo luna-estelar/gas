@@ -475,7 +475,6 @@ describe('effectiveStateAt is a pure derivation', () => {
     for (const track of snapshot.tracks) {
       expect(Object.isFrozen(track)).toBe(true);
     }
-    // Values Core wraps are frozen too.
     expect(Object.isFrozen(trackOf(snapshot, 'track.a').flavor)).toBe(true);
   });
 

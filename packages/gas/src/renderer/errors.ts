@@ -53,10 +53,6 @@ export interface ConnectorFailureFallback {
  * message is always the caller's renderer-owned text, so connector/vendor message
  * text never reaches an event or thrown error. Unknown values are never inspected
  * beyond the structural {@link ConnectorError.isConnectorError} guard.
- *
- * A close code rides along unclassified. The structural guard already holds it to
- * the protocol's range, so a thrown error that carries a nonsensical one fails the
- * guard outright and falls back to the caller's classification.
  */
 export function classifyConnectorFailure(
   thrown: unknown,

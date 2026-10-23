@@ -281,7 +281,7 @@ export async function collectGasFiles(gasRoot) {
       );
     }
   }
-  // A module's tests follow that module's boundary, as package tests did.
+  // A module's tests follow that module's boundary.
   const testRoot = path.join(gasRoot, 'test');
   for (const entry of await readdir(testRoot, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;

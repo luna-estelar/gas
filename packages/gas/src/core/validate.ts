@@ -1,14 +1,10 @@
-// Timeline shape and reference validation, used at load time (API `loadTimeline`).
-// Protocol's canonical JSON Schema is the structural gate. Core then adds the
-// referential and musical invariants JSON Schema cannot express, rejecting
-// hand-authored, persisted, or foreign timelines before a session is built.
-// Every problem carries a musician-friendly message.
+// Load-time timeline validation (API `loadTimeline`). Protocol's JSON Schema is
+// the structural gate; Core adds the referential and musical invariants a schema
+// cannot express. Every problem carries a musician-friendly message.
 //
-// This is a structural and referential gate, not a musical-quality check: it does
-// not, for example, reject a `declaredBars` that differs from the arranged span
-// (the language treats that as a non-fatal warning), so it accepts every timeline
-// the compiler can produce. The entry point takes `unknown` because a load-time
-// timeline may be hand-authored or persisted, not freshly compiled.
+// Not a musical-quality check: a `declaredBars` that differs from the arranged
+// span is only a language warning, so every timeline the compiler can produce
+// passes.
 
 import type {
   MusicalPosition,
@@ -37,16 +33,9 @@ export function validateTimeline(timeline: unknown): ValidateTimelineResult {
     return { ok: false, problems: schemaProblems(structural.issues, timeline) };
   }
 
-  // From here the timeline has the schema's shape, so it is read as one. The
-  // checks below are not a second pass over what the schema covers: they are the
-  // finite-number, reference and musical invariants JSON Schema cannot express.
-  // The schema accepts `tempo: Infinity` and `arrangedBars: Infinity`, for
-  // example, and only these checks reject them. The helpers still take `unknown`
-  // so each one stands on its own guards rather than on that assumption.
-  //
-  // `timelineId`, `languageVersion`, `compilerVersion` and `source` are not
-  // re-checked here: the schema above requires all four and constrains their
-  // shape, so anything reaching this line already has them.
+  // Only what the schema cannot express from here: finiteness (it accepts
+  // `tempo: Infinity`), references and musical invariants. The helpers still take
+  // `unknown` so each stands on its own guards.
   const validated = structural.value;
   validatePlayback(validated.playback, problems);
   const arrangedBars = validateArrangedBars(validated.arrangedBars, problems);

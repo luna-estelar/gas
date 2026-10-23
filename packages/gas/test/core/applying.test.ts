@@ -23,7 +23,6 @@ const INTENT_KEYWORDS: readonly IntentKeyword[] = [
   'motif'
 ];
 
-// Capabilities fixtures for command validation.
 function uniform(support: IntentSupport): CapabilitiesTable {
   return {
     intents: Object.fromEntries(INTENT_KEYWORDS.map((intent) => [intent, support])) as Record<

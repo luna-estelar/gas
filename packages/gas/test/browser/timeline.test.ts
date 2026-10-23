@@ -92,8 +92,7 @@ describe('positions', () => {
 
 describe('timeline view', () => {
   it('builds one tempo map for every event and section boundary', () => {
-    // One authored event plus a start and an end boundary: three positions that
-    // used to build a map each.
+    // One authored event plus a start and an end boundary: three positions, one map.
     const timeline = testTimeline();
     vi.mocked(createTempoSegmentMap).mockClear();
     const view = deriveTimeline(timeline);

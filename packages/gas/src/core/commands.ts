@@ -45,8 +45,6 @@ export type {
   PlaybackPhase
 } from '../protocol/index.js';
 
-// Define a host track. Phase-independent: host tracks are not overrides, so this
-// applies the same whether the session is stopped or active.
 // Caller-supplied playback phase: commands applied while stopped create staged
 // overrides; commands applied while starting, playing, or holding create live
 // overrides. Core owns no clock, so it never knows the phase on its own.

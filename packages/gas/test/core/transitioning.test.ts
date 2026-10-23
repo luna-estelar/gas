@@ -111,7 +111,6 @@ describe('transitions never mutate their input', () => {
     expect(Object.isFrozen(next.staged)).toBe(true);
     expect(Object.isFrozen(next.live)).toBe(true);
     expect(Object.isFrozen(next.hostTracks)).toBe(true);
-    // The original still carries its overrides.
     expect(state.staged).toHaveLength(1);
     expect(state.live).toHaveLength(1);
   });

@@ -25,14 +25,14 @@ credited in the advisory unless you prefer otherwise.
 Most of GAS is deterministic computation over plain values: parsing text, deriving state,
 encoding MIDI. The parts worth looking hardest at are:
 
-- **`@luna-estelar/gas-language`** parses untrusted text. A document that hangs the
+- **`@luna-estelar/gas/language`** parses untrusted text. A document that hangs the
   compiler, exhausts memory, or escapes its diagnostics is in scope.
-- **`@luna-estelar/gas-protocol`** validates timelines against JSON Schema. A payload that
+- **`@luna-estelar/gas/protocol/validation`** validates timelines against JSON Schema. A payload that
   passes validation and then breaks an invariant downstream is in scope.
-- **`@luna-estelar/gas-connector-lyria`** is the only package that takes credentials and
+- **`@luna-estelar/gas-lyria`** is the only package that takes credentials and
   opens a network connection. Anything that leaks an API key — into a diagnostic, an
   error message, a log line, or a prompt — is in scope and is the thing to look for first.
-- **`@luna-estelar/gas-browser`** composes credentials and playback in a page.
+- **`@luna-estelar/gas/browser`** composes credentials and playback in a page.
 
 A GAS document is _input_, not a sandbox boundary: it has no imports, no file access and
 no evaluation, and compiling one is expected to be safe. If you find a way to make
