@@ -44,85 +44,47 @@
       "types": "./out/index.d.ts",
       "default": "./out/index.js"
     },
+    "./language": {
+      "types": "./out/language.d.ts",
+      "default": "./out/language.js"
+    },
+    "./browser": {
+      "types": "./out/browser.d.ts",
+      "default": "./out/browser.js"
+    },
     "./protocol": {
       "types": "./out/protocol.d.ts",
       "default": "./out/protocol.js"
     },
     "./protocol/validation": {
-      "types": "./out/protocol/validation.d.ts",
-      "default": "./out/protocol/validation.js"
-    },
-    "./language": {
-      "types": "./out/language.d.ts",
-      "default": "./out/language.js"
-    },
-    "./core": {
-      "types": "./out/core.d.ts",
-      "default": "./out/core.js"
-    },
-    "./api": {
-      "types": "./out/api.d.ts",
-      "default": "./out/api.js"
-    },
-    "./renderer": {
-      "types": "./out/renderer.d.ts",
-      "default": "./out/renderer.js"
-    },
-    "./notation": {
-      "types": "./out/notation.d.ts",
-      "default": "./out/notation.js"
+      "types": "./out/protocol-validation.d.ts",
+      "default": "./out/protocol-validation.js"
     },
     "./highlight": {
       "types": "./out/highlight.d.ts",
       "default": "./out/highlight.js"
     },
-    "./lyria": {
-      "types": "./out/lyria.d.ts",
-      "default": "./out/lyria.js"
-    },
-    "./browser/session": {
-      "types": "./out/browser/session.d.ts",
-      "default": "./out/browser/session.js"
-    },
-    "./browser/audio": {
-      "types": "./out/browser/audio.d.ts",
-      "default": "./out/browser/audio.js"
-    },
-    "./browser/capture": {
-      "types": "./out/browser/capture.d.ts",
-      "default": "./out/browser/capture.js"
-    },
-    "./browser/compile": {
-      "types": "./out/browser/compile.d.ts",
-      "default": "./out/browser/compile.js"
-    },
-    "./browser/timeline": {
-      "types": "./out/browser/timeline.d.ts",
-      "default": "./out/browser/timeline.js"
-    },
-    "./browser/inspect": {
-      "types": "./out/browser/inspect.d.ts",
-      "default": "./out/browser/inspect.js"
-    }
+    "./protocol/schemas/1.0/*": "./schemas/1.0/*"
   },
   "files": [
     "bin",
     "out",
-    "src"
+    "src",
+    "schemas",
+    "generated",
+    "syntaxes"
   ],
   "scripts": {
-    "clean": "tsc -b --clean"
+    "clean": "tsc -b --clean",
+    "langium:generate": "langium generate",
+    "langium:watch": "langium generate --watch"
   },
   "dependencies": {
-    "@luna-estelar/gas-api": "workspace:*",
-    "@luna-estelar/gas-browser": "workspace:*",
-    "@luna-estelar/gas-cli": "workspace:*",
-    "@luna-estelar/gas-connector-lyria": "workspace:*",
-    "@luna-estelar/gas-core": "workspace:*",
-    "@luna-estelar/gas-highlight": "workspace:*",
-    "@luna-estelar/gas-language": "workspace:*",
-    "@luna-estelar/gas-notation": "workspace:*",
-    "@luna-estelar/gas-protocol": "workspace:*",
-    "@luna-estelar/gas-renderer": "workspace:*"
+    "ajv": "^8.20.0",
+    "chevrotain": "~12.0.0",
+    "langium": "~4.2.0"
+  },
+  "devDependencies": {
+    "langium-cli": "~4.2.0"
   }
 }

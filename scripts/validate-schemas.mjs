@@ -8,9 +8,9 @@ import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const protocolRoot = path.join(root, 'packages', 'protocol');
+const protocolRoot = path.join(root, 'packages', 'gas');
 const schemaRoot = path.join(protocolRoot, 'schemas', '1.0');
-const fixtureRoot = path.join(protocolRoot, 'test', 'fixtures');
+const fixtureRoot = path.join(protocolRoot, 'test', 'protocol', 'fixtures');
 
 const SCHEMA_BASE = 'https://gas.luna-estelar.com/protocol/1.0';
 

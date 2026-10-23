@@ -16,7 +16,7 @@ import type {
   ConnectorUpdate,
   EffectiveState,
   MusicalPosition
-} from '@luna-estelar/gas-protocol';
+} from '../../packages/gas/src/protocol/index.js';
 
 const ALL_SUPPORTED: CapabilitiesTable = {
   intents: {

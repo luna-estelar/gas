@@ -7,9 +7,9 @@ import {
   DEFAULT_LYRIA_CONFIG,
   LYRIA_CONFIG_SCHEMA,
   validateLyriaConfig
-} from '../packages/connector-lyria/src/index.js';
-import { applyMergePatch } from '../packages/renderer/src/connector-config.js';
-import type { ConnectorConfig, JsonValue } from '../packages/protocol/src/index.js';
+} from '../packages/lyria/src/index.js';
+import { applyMergePatch } from '../packages/gas/src/renderer/connector-config.js';
+import type { ConnectorConfig, JsonValue } from '../packages/gas/src/protocol/index.js';
 
 const addFormats = addFormatsImport as unknown as FormatsPlugin;
 

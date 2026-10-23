@@ -1,8 +1,8 @@
 // Check example compilation, highlighting and manifest metadata.
 import { describe, expect, it } from 'vitest';
-import { compileGas } from '@luna-estelar/gas-browser/compile';
-import { deriveTimeline } from '@luna-estelar/gas-browser/timeline';
-import { TOKEN_CLASS, toLines } from '../packages/highlight/src/index.js';
+import { compileGas } from '../packages/gas/src/editor/index.js';
+import { deriveTimeline } from '../packages/gas/src/browser/timeline.js';
+import { TOKEN_CLASS, toLines } from '../packages/gas/src/highlight/index.js';
 import { EXAMPLES } from '../examples/manifest.js';
 import { readExample } from '../examples/support.js';
 

@@ -1,16 +1,4 @@
 {
   "files": [],
-  "references": [
-    { "path": "packages/protocol" },
-    { "path": "packages/language" },
-    { "path": "packages/highlight" },
-    { "path": "packages/notation" },
-    { "path": "packages/api" },
-    { "path": "packages/core" },
-    { "path": "packages/renderer" },
-    { "path": "packages/connector-lyria" },
-    { "path": "packages/cli" },
-    { "path": "packages/browser" },
-    { "path": "packages/gas" }
-  ]
+  "references": [{ "path": "packages/gas" }, { "path": "packages/lyria" }]
 }

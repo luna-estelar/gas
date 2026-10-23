@@ -5,15 +5,15 @@ import {
   createInputState,
   effectiveStateAt,
   sectionInstanceAt
-} from '../packages/core/src/index.js';
-import { compileSource } from '../packages/language/src/index.js';
-import { createRenderer } from '../packages/renderer/src/index.js';
+} from '../packages/gas/src/core/index.js';
+import { compileSource } from '../packages/gas/src/language/index.js';
+import { createRenderer } from '../packages/gas/src/renderer/index.js';
 import type {
   CapabilitiesTable,
   RendererPositionEvent,
   RendererStatusEvent,
   Timeline
-} from '../packages/protocol/src/index.js';
+} from '../packages/gas/src/protocol/index.js';
 import { FakeConnector } from './support/fake-connector.js';
 import { VirtualClock } from './support/virtual-clock.js';
 import { exampleFiles, readExample } from '../examples/support.js';

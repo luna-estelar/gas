@@ -8,17 +8,15 @@ import { describe, expect, it } from 'vitest';
 const run = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-// Resolve from the umbrella, which depends on every package.
+// Resolve from packages/gas, which imports itself by name.
 const resolveFrom = path.join(root, 'packages', 'gas');
 
 const ENTRYPOINTS = [
-  '@luna-estelar/gas-protocol/validation',
-  '@luna-estelar/gas-core',
-  '@luna-estelar/gas-renderer',
-  '@luna-estelar/gas-api',
-  '@luna-estelar/gas-browser/session',
   '@luna-estelar/gas',
-  '@luna-estelar/gas/browser/session'
+  '@luna-estelar/gas/browser',
+  '@luna-estelar/gas/protocol',
+  '@luna-estelar/gas/protocol/validation',
+  '@luna-estelar/gas/highlight'
 ];
 
 async function countGeneratedFunctions(specifier: string): Promise<number> {
@@ -43,7 +41,7 @@ async function countGeneratedFunctions(specifier: string): Promise<number> {
 // renderer config path runs here under a Function constructor that throws, as
 // a strict CSP would. The connector validates its own configuration.
 const CONFIG_PATHS_SCRIPT = `
-  const { createRenderer } = await import('@luna-estelar/gas-renderer');
+  const { createRenderer } = await import('@luna-estelar/gas');
   globalThis.Function = new Proxy(Function, {
     construct() { throw new EvalError('Code generation from strings disallowed'); }
   });

@@ -4,13 +4,17 @@ import { fileURLToPath } from 'node:url';
 import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
 import addFormatsImport, { type FormatsPlugin } from 'ajv-formats';
 import { describe, expect, it } from 'vitest';
-import { createSession, type CompileResult, type SessionState } from '../packages/api/src/index.js';
+import {
+  createSession,
+  type CompileResult,
+  type SessionState
+} from '../packages/gas/src/api/index.js';
 import {
   createLyriaConnector,
   LYRIA_CAPABILITIES,
   LYRIA_CONFIG_SCHEMA,
   DEFAULT_LYRIA_CONFIG
-} from '../packages/connector-lyria/src/index.js';
+} from '../packages/lyria/src/index.js';
 import {
   applyCommand,
   createInputState,
@@ -20,12 +24,12 @@ import {
   type CommandFailure,
   type CommandWarning,
   type TimelineProblem
-} from '../packages/core/src/index.js';
+} from '../packages/gas/src/core/index.js';
 import {
   compileSource,
   type GasDiagnostic,
   type Timeline
-} from '../packages/language/src/index.js';
+} from '../packages/gas/src/language/index.js';
 import type {
   CommandFailure as ProtocolCommandFailure,
   CommandWarning as ProtocolCommandWarning,
@@ -40,13 +44,16 @@ import type {
   SessionState as ProtocolSessionState,
   Timeline as ProtocolTimeline,
   TimelineProblem as ProtocolTimelineProblem
-} from '../packages/protocol/src/index.js';
-import { ConnectorError, isCloseCode } from '../packages/protocol/src/index.js';
-import { capabilitiesWith, createFakeWiring } from '../packages/api/test/support/fake-renderer.js';
+} from '../packages/gas/src/protocol/index.js';
+import { ConnectorError, isCloseCode } from '../packages/gas/src/protocol/index.js';
+import {
+  capabilitiesWith,
+  createFakeWiring
+} from '../packages/gas/test/api/support/fake-renderer.js';
 import { readExample } from '../examples/support.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const schemaRoot = path.resolve(here, '../packages/protocol/schemas/1.0');
+const schemaRoot = path.resolve(here, '../packages/gas/schemas/1.0');
 const base = 'https://gas.luna-estelar.com/protocol/1.0';
 const addFormats = addFormatsImport as unknown as FormatsPlugin;
 

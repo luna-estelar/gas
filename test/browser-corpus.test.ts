@@ -3,17 +3,17 @@
 import { describe, expect, it } from 'vitest';
 import {
   compileGas,
-  inspectTimeline,
   previewLiveCommands,
   retainTimeline
-} from '@luna-estelar/gas-browser/compile';
+} from '../packages/gas/src/editor/index.js';
+import { inspectTimeline } from '../packages/gas/src/browser/inspect.js';
 import {
   advance,
   deriveTimeline,
   secondsPerBar,
   totalBars,
   totalSeconds
-} from '@luna-estelar/gas-browser/timeline';
+} from '../packages/gas/src/browser/timeline.js';
 import { readExample } from '../examples/support.js';
 
 function compile(name: string) {

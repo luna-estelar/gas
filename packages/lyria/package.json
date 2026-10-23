@@ -1,0 +1,60 @@
+{
+  "name": "@luna-estelar/gas-lyria",
+  "version": "0.2.1",
+  "private": true,
+  "description": "Drive Google's Lyria RealTime music model from GAS: turns tracks, tempo and sections into Lyria prompts and config.",
+  "keywords": [
+    "gas",
+    "lyria",
+    "lyria-realtime",
+    "gemini",
+    "generative-music",
+    "ai-music"
+  ],
+  "homepage": "https://gas.lunaestelar.com",
+  "bugs": {
+    "url": "https://github.com/luna-estelar/gas/issues"
+  },
+  "license": "MIT",
+  "author": "sathira10 (https://github.com/sathira10)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/luna-estelar/gas.git",
+    "directory": "packages/lyria"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "main": "./out/index.js",
+  "module": "./out/index.js",
+  "types": "./out/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./out/index.d.ts",
+      "default": "./out/index.js"
+    }
+  },
+  "files": [
+    "out",
+    "src"
+  ],
+  "scripts": {
+    "clean": "tsc -b --clean",
+    "manual:listen": "node manual/listen.mjs",
+    "manual:smoke": "node manual/smoke.mjs"
+  },
+  "dependencies": {
+    "@google/genai": "^2.23.0"
+  },
+  "devDependencies": {
+    "@luna-estelar/gas": "workspace:^"
+  },
+  "peerDependencies": {
+    "@luna-estelar/gas": ">=0.3.0 <1.0.0"
+  }
+}

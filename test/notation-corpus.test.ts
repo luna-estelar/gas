@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'vitest';
-import { compileSource, type AldaValue, type Timeline } from '../packages/language/src/index.js';
-import { parseAlda, toMidi } from '../packages/notation/src/index.js';
+import {
+  compileSource,
+  type AldaValue,
+  type Timeline
+} from '../packages/gas/src/language/index.js';
+import { parseAlda, toMidi } from '../packages/gas/src/notation/index.js';
 import { exampleFiles, readExample } from '../examples/support.js';
 
 const corpusFiles = exampleFiles();

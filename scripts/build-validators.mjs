@@ -5,7 +5,7 @@
 // protocol schemas here instead keeps the structural gate and leaves AJV's
 // compiler out of every bundle.
 //
-// Run with `pnpm build:validators` after changing `packages/protocol/schemas/1.0`
+// Run with `pnpm build:validators` after changing `packages/gas/schemas/1.0`
 // or upgrading ajv. `pnpm check:validators` (used by `pnpm test`) fails when the
 // committed output no longer matches the schemas.
 import assert from 'node:assert/strict';
@@ -18,9 +18,9 @@ import standaloneCode from 'ajv/dist/standalone/index.js';
 import addFormats from 'ajv-formats';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const protocolRoot = path.join(root, 'packages', 'protocol');
+const protocolRoot = path.join(root, 'packages', 'gas');
 const schemaRoot = path.join(protocolRoot, 'schemas', '1.0');
-const fixtureRoot = path.join(protocolRoot, 'test', 'fixtures');
+const fixtureRoot = path.join(protocolRoot, 'test', 'protocol', 'fixtures');
 
 export const OUTPUT_FILE = path.join(protocolRoot, 'generated', 'timeline-validator.mjs');
 

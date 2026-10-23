@@ -1,22 +1,22 @@
-// gas-highlight declares its token kinds itself, so check they match what the compiler emits.
+// The highlight module declares its token kinds itself, so check they match what the compiler emits.
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { exampleFiles, readExample } from '../examples/support.js';
-import { TOKEN_CLASS, toLines } from '../packages/highlight/src/index.js';
-import { highlightSource } from '../packages/language/src/index.js';
+import { TOKEN_CLASS, toLines } from '../packages/gas/src/highlight/index.js';
+import { highlightSource } from '../packages/gas/src/language/index.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-/** The kinds the language package's HighlightKind union declares. */
+/** The kinds the language module's HighlightKind union declares. */
 function declaredKinds(): string[] {
   const source = readFileSync(
-    path.join(root, 'packages', 'language', 'src', 'highlight.ts'),
+    path.join(root, 'packages', 'gas', 'src', 'language', 'highlight.ts'),
     'utf8'
   );
   const union = /export type HighlightKind =([^;]+);/.exec(source);
-  if (union === null) throw new Error('HighlightKind union not found in the language package');
+  if (union === null) throw new Error('HighlightKind union not found in the language module');
   return [...union[1]!.matchAll(/'([^']+)'/g)].map((match) => match[1]!).sort();
 }
 

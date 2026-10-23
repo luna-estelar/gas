@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, test } from 'vitest';
-import { compileSource, parseLiveCommands } from '../packages/language/src/index.js';
+import { compileSource, parseLiveCommands } from '../packages/gas/src/language/index.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.join(here, '..');
@@ -72,20 +72,8 @@ describe('README GAS snippets', () => {
   });
 });
 
-// Typecheck against built declarations. Explicit mappings account for package
-// directory names and exported subpaths.
-
-const PACKAGE_DIRS: Readonly<Record<string, string>> = {
-  'gas-protocol': 'protocol',
-  'gas-language': 'language',
-  'gas-highlight': 'highlight',
-  'gas-notation': 'notation',
-  'gas-core': 'core',
-  'gas-renderer': 'renderer',
-  'gas-api': 'api',
-  'gas-connector-lyria': 'connector-lyria',
-  'gas-cli': 'cli'
-};
+// Typecheck against built declarations. Each public subpath maps to its entry
+// file's declarations under packages/gas/out.
 
 let scratch: string | undefined;
 
@@ -106,21 +94,13 @@ function typecheckSnippets(items: readonly Snippet[]): Map<number, string> {
   });
 
   const paths: Record<string, string[]> = {};
-  for (const [pkg, dir] of Object.entries(PACKAGE_DIRS)) {
-    paths[`@luna-estelar/${pkg}`] = [path.join(repoRoot, 'packages', dir, 'out', 'index.d.ts')];
-  }
-  paths['@luna-estelar/gas-protocol/validation'] = [
-    path.join(repoRoot, 'packages', 'protocol', 'out', 'validation.d.ts')
+  const gasOut = path.join(repoRoot, 'packages', 'gas', 'out');
+  paths['@luna-estelar/gas'] = [path.join(gasOut, 'index.d.ts')];
+  paths['@luna-estelar/gas/protocol/validation'] = [path.join(gasOut, 'protocol-validation.d.ts')];
+  paths['@luna-estelar/gas/*'] = [path.join(gasOut, '*.d.ts')];
+  paths['@luna-estelar/gas-lyria'] = [
+    path.join(repoRoot, 'packages', 'lyria', 'out', 'index.d.ts')
   ];
-  paths['@luna-estelar/gas-browser/audio'] = [
-    path.join(repoRoot, 'packages', 'browser', 'out', 'audio', 'index.d.ts')
-  ];
-  paths['@luna-estelar/gas-browser/*'] = [
-    path.join(repoRoot, 'packages', 'browser', 'out', '*.d.ts')
-  ];
-  // The umbrella's subpaths mirror its out/ tree, nested ones included.
-  paths['@luna-estelar/gas'] = [path.join(repoRoot, 'packages', 'gas', 'out', 'index.d.ts')];
-  paths['@luna-estelar/gas/*'] = [path.join(repoRoot, 'packages', 'gas', 'out', '*.d.ts')];
 
   writeFileSync(path.join(scratch, 'package.json'), JSON.stringify({ type: 'module' }), 'utf8');
 

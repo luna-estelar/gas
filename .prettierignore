@@ -3,8 +3,8 @@ out/
 pnpm-lock.yaml
 
 # Generated language files.
-packages/language/src/generated/
-packages/language/syntaxes/gas.tmLanguage.json
+packages/gas/src/language/generated/
+packages/gas/syntaxes/gas.tmLanguage.json
 
 # Generated protocol validator.
-packages/protocol/generated/
+packages/gas/generated/

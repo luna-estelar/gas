@@ -1,7 +1,7 @@
 // Compile the language corpus and validate the resulting Core state and schedule.
 
 import { describe, expect, test } from 'vitest';
-import { compileSource, type Timeline } from '../packages/language/src/index.js';
+import { compileSource, type Timeline } from '../packages/gas/src/language/index.js';
 import {
   authoredEventSchedule,
   comparePositions,
@@ -10,7 +10,7 @@ import {
   sectionInstanceAt,
   validateTimeline,
   type EffectiveState
-} from '../packages/core/src/index.js';
+} from '../packages/gas/src/core/index.js';
 import { exampleFiles, readExample } from '../examples/support.js';
 
 const corpusFiles = exampleFiles();

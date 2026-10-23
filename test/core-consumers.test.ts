@@ -1,9 +1,9 @@
 // Exercise Core through the API session, renderer state derivation and compile-only inspection.
 
 import { describe, expect, it } from 'vitest';
-import { compileSource, type Timeline } from '../packages/language/src/index.js';
-import { createSession, GasOperationError } from '../packages/api/src/index.js';
-import { createRenderer } from '../packages/renderer/src/index.js';
+import { compileSource, type Timeline } from '../packages/gas/src/language/index.js';
+import { createSession, GasOperationError } from '../packages/gas/src/api/index.js';
+import { createRenderer } from '../packages/gas/src/renderer/index.js';
 import {
   applyCommand,
   applyCompletion,
@@ -13,7 +13,7 @@ import {
   effectiveStateAt,
   sectionInstanceAt,
   type EffectiveState
-} from '../packages/core/src/index.js';
+} from '../packages/gas/src/core/index.js';
 import { FakeConnector } from './support/fake-connector.js';
 import { VirtualClock } from './support/virtual-clock.js';
 import { readExample } from '../examples/support.js';

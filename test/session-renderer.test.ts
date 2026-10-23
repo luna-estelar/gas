@@ -1,9 +1,9 @@
 // The session driving the real Renderer, with no fakes on either side.
 
 import { describe, expect, it } from 'vitest';
-import { createSession } from '../packages/api/src/index.js';
-import { createRenderer } from '../packages/renderer/src/index.js';
-import type { LifecycleEvent, WarningEvent } from '../packages/protocol/src/index.js';
+import { createSession } from '../packages/gas/src/api/index.js';
+import { createRenderer } from '../packages/gas/src/renderer/index.js';
+import type { LifecycleEvent, WarningEvent } from '../packages/gas/src/protocol/index.js';
 import { FakeConnector } from './support/fake-connector.js';
 import { VirtualClock } from './support/virtual-clock.js';
 

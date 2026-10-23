@@ -1,2 +1,2 @@
 // Syntax classes and code-fence helpers.
-export * from '@luna-estelar/gas-highlight';
+export * from './highlight/index.js';

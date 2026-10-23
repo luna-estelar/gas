@@ -1,9 +1,9 @@
 // Verify that the committed Langium output still matches the grammar.
-// langium-cli generates packages/language/src/generated and the TextMate
-// grammar from src/gas.langium, and both are committed. Only the language
-// package's own build script runs the generator and the root build is a plain
-// `tsc -b`, so a grammar edit committed without regenerating would otherwise
-// ship a parser that does not match it.
+// langium-cli generates packages/gas/src/language/generated and the TextMate
+// grammar from src/language/gas.langium, and both are committed. Only the
+// package's own langium:generate script runs the generator and the root build
+// is a plain `tsc -b`, so a grammar edit committed without regenerating would
+// otherwise ship a parser that does not match it.
 //
 // Generation is redirected into a scratch directory and the committed bytes are
 // compared, never rewritten: the same contract as `pnpm check:validators`.
@@ -24,7 +24,7 @@ import { promisify } from 'node:util';
 const run = promisify(execFile);
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const PACKAGE = path.join(ROOT, 'packages', 'language');
+const PACKAGE = path.join(ROOT, 'packages', 'gas');
 const CONFIG = path.join(PACKAGE, 'langium-config.json');
 const LANGIUM = path.join(PACKAGE, 'node_modules', '.bin', 'langium');
 
@@ -56,7 +56,7 @@ export function redirect(config, scratch) {
   return {
     config: { ...config, languages, out: OUT_DIRECTORY },
     assets,
-    committed: path.resolve(PACKAGE, config.out ?? 'src/generated'),
+    committed: path.resolve(PACKAGE, config.out ?? 'src/language/generated'),
     generated: path.join(scratch, OUT_DIRECTORY)
   };
 }
@@ -137,7 +137,7 @@ async function main() {
       console.error('Committed language files no longer match the grammar:');
       for (const problem of problems) console.error(`  ${problem}`);
       console.error(
-        '\nRun `pnpm --filter @luna-estelar/gas-language langium:generate` and commit the result.'
+        '\nRun `pnpm --filter @luna-estelar/gas langium:generate` and commit the result.'
       );
       process.exitCode = 1;
       return;

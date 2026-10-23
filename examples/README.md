@@ -8,7 +8,7 @@ provides filesystem access for tests and checks that the directory matches the m
 
 ```bash
 pnpm build
-node packages/cli/bin/gas.js compile examples/documents/minimal.gas
+node packages/gas/bin/gas.js compile examples/documents/minimal.gas
 ```
 
 `minimal.gas` is a short complete document. `spec-example.gas` covers every highlight kind.

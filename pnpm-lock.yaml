@@ -42,104 +42,11 @@ importers:
         specifier: ^5.0.2
         version: 5.0.2(@types/node@22.20.4)(vite@6.4.3(@types/node@22.20.4)(yaml@2.9.1))
 
-  packages/api:
-    dependencies:
-      '@luna-estelar/gas-core':
-        specifier: workspace:^
-        version: link:../core
-      '@luna-estelar/gas-language':
-        specifier: workspace:^
-        version: link:../language
-      '@luna-estelar/gas-protocol':
-        specifier: workspace:^
-        version: link:../protocol
-
-  packages/browser:
-    dependencies:
-      '@luna-estelar/gas-api':
-        specifier: workspace:^
-        version: link:../api
-      '@luna-estelar/gas-core':
-        specifier: workspace:^
-        version: link:../core
-      '@luna-estelar/gas-language':
-        specifier: workspace:^
-        version: link:../language
-      '@luna-estelar/gas-protocol':
-        specifier: workspace:^
-        version: link:../protocol
-      '@luna-estelar/gas-renderer':
-        specifier: workspace:^
-        version: link:../renderer
-
-  packages/cli:
-    dependencies:
-      '@luna-estelar/gas-language':
-        specifier: workspace:^
-        version: link:../language
-
-  packages/connector-lyria:
-    dependencies:
-      '@google/genai':
-        specifier: ^2.23.0
-        version: 2.24.0
-      '@luna-estelar/gas-protocol':
-        specifier: workspace:^
-        version: link:../protocol
-    devDependencies:
-      '@luna-estelar/gas-core':
-        specifier: workspace:^
-        version: link:../core
-      '@luna-estelar/gas-language':
-        specifier: workspace:^
-        version: link:../language
-
-  packages/core:
-    dependencies:
-      '@luna-estelar/gas-protocol':
-        specifier: workspace:^
-        version: link:../protocol
-
   packages/gas:
     dependencies:
-      '@luna-estelar/gas-api':
-        specifier: workspace:*
-        version: link:../api
-      '@luna-estelar/gas-browser':
-        specifier: workspace:*
-        version: link:../browser
-      '@luna-estelar/gas-cli':
-        specifier: workspace:*
-        version: link:../cli
-      '@luna-estelar/gas-connector-lyria':
-        specifier: workspace:*
-        version: link:../connector-lyria
-      '@luna-estelar/gas-core':
-        specifier: workspace:*
-        version: link:../core
-      '@luna-estelar/gas-highlight':
-        specifier: workspace:*
-        version: link:../highlight
-      '@luna-estelar/gas-language':
-        specifier: workspace:*
-        version: link:../language
-      '@luna-estelar/gas-notation':
-        specifier: workspace:*
-        version: link:../notation
-      '@luna-estelar/gas-protocol':
-        specifier: workspace:*
-        version: link:../protocol
-      '@luna-estelar/gas-renderer':
-        specifier: workspace:*
-        version: link:../renderer
-
-  packages/highlight: {}
-
-  packages/language:
-    dependencies:
-      '@luna-estelar/gas-protocol':
-        specifier: workspace:^
-        version: link:../protocol
+      ajv:
+        specifier: ^8.20.0
+        version: 8.20.0
       chevrotain:
         specifier: ~12.0.0
         version: 12.0.0
@@ -151,29 +58,15 @@ importers:
         specifier: ~4.2.0
         version: 4.2.1
 
-  packages/notation:
+  packages/lyria:
     dependencies:
-      '@luna-estelar/gas-protocol':
+      '@google/genai':
+        specifier: ^2.23.0
+        version: 2.24.0
+    devDependencies:
+      '@luna-estelar/gas':
         specifier: workspace:^
-        version: link:../protocol
-
-  packages/protocol:
-    dependencies:
-      ajv:
-        specifier: ^8.20.0
-        version: 8.20.0
-
-  packages/renderer:
-    dependencies:
-      '@luna-estelar/gas-core':
-        specifier: workspace:^
-        version: link:../core
-      '@luna-estelar/gas-notation':
-        specifier: workspace:^
-        version: link:../notation
-      '@luna-estelar/gas-protocol':
-        specifier: workspace:^
-        version: link:../protocol
+        version: link:../gas
 
 packages:
 
