@@ -1,45 +1,59 @@
-// Fail the release when a version it just published has no provenance
-// attestation. npm accepts a publish without one, so the gap is otherwise
-// silent. PUBLISHED is the changesets action's `published-packages` output.
-//
-// The caller runs this step only when the action reported a publish, so an
-// empty list means the output is no longer wired up rather than that nothing
-// shipped. That is how this check first went dead — the action renamed its
-// outputs and the unread one read back as '', which `?? '[]'` does not catch —
-// so treat it as a failure instead of reporting success over zero packages.
-const raw = process.env.PUBLISHED?.trim() ?? '';
-const published = raw === '' ? [] : JSON.parse(raw);
+// Verify every public manifest version, including versions published by an
+// earlier attempt. This checks registry metadata presence, not signatures.
+import { readFile, readdir } from 'node:fs/promises';
 
-if (!Array.isArray(published) || published.length === 0) {
-  console.error(
-    'PUBLISHED is empty, but this step runs only after a publish. The changesets ' +
-      'action output it reads must have been renamed: nothing was verified.'
+const packagesRoot = new URL('../packages/', import.meta.url);
+const packages = [];
+for (const entry of await readdir(packagesRoot, { withFileTypes: true })) {
+  if (!entry.isDirectory()) continue;
+  const manifest = JSON.parse(
+    await readFile(new URL(`${entry.name}/package.json`, packagesRoot), 'utf8')
   );
-  process.exit(1);
+  if (manifest.private !== true) packages.push(manifest);
 }
+if (packages.length === 0) throw new Error('No public packages found; nothing was verified.');
 
-const registry = 'https://registry.npmjs.org';
-
-async function attestation(name, version) {
-  // The registry can lag a fresh publish for a few seconds.
+async function verify({ name, version }) {
+  const url = `https://registry.npmjs.org/${encodeURIComponent(name)}/${encodeURIComponent(version)}`;
+  let reason;
   for (let attempt = 0; attempt < 6; attempt++) {
-    const response = await fetch(`${registry}/${name.replace('/', '%2f')}/${version}`);
-    if (response.ok) {
-      const manifest = await response.json();
-      if (manifest.dist?.attestations?.provenance !== undefined) return true;
+    let terminal = false;
+    try {
+      const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (response.ok) {
+        const manifest = await response.json();
+        if (manifest.name !== name || manifest.version !== version) {
+          reason = 'registry returned a different package or version';
+          terminal = true;
+        } else if (manifest.dist?.attestations?.provenance != null) {
+          return;
+        } else {
+          reason = 'provenance metadata is missing';
+        }
+      } else {
+        reason = `registry returned HTTP ${response.status}`;
+        terminal = ![404, 429].includes(response.status) && response.status < 500;
+        await response.body?.cancel();
+      }
+    } catch (error) {
+      reason = error.message;
     }
-    await new Promise((resolve) => setTimeout(resolve, 5000));
+    if (terminal) break;
+    if (attempt < 5) await new Promise((resolve) => setTimeout(resolve, 5000));
   }
-  return false;
+  throw new Error(`${name}@${version}: ${reason}`);
 }
 
-const missing = [];
-for (const { name, version } of published) {
-  if (!(await attestation(name, version))) missing.push(`${name}@${version}`);
+const failures = [];
+for (const manifest of packages) {
+  try {
+    await verify(manifest);
+    console.log(`Provenance present for ${manifest.name}@${manifest.version}.`);
+  } catch (error) {
+    failures.push(error.message);
+  }
 }
-
-if (missing.length > 0) {
-  console.error(`Published without provenance:\n  ${missing.join('\n  ')}`);
-  process.exit(1);
+if (failures.length) {
+  console.error(`npm verification failed:\n  ${failures.join('\n  ')}`);
+  process.exitCode = 1;
 }
-console.log(`Provenance present for ${published.length} package(s).`);

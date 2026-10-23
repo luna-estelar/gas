@@ -118,19 +118,32 @@ Lyria peers on GAS with a written-out range, `>=0.3.0 <1.0.0`, and develops agai
 copy through `workspace:^`. The range is not a caret range because on 0.x `^0.3.0` means `<0.4.0`,
 which would force a Lyria release for every GAS minor.
 
-The CI workflow runs on pull requests only. Pushes to `main` go to the Release workflow,
-which runs the same `pnpm test` before it publishes anything, so `main` is verified once
-rather than by two workflows racing each other.
+CI runs the security audit and full tests on pull requests and pushes to `main`.
+Merges never publish automatically.
 
-Pending changesets on `main` keep a Version Packages PR open. It runs `pnpm
-version-packages`, which bumps manifests, writes each package's `CHANGELOG.md`, and copies the
-new versions into the two version literals, `packages/gas/src/version.ts` and
-`packages/lyria/src/index.ts` (`scripts/sync-versions.mjs`). The `gas` command and the compiler
-read GAS's literal, so `gas --version` and every timeline's `compilerVersion` match the package.
-Tests check their agreement.
+When ready to release, run `pnpm version-packages` locally in a normal release PR.
+Review and commit the manifests, changelogs, version literals and lockfile it updates.
+There is no automatic Version Packages PR. Merge the reviewed version changes, then
+choose **Release → Run workflow → main** in GitHub Actions, or run:
 
-Merging the Version Packages PR runs `pnpm check:security` and `pnpm test`, then publishes
-with provenance every package whose version is not yet on npm. Each package gets its own tag and
-GitHub release, for example `@luna-estelar/gas@0.3.0`. A package marked `private` is never
-published. Publication is not transactional. If it is interrupted, rerun the release workflow;
-versions already on npm are skipped.
+```bash
+gh workflow run release.yml --ref main
+```
+
+Release accepts only `main` and checks out the triggering commit SHA. It rejects pending
+changesets and active prerelease mode, checks version literals, and reruns the audit and tests.
+It publishes missing versions with provenance, verifies every public manifest version on npm,
+then creates and pushes package tags such as `@luna-estelar/gas@0.3.0`. No new GitHub release
+pages are created; package changelogs are the release notes. Existing tags and releases stay.
+Private packages are neither published nor tagged.
+
+Publication is not transactional. After a partial publish, registry failure or tag-push failure,
+rerun the **original workflow run** so it uses the same commit. Already published versions are
+skipped, all public versions are verified again, and missing tags are restored. Existing tags
+are never moved. A missing provenance attestation cannot be repaired by republishing the same
+version; investigate it before preparing a replacement version. Do not unpublish to recover.
+
+Lyria stays private until its redesign is ready. The first 0.3 release waits for that work:
+prepare GAS and Lyria 0.3 together and remove Lyria's private flag in that release PR.
+Before the first release of `@luna-estelar/gas-lyria`, confirm the npm token permits creating
+that package in the scope. This requires an owner check; the workflow does not test it by publishing.

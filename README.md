@@ -136,7 +136,7 @@ pnpm test
 | `pnpm check:publish`            | Check packed manifests and declaration entrypoints                                   |
 | `pnpm check:security`           | Query npm production dependency advisories                                           |
 | `pnpm changeset`                | Record a release note and version bump for changed packages                          |
-| `pnpm version-packages`         | Apply pending changesets (run by the release workflow)                               |
+| `pnpm version-packages`         | Apply pending changesets locally before a release PR                                 |
 | `pnpm clean`                    | Remove TypeScript build outputs                                                      |
 
 The automated gate does not make model calls. Manual transport and listening checks are

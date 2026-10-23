@@ -1,21 +1,11 @@
-# Release through Changesets, and the verification of main. CI covers pull
-# requests only, so this workflow runs `pnpm test` on every push to main whether
-# or not it goes on to publish.
-#
-# While changesets are pending on main, this opens or updates the Version
-# Packages PR. Merging that PR publishes every package whose version is not yet
-# on npm, in workspace dependency order, and creates a tag and GitHub release
-# per package. Publication is not transactional: rerun the workflow after an
-# interrupted publish and it skips versions already out.
 name: Release
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
-# Two overlapping runs would race on the Version Packages branch and on npm.
+# Serialize publication and tag recovery.
 concurrency:
-  group: release-${{ github.ref }}
+  group: npm-release
   cancel-in-progress: false
 
 permissions:
@@ -26,16 +16,21 @@ jobs:
     runs-on: ubuntu-latest
     environment: npm
     permissions:
-      # Push the version commit, tags and GitHub releases.
+      # Push package tags after npm verification.
       contents: write
-      # Open and update the Version Packages PR.
-      pull-requests: write
       # Allow npm provenance attestations.
       id-token: write
     steps:
+      - name: Require main
+        env:
+          RELEASE_REF: ${{ github.ref }}
+        run: test "$RELEASE_REF" = refs/heads/main
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: ${{ github.sha }}
           fetch-depth: 0
+          fetch-tags: true
 
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
@@ -45,10 +40,27 @@ jobs:
       # another workflow could have written.
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
+          package-manager-cache: false
           node-version: 22
           registry-url: https://registry.npmjs.org
 
       - run: pnpm install --frozen-lockfile
+
+      - name: Require prepared versions
+        run: |
+          node --input-type=module <<'JS'
+          import { readdir, readFile } from 'node:fs/promises';
+          const pending = (await readdir('.changeset')).filter(
+            (file) => file.endsWith('.md') && file !== 'README.md'
+          );
+          if (pending.length) throw new Error(`Run pnpm version-packages first: ${pending.join(', ')}`);
+          const pre = await readFile('.changeset/pre.json', 'utf8').catch((error) => {
+            if (error.code === 'ENOENT') return 'null';
+            throw error;
+          });
+          if (JSON.parse(pre)?.mode === 'pre') throw new Error('Exit prerelease mode before release.');
+          JS
+          node scripts/sync-versions.mjs --check
 
       - name: Audit production dependencies
         run: pnpm check:security
@@ -56,28 +68,19 @@ jobs:
       - name: Build, check and test
         run: pnpm test
 
-      - name: Version or publish
-        id: changesets
-        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
-        with:
-          version-script: pnpm version-packages
-          publish-script: pnpm changeset publish
-          commit-message: 'chore(release): version packages'
-          pr-title: 'chore(release): version packages'
-          create-github-releases: true
+      - name: Publish missing versions
+        run: pnpm changeset publish --no-git-tag
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          # `changeset publish` runs `pnpm publish` without a provenance flag, so
-          # the setting comes from the environment. pnpm 11 reads only
-          # PNPM_CONFIG_*; NPM_CONFIG_PROVENANCE was ignored and the 0.2.0
-          # release went out without attestations.
           PNPM_CONFIG_PROVENANCE: true
 
-      # A missing attestation does not fail the publish, so check for one.
+      # Check all public manifest versions, even when publication was a no-op.
       - name: Verify provenance
-        if: steps.changesets.outputs.published == 'true'
-        env:
-          # Index syntax, not a dot: a hyphen in an expression is subtraction, and
-          # a mistyped output reads as an empty string rather than failing.
-          PUBLISHED: ${{ steps.changesets.outputs['published-packages'] }}
         run: node scripts/check-provenance.mjs
+
+      - name: Create and push package tags
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          pnpm changeset git-tag
+          git push origin --tags

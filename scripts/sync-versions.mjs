@@ -1,7 +1,7 @@
 // Copies each published package's manifest version into its one version
 // literal. The literals exist so consumers can read a version without loading
 // package metadata, but `changeset version` only rewrites manifests, so the
-// Version Packages PR would otherwise ship stale literals.
+// release preparation would otherwise leave stale literals.
 //
 // `pnpm version-packages` runs this after `changeset version`. With `--check` it
 // only reports literals that disagree with their manifests.
