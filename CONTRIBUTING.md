@@ -56,9 +56,12 @@ modules its export-map subpath needs. Only the browser session and the root reac
 Shared test helpers live in `test/support/` and depend only on the protocol module, and the Lyria
 connector imports only `@luna-estelar/gas/protocol`.
 
-`pnpm check:no-dom` typechecks every module except `browser/` without DOM types, so browser
-globals cannot reach code that runs in Node. Inside `browser/`, only the audio clock touches
-`document`.
+Two checks keep browser globals out of code that runs in Node. `pnpm check:no-dom` typechecks
+every module except `browser/` without DOM types. Node's own typings declare `localStorage`,
+`sessionStorage` and `navigator`, so that typecheck accepts them; the DOM boundary test in
+`packages/gas/test/browser/` scans every module and rejects those, directly or through
+`globalThis`. Inside `browser/` it rejects every browser global except `document` in the audio
+clock.
 
 ## Writing a connector
 

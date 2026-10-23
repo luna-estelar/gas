@@ -1,18 +1,23 @@
 // Restrict DOM access to the browser host modules that require it. Classify
 // identifier uses to catch aliases and shadowing without matching comments or
 // property names. fetch remains allowed as a shared Node/browser API.
+//
+// Every module is scanned. Inside browser/ every browser global is rejected.
+// Elsewhere, check:no-dom already rejects the DOM-only globals, so this scan
+// covers the ones Node's own typings declare, which that typecheck accepts.
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
-const sourceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../src/browser');
+const sourceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../src');
 
 /** Include globalThis and self to catch indirect access such as globalThis.document. */
 const FORBIDDEN = new Set([
   'document',
   'localStorage',
+  'sessionStorage',
   'navigator',
   'window',
   'globalThis',
@@ -20,10 +25,21 @@ const FORBIDDEN = new Set([
 ]);
 
 /**
+ * Browser globals that @types/node also declares, so a module compiled without
+ * the DOM lib still typechecks with them. Outside browser/ these are rejected
+ * directly and through globalThis; the rest fail check:no-dom.
+ */
+const NODE_DECLARED = new Set(['localStorage', 'sessionStorage', 'navigator']);
+
+function inBrowserHost(relative: string): boolean {
+  return relative.startsWith('browser/') || relative === 'browser.ts';
+}
+
+/**
  * The one file allowed to touch a browser global, and the one global it may
  * touch: the audio clock listens for the page becoming visible again.
  */
-const ALLOWED_FILE = 'audio/clock.ts';
+const ALLOWED_FILE = 'browser/audio/clock.ts';
 const ALLOWED_GLOBAL = 'document';
 
 interface Violation {
@@ -36,7 +52,8 @@ interface Violation {
 function sourceFiles(directory = sourceRoot): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(directory, entry.name);
-    if (entry.isDirectory()) return sourceFiles(full);
+    // Langium's generated parser is not ours to police.
+    if (entry.isDirectory()) return entry.name === 'generated' ? [] : sourceFiles(full);
     return entry.isFile() && entry.name.endsWith('.ts') ? [full] : [];
   });
 }
@@ -118,19 +135,39 @@ function classifyIdentifier(node: ts.Identifier): Violation['kind'] | undefined 
   return 'reference';
 }
 
+/** `globalThis.localStorage` or `globalThis['localStorage']`: the member it reads, if any. */
+function globalThisMember(node: ts.Node): string | undefined {
+  if (ts.isPropertyAccessExpression(node)) {
+    return ts.isIdentifier(node.expression) && node.expression.text === 'globalThis'
+      ? node.name.text
+      : undefined;
+  }
+  if (ts.isElementAccessExpression(node) && ts.isStringLiteral(node.argumentExpression)) {
+    return ts.isIdentifier(node.expression) && node.expression.text === 'globalThis'
+      ? node.argumentExpression.text
+      : undefined;
+  }
+  return undefined;
+}
+
 /** Every forbidden global this source reaches, in source order. */
 function domViolations(source: ts.SourceFile, relative: string): Violation[] {
   const violations: Violation[] = [];
+  const browserHost = inBrowserHost(relative);
+  const forbidden = browserHost ? FORBIDDEN : NODE_DECLARED;
+  const lineOf = (node: ts.Node): number =>
+    source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
   const visit = (node: ts.Node): void => {
-    if (ts.isIdentifier(node) && FORBIDDEN.has(node.text)) {
+    if (ts.isIdentifier(node) && forbidden.has(node.text)) {
       const kind = classifyIdentifier(node);
       if (kind !== undefined && !isAllowed(node, kind, relative)) {
-        violations.push({
-          line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1,
-          name: node.text,
-          kind
-        });
+        violations.push({ line: lineOf(node), name: node.text, kind });
       }
+    }
+    // Inside browser/ the globalThis identifier itself is already rejected.
+    const member = browserHost ? undefined : globalThisMember(node);
+    if (member !== undefined && NODE_DECLARED.has(member)) {
+      violations.push({ line: lineOf(node), name: `globalThis.${member}`, kind: 'reference' });
     }
     ts.forEachChild(node, visit);
   };
@@ -157,7 +194,7 @@ function parse(text: string, name = 'probe.ts'): ts.SourceFile {
 }
 
 describe('browser-global boundary', () => {
-  it('keeps browser globals out of the framework-free host', () => {
+  it('keeps browser globals out of every module, and confines them in the browser host', () => {
     const violations = sourceFiles().flatMap((file) => {
       const relative = path.relative(sourceRoot, file).split(path.sep).join('/');
       const source = parse(readFileSync(file, 'utf8'), file);
@@ -190,7 +227,7 @@ describe('browser-global boundary', () => {
       ].join('\n')
     );
 
-    expect(domViolations(source, 'config.ts')).toEqual([
+    expect(domViolations(source, 'browser/config.ts')).toEqual([
       { line: 1, name: 'document', kind: 'reference' },
       { line: 2, name: 'document', kind: 'reference' },
       { line: 3, name: 'document', kind: 'reference' },
@@ -232,7 +269,7 @@ describe('browser-global boundary', () => {
         'enum Kind { document }'
       ].join('\n')
     );
-    expect(domViolations(source, 'config.ts')).toEqual([]);
+    expect(domViolations(source, 'browser/config.ts')).toEqual([]);
   });
 
   it('confines the document allowance to the audio clock, and to member access', () => {
@@ -246,16 +283,43 @@ describe('browser-global boundary', () => {
       ].join('\n')
     );
 
-    expect(domViolations(source, 'audio/clock.ts')).toEqual([
+    expect(domViolations(source, 'browser/audio/clock.ts')).toEqual([
       { line: 4, name: 'document', kind: 'reference' },
       { line: 5, name: 'window', kind: 'reference' }
     ]);
-    expect(domViolations(source, 'config.ts')).toEqual([
+    expect(domViolations(source, 'browser/config.ts')).toEqual([
       { line: 1, name: 'document', kind: 'reference' },
       { line: 2, name: 'document', kind: 'reference' },
       { line: 3, name: 'document', kind: 'reference' },
       { line: 4, name: 'document', kind: 'reference' },
       { line: 5, name: 'window', kind: 'reference' }
+    ]);
+  });
+
+  // check:no-dom rejects document, window, self and location outside browser/,
+  // but @types/node declares these, so only this scan catches them there.
+  it('rejects the globals Node typings declare in every other module', () => {
+    const source = parse(
+      [
+        'void localStorage.length;', // 1
+        'void navigator.userAgent;', // 2
+        'void sessionStorage.length;', // 3
+        'void globalThis.localStorage;', // 4
+        'void globalThis["navigator"];', // 5
+        'function take(navigator: unknown) { return navigator; }', // 6
+        'function check(document: Doc) { return document.globals; }', // 7 — the typecheck's job
+        'const id = globalThis.crypto?.randomUUID?.(); void id;' // 8 — shared with Node
+      ].join('\n')
+    );
+
+    expect(domViolations(source, 'core/transitions.ts')).toEqual([
+      { line: 1, name: 'localStorage', kind: 'reference' },
+      { line: 2, name: 'navigator', kind: 'reference' },
+      { line: 3, name: 'sessionStorage', kind: 'reference' },
+      { line: 4, name: 'globalThis.localStorage', kind: 'reference' },
+      { line: 5, name: 'globalThis.navigator', kind: 'reference' },
+      { line: 6, name: 'navigator', kind: 'shadow' },
+      { line: 6, name: 'navigator', kind: 'reference' }
     ]);
   });
 });
