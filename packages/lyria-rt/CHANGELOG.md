@@ -1,4 +1,4 @@
-# @luna-estelar/gas-connector-lyria
+# @luna-estelar/gas-lyria-rt
 
 ## 0.2.1
 

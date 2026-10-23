@@ -71,18 +71,18 @@ function exportTargets(node: unknown, out: string[] = []): string[] {
 // Every package, private or not, so lyria is ready to publish the moment its
 // private flag is removed.
 describe('packages', () => {
-  test('there are exactly gas and lyria', () => {
-    expect(packages.map((pkg) => pkg.dir)).toEqual(['gas', 'lyria']);
+  test('there are exactly gas and lyria-rt', () => {
+    expect(packages.map((pkg) => pkg.dir)).toEqual(['gas', 'lyria-rt']);
   });
 
   test('gas publishes, and lyria publishes once it is no longer private', () => {
-    const lyria = packages.find((pkg) => pkg.dir === 'lyria')!;
+    const lyria = packages.find((pkg) => pkg.dir === 'lyria-rt')!;
     const publishable = packages
       .filter((pkg) => pkg.manifest.private !== true)
       .map((pkg) => pkg.manifest.name);
     expect(publishable).toEqual([
       '@luna-estelar/gas',
-      ...(lyria.manifest.private === true ? [] : ['@luna-estelar/gas-lyria'])
+      ...(lyria.manifest.private === true ? [] : ['@luna-estelar/gas-lyria-rt'])
     ]);
   });
 
@@ -163,7 +163,7 @@ describe('packages', () => {
     // ConnectorError classes, and instanceof checks would fail across them.
     // The range is written out because on 0.x `^0.3.0` means `<0.4.0`, which
     // would force a lyria release for every gas minor.
-    const { manifest } = byName.get('@luna-estelar/gas-lyria')!;
+    const { manifest } = byName.get('@luna-estelar/gas-lyria-rt')!;
     expect(manifest.peerDependencies?.['@luna-estelar/gas']).toBe('>=0.3.0 <1.0.0');
     expect(manifest.devDependencies?.['@luna-estelar/gas']).toBe('workspace:^');
     const runtime = Object.keys(manifest.dependencies ?? {}).filter((name) =>

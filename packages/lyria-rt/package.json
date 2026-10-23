@@ -1,5 +1,5 @@
 {
-  "name": "@luna-estelar/gas-lyria",
+  "name": "@luna-estelar/gas-lyria-rt",
   "version": "0.2.1",
   "private": true,
   "description": "Drive Google's Lyria RealTime music model from GAS: turns tracks, tempo and sections into Lyria prompts and config.",
@@ -20,7 +20,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/luna-estelar/gas.git",
-    "directory": "packages/lyria"
+    "directory": "packages/lyria-rt"
   },
   "publishConfig": {
     "access": "public"

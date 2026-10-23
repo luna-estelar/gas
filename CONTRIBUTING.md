@@ -77,7 +77,7 @@ the host rely on:
   the connector's JSON Schema at runtime. The Renderer calls it for the connector's own defaults,
   the initial configuration and every edit. A connector without it has its configuration accepted
   unchecked, with a `connector-config-unvalidated` warning.
-  `packages/lyria/src/config.ts` is the reference implementation, and
+  `packages/lyria-rt/src/config.ts` is the reference implementation, and
   `test/lyria-config.test.ts` checks that it agrees with an AJV compile of its schema.
 - **Failures.** Throw `ConnectorError` with a `reason` and a stable `code`; its message is fixed
   by the reason, so provider text and credentials never leak. When a connection closes, pass the
@@ -102,7 +102,7 @@ maintained here and included in npm tarballs.
 
 ## Releases
 
-GAS publishes two packages, `@luna-estelar/gas` and `@luna-estelar/gas-lyria`, each versioned on
+GAS publishes two packages, `@luna-estelar/gas` and `@luna-estelar/gas-lyria-rt`, each versioned on
 its own with [Changesets](https://github.com/changesets/changesets). Every PR that changes a
 published package adds a changeset:
 
@@ -145,5 +145,5 @@ version; investigate it before preparing a replacement version. Do not unpublish
 
 Lyria stays private until its redesign is ready. The first 0.3 release waits for that work:
 prepare GAS and Lyria 0.3 together and remove Lyria's private flag in that release PR.
-Before the first release of `@luna-estelar/gas-lyria`, confirm the npm token permits creating
+Before the first release of `@luna-estelar/gas-lyria-rt`, confirm the npm token permits creating
 that package in the scope. This requires an owner check; the workflow does not test it by publishing.

@@ -8,7 +8,7 @@ variable. Never pass a key on the command line or place it in a fixture.
 
 ```sh
 GEMINI_API_KEY=... \
-pnpm --filter @luna-estelar/gas-lyria manual:listen \
+pnpm --filter @luna-estelar/gas-lyria-rt manual:listen \
   --fixture /absolute/path/to/example.gas \
   --strategy global-plus-tracks \
   --seed 42 \
@@ -52,7 +52,7 @@ It accepts connection settings only through the environment and never records th
 ```sh
 GAS_LYRIA_API_KEY=... \
 GAS_LYRIA_SMOKE_OUTPUT=/absolute/path/to/ignored-smoke.wav \
-pnpm --filter @luna-estelar/gas-lyria manual:smoke
+pnpm --filter @luna-estelar/gas-lyria-rt manual:smoke
 ```
 
 `GAS_LYRIA_ENDPOINT` is optional and sends the same request to another HTTPS origin that speaks the

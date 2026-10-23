@@ -7,7 +7,7 @@ import {
   DEFAULT_LYRIA_CONFIG,
   LYRIA_CONFIG_SCHEMA,
   validateLyriaConfig
-} from '../packages/lyria/src/index.js';
+} from '../packages/lyria-rt/src/index.js';
 import { applyMergePatch } from '../packages/gas/src/renderer/connector-config.js';
 import type { ConnectorConfig, JsonValue } from '../packages/gas/src/protocol/index.js';
 

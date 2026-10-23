@@ -9,7 +9,7 @@ never stored.
 
 ```sh
 pnpm build
-pnpm exec vite packages/lyria/manual/browser
+pnpm exec vite packages/lyria-rt/manual/browser
 ```
 
 Open the printed URL. Vite ships with Vitest, so nothing else needs to be

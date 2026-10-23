@@ -6,7 +6,7 @@ import { describe, expect, test } from 'vitest';
 import { execute, type CliIo } from '../packages/gas/src/cli/index.js';
 import { compileSource } from '../packages/gas/src/language/index.js';
 import { version as gasVersion } from '../packages/gas/src/version.js';
-import { version as lyriaVersion } from '../packages/lyria/src/index.js';
+import { version as lyriaVersion } from '../packages/lyria-rt/src/index.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -50,17 +50,17 @@ describe('gas version', () => {
 
 describe('lyria version', () => {
   test('src/index.ts matches the manifest', () => {
-    expect(lyriaVersion).toBe(manifestVersion('lyria'));
+    expect(lyriaVersion).toBe(manifestVersion('lyria-rt'));
   });
 });
 
 // Discovered from the filesystem, so a module literal cannot come back unnoticed.
 test('only the two package literals exist', () => {
   const literal = /^export const version\b/m;
-  const found = ['gas', 'lyria']
+  const found = ['gas', 'lyria-rt']
     .flatMap((pkg) => sourceFiles(path.join(root, 'packages', pkg, 'src')))
     .filter((file) => literal.test(readFileSync(file, 'utf8')))
     .map((file) => path.relative(root, file).split(path.sep).join('/'))
     .sort();
-  expect(found).toEqual(['packages/gas/src/version.ts', 'packages/lyria/src/index.ts']);
+  expect(found).toEqual(['packages/gas/src/version.ts', 'packages/lyria-rt/src/index.ts']);
 });

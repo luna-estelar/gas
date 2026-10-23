@@ -31,7 +31,7 @@ GAS controls arrangement, timing and intent. The model chooses the notes, phrasi
 sound; the same document does not guarantee the same performance on every render.
 
 [Package guide](./packages/gas/README.md) ·
-[Lyria connector](./packages/lyria/README.md) ·
+[Lyria connector](./packages/lyria-rt/README.md) ·
 [Examples](./examples/README.md)
 
 ## Try it
@@ -43,22 +43,22 @@ npx @luna-estelar/gas compile song.gas
 ```
 
 The CLI prints timeline JSON. Use `--out timeline.json` to write a file. Audio generation
-requires model access; see the [Lyria manual guide](./packages/lyria/manual/README.md).
+requires model access; see the [Lyria manual guide](./packages/lyria-rt/manual/README.md).
 
 ## Install
 
 ```bash
-npm install @luna-estelar/gas @luna-estelar/gas-lyria
+npm install @luna-estelar/gas @luna-estelar/gas-lyria-rt
 ```
 
 `@luna-estelar/gas` installs the language, the session runtime, the renderer, browser playback and
-the `gas` command. `@luna-estelar/gas-lyria` is the Lyria connector, a separate install so the
+the `gas` command. `@luna-estelar/gas-lyria-rt` is the Lyria connector, a separate install so the
 Google GenAI SDK is never part of GAS itself:
 
 ```ts
 import { createRenderer, createSession, sourceText } from '@luna-estelar/gas';
 import { compileSource } from '@luna-estelar/gas/language';
-import { createLyriaConnector } from '@luna-estelar/gas-lyria';
+import { createLyriaConnector } from '@luna-estelar/gas-lyria-rt';
 ```
 
 Run the command as `npx @luna-estelar/gas`; a bare `npx gas` fetches an unrelated npm package.
@@ -66,10 +66,10 @@ See the [package README](./packages/gas/README.md) for every entry point.
 
 ### Packages
 
-| Package                   | Purpose                                                                  |
-| ------------------------- | ------------------------------------------------------------------------ |
-| `@luna-estelar/gas`       | The language, sessions, renderer, browser playback and the `gas` command |
-| `@luna-estelar/gas-lyria` | Plays GAS through Google's Lyria RealTime; a peer of `@luna-estelar/gas` |
+| Package                      | Purpose                                                                  |
+| ---------------------------- | ------------------------------------------------------------------------ |
+| `@luna-estelar/gas`          | The language, sessions, renderer, browser playback and the `gas` command |
+| `@luna-estelar/gas-lyria-rt` | Plays GAS through Google's Lyria RealTime; a peer of `@luna-estelar/gas` |
 
 Each has its own README and changelog. Both are ESM-only and need Node 22 or newer; in browsers
 that does not apply.
@@ -85,12 +85,12 @@ schedules changes against a supplied clock, and the connector translates them in
 controls. Each stage is a module under [`packages/gas/src`](./packages/gas/src): `language`,
 `protocol` (the timeline and every other shared contract), `core` and `api` (the session) and
 `renderer`; `browser` composes them for a web page, and the connector lives in
-[`packages/lyria`](./packages/lyria). `scripts/check-boundaries.mjs` enforces which module may
+[`packages/lyria-rt`](./packages/lyria-rt). `scripts/check-boundaries.mjs` enforces which module may
 import which.
 
 ## Status
 
-GAS ships as two packages, `@luna-estelar/gas` and `@luna-estelar/gas-lyria`, each with its own
+GAS ships as two packages, `@luna-estelar/gas` and `@luna-estelar/gas-lyria-rt`, each with its own
 version and changelog. APIs may change in a minor release before 1.0, and breaking changes are
 recorded in the changelog of the package they affect. Both implement **Protocol 1.0**, which is
 distinct from any npm release version.
@@ -102,7 +102,7 @@ Lyria is currently the only connector:
 - `time_signature`, `notes` and `motif` compile and remain in session state, but Lyria
   cannot render them. GAS reports capability warnings.
 
-See [what Lyria can and cannot do](./packages/lyria/README.md#what-lyria-can-and-cannot-do)
+See [what Lyria can and cannot do](./packages/lyria-rt/README.md#what-lyria-can-and-cannot-do)
 for details. The GAS website and its demos are maintained separately from this library.
 
 ## Repository and development

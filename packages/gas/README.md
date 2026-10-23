@@ -63,7 +63,7 @@ Play a document in Node through Lyria RealTime. The connector is a separate pack
 too:
 
 ```bash
-npm install @luna-estelar/gas @luna-estelar/gas-lyria
+npm install @luna-estelar/gas @luna-estelar/gas-lyria-rt
 ```
 
 You need a Gemini API key, and you supply the clock the session schedules against.
@@ -71,7 +71,7 @@ You need a Gemini API key, and you supply the clock the session schedules agains
 ```ts
 import { createRenderer, createSession, sourceText } from '@luna-estelar/gas';
 import type { MonotonicClock } from '@luna-estelar/gas/protocol';
-import { createLyriaConnector } from '@luna-estelar/gas-lyria';
+import { createLyriaConnector } from '@luna-estelar/gas-lyria-rt';
 
 declare const clock: MonotonicClock;
 declare const apiKey: string;
@@ -134,7 +134,7 @@ called `gas`.
 
 ## Related packages
 
-[`@luna-estelar/gas-lyria`](https://github.com/luna-estelar/gas/tree/main/packages/lyria) plays GAS
+[`@luna-estelar/gas-lyria-rt`](https://github.com/luna-estelar/gas/tree/main/packages/lyria-rt) plays GAS
 through Google's Lyria RealTime. It peers on this package, so a host and its connector share one
 copy.
 

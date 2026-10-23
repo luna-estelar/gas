@@ -14,7 +14,7 @@ import {
   LYRIA_CAPABILITIES,
   LYRIA_CONFIG_SCHEMA,
   DEFAULT_LYRIA_CONFIG
-} from '../packages/lyria/src/index.js';
+} from '../packages/lyria-rt/src/index.js';
 import {
   applyCommand,
   createInputState,

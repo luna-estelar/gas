@@ -29,7 +29,7 @@ encoding MIDI. The parts worth looking hardest at are:
   compiler, exhausts memory, or escapes its diagnostics is in scope.
 - **`@luna-estelar/gas/protocol/validation`** validates timelines against JSON Schema. A payload that
   passes validation and then breaks an invariant downstream is in scope.
-- **`@luna-estelar/gas-lyria`** is the only package that takes credentials and
+- **`@luna-estelar/gas-lyria-rt`** is the only package that takes credentials and
   opens a network connection. Anything that leaks an API key — into a diagnostic, an
   error message, a log line, or a prompt — is in scope and is the thing to look for first.
 - **`@luna-estelar/gas/browser`** composes credentials and playback in a page.

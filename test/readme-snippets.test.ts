@@ -98,8 +98,8 @@ function typecheckSnippets(items: readonly Snippet[]): Map<number, string> {
   paths['@luna-estelar/gas'] = [path.join(gasOut, 'index.d.ts')];
   paths['@luna-estelar/gas/protocol/validation'] = [path.join(gasOut, 'protocol-validation.d.ts')];
   paths['@luna-estelar/gas/*'] = [path.join(gasOut, '*.d.ts')];
-  paths['@luna-estelar/gas-lyria'] = [
-    path.join(repoRoot, 'packages', 'lyria', 'out', 'index.d.ts')
+  paths['@luna-estelar/gas-lyria-rt'] = [
+    path.join(repoRoot, 'packages', 'lyria-rt', 'out', 'index.d.ts')
   ];
 
   writeFileSync(path.join(scratch, 'package.json'), JSON.stringify({ type: 'module' }), 'utf8');

@@ -46,14 +46,14 @@ const FIXTURE_ALLOW = ['protocol'];
 const RUNTIME_MODULE = 'renderer';
 const RUNTIME_WIRING = ['browser/session.ts', 'index.ts'];
 
-// The only package specifier lyria may use: it peers on gas for the protocol.
+// The only package specifier lyria-rt may use: it peers on gas for the protocol.
 const LYRIA_ALLOWED = ['@luna-estelar/gas/protocol'];
 
-const PACKAGE_UNITS = ['gas', 'lyria'];
+const PACKAGE_UNITS = ['gas', 'lyria-rt'];
 
 // Units that are not modules. A module directory with one of these names would
 // share its permissions, so it is rejected.
-const RESERVED_UNITS = [VERSION_UNIT, 'lyria', 'fixtures', 'examples'];
+const RESERVED_UNITS = [VERSION_UNIT, 'lyria-rt', 'fixtures', 'examples'];
 
 // Export-map keys that load assets rather than code, with their exact targets.
 const ASSET_EXPORTS = { './protocol/schemas/1.0/*': './schemas/1.0/*' };
@@ -196,7 +196,7 @@ export function findViolations(files, srcRoot = path.join(ROOT, 'packages', 'gas
       }
       if (specifier.startsWith(SCOPE)) {
         // Inside gas nothing imports a package by name, itself included.
-        if (file.unit === 'lyria' && LYRIA_ALLOWED.includes(specifier)) continue;
+        if (file.unit === 'lyria-rt' && LYRIA_ALLOWED.includes(specifier)) continue;
         report(file, specifier, specifier);
         continue;
       }
@@ -295,13 +295,13 @@ export async function collectGasFiles(gasRoot) {
   return files;
 }
 
-/** Collect the lyria package's sources and tests. */
+/** Collect the lyria-rt package's sources and tests. */
 export async function collectLyriaFiles(lyriaRoot) {
   const paths = [
     ...(await walkSource(path.join(lyriaRoot, 'src'), { required: true })),
     ...(await walkSource(path.join(lyriaRoot, 'test')))
   ];
-  return readFiles(paths, () => ({ unit: 'lyria' }));
+  return readFiles(paths, () => ({ unit: 'lyria-rt' }));
 }
 
 /**
@@ -336,7 +336,7 @@ export async function collectAll(root = ROOT) {
   const packagesRoot = path.join(root, 'packages');
   return [
     ...(await collectGasFiles(path.join(packagesRoot, 'gas'))),
-    ...(await collectLyriaFiles(path.join(packagesRoot, 'lyria'))),
+    ...(await collectLyriaFiles(path.join(packagesRoot, 'lyria-rt'))),
     ...(await collectExampleFiles(path.join(root, 'examples'))),
     ...(await collectFixtureFiles(path.join(root, 'test', 'support')))
   ];
@@ -448,7 +448,7 @@ export async function assertCoverage(files, root = ROOT) {
     ...modules,
     ...Object.keys(FACADES).map(facadeUnit),
     VERSION_UNIT,
-    'lyria',
+    'lyria-rt',
     'fixtures',
     'examples'
   ];

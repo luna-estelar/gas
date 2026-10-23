@@ -20,7 +20,7 @@ const PATTERN = /^(export const version = ')([^']*)(';)$/m;
 // literal is an error rather than something to skip.
 const LITERALS = [
   { pkg: 'gas', file: 'src/version.ts' },
-  { pkg: 'lyria', file: 'src/index.ts' }
+  { pkg: 'lyria-rt', file: 'src/index.ts' }
 ];
 
 export async function syncVersions({ write = false } = {}) {
