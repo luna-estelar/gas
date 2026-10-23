@@ -1,12 +1,10 @@
 # @luna-estelar/gas-connector-lyria
 
-Connects GAS to Google's Lyria RealTime: prompt translation, transport, chunk pacing and
-configuration. It is the connector stage of `document → language → timeline → session → renderer
-→ connector → model`.
+Use Google's Lyria RealTime music model with GAS. It turns your tracks, tempo and sections into
+Lyria prompts and settings, and streams the audio back. You need a Gemini API key with Lyria
+access.
 
 [![npm](https://img.shields.io/npm/v/@luna-estelar/gas-connector-lyria)](https://www.npmjs.com/package/@luna-estelar/gas-connector-lyria)
-[![license](https://img.shields.io/npm/l/@luna-estelar/gas-connector-lyria)](https://github.com/luna-estelar/gas/blob/main/LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/release.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/release.yml)
 
 ## Install
 
@@ -14,20 +12,27 @@ configuration. It is the connector stage of `document → language → timeline 
 npm install @luna-estelar/gas-connector-lyria
 ```
 
-Part of `@luna-estelar/gas`, which installs every package; there it is the `/lyria` subpath.
+Also included in `@luna-estelar/gas` as `@luna-estelar/gas/lyria`.
 
 ## Example
 
 ```ts
 import { createLyriaConnector } from '@luna-estelar/gas-connector-lyria';
+import type { MonotonicClock } from '@luna-estelar/gas-protocol';
+import { createRenderer } from '@luna-estelar/gas-renderer';
 
-const connector = createLyriaConnector();
-const description = await connector.describe();
-console.log(description.model.displayName);
+declare const clock: MonotonicClock;
+declare const apiKey: string;
+
+const renderer = await createRenderer({
+  clock,
+  connector: createLyriaConnector(),
+  settings: { apiKey }
+});
 ```
 
-A host passes the connector to `createRenderer` (or to `@luna-estelar/gas-browser`'s
-`createBrowserSession`) together with its settings. Opening it requires a key authorized for Lyria.
+Most applications hand this to a session instead: see `@luna-estelar/gas-api`, or
+`createBrowserSession` in `@luna-estelar/gas-browser`, which takes the connector the same way.
 
 ## Exports
 
@@ -37,7 +42,7 @@ A host passes the connector to `createRenderer` (or to `@luna-estelar/gas-browse
 | `LYRIA_CAPABILITIES`                                                                 | What Lyria renders, approximates and cannot render           |
 | `LyriaConnectorSettings`                                                             | The settings type: `{ apiKey, endpoint? }`                   |
 | `validateLyriaConfig`, `resolveLyriaConfig`                                          | Check a configuration, or resolve one with defaults applied  |
-| `LYRIA_CONFIG_SCHEMA`, `DEFAULT_LYRIA_CONFIG`                                        | The configuration surface as JSON Schema, and its defaults   |
+| `LYRIA_CONFIG_SCHEMA`, `DEFAULT_LYRIA_CONFIG`                                        | The configuration options as JSON Schema, and their defaults |
 | `translatePrompts`, `createPromptTransition`                                         | Turn effective state into weighted prompts and blend changes |
 | `classifyKey`, `LYRIA_SCALES`                                                        | Map a GAS key to the nearest Lyria scale                     |
 | `LyriaConnectorConfig`, `WeightedPrompt`, `PromptTransition`, `KeyClassification`, … | The type families above                                      |
@@ -63,7 +68,7 @@ else.
 
 ## Configuration
 
-`validateLyriaConfig` checks a proposed configuration against the same surface
+`validateLyriaConfig` checks a proposed configuration against the same options
 `LYRIA_CONFIG_SCHEMA` describes, by hand and without compiling anything. It is the connector's
 `Connector.validateConfig` implementation, which is how the Renderer validates configuration edits
 under a Content Security Policy without `'unsafe-eval'`. It reports every problem at once, each as
@@ -109,14 +114,12 @@ covers provider checks that the automated tests cannot make.
 
 - ESM-only.
 - Node.js 20 or newer; runs in browsers.
-- Uses the official `@google/genai` transport, which is the only dependency outside GAS. Import
-  this package only where a connector is needed, since that is where the SDK loads.
+- Uses the official `@google/genai` SDK, its only dependency outside GAS.
 
 ## Related packages
 
-Depends on `@luna-estelar/gas-protocol` and `@google/genai`. Works with any host that accepts a
-`Connector`, such as `@luna-estelar/gas-renderer` or `@luna-estelar/gas-browser`, which takes the
-connector as an argument and does not depend on this package.
+Pass it to `@luna-estelar/gas-renderer` or `@luna-estelar/gas-browser`. Neither depends on this
+package, so you can swap in another connector.
 
 ## License
 

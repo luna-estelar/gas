@@ -1,8 +1,9 @@
 # GAS
 
-GAS (Generative Audio Syntax) is a language and runtime for directing generative audio
-models. It compiles musical intent into a model-independent timeline, then schedules
-changes through a connector while a session runs.
+Music models like Lyria RealTime take a text prompt and stream audio back. You can't tell them
+"piano for four bars, then bring in the strings". GAS (Generative Audio Syntax) adds that part: a
+small language for tempo, sections and tracks, and a runtime that makes each change happen on the
+right bar while the model plays.
 
 ```gas
 tempo 88
@@ -20,7 +21,7 @@ section intro:
 intro()
 ```
 
-Live commands change a running session at musical boundaries:
+Live commands change a piece while it plays, and take effect at the next bar:
 
 ```gas-live
 piano.flavor "busier, left hand walking"
@@ -72,28 +73,27 @@ Each package is also published on its own. Use either the umbrella or individual
 both: the umbrella pins exact versions, so a separately installed package at another version is a
 second copy.
 
-| Package                             | Purpose                                                |
-| ----------------------------------- | ------------------------------------------------------ |
-| `@luna-estelar/gas`                 | Everything below, pinned to one tested set             |
-| `@luna-estelar/gas-protocol`        | Shared contracts and JSON Schemas                      |
-| `@luna-estelar/gas-language`        | Parsing, validation, compilation and live commands     |
-| `@luna-estelar/gas-core`            | Session state, command validation and state derivation |
-| `@luna-estelar/gas-api`             | Application-facing sessions and commands               |
-| `@luna-estelar/gas-renderer`        | Scheduling, clocks and audio delivery                  |
-| `@luna-estelar/gas-connector-lyria` | Lyria transport and prompt translation                 |
-| `@luna-estelar/gas-browser`         | Browser playback, composition and timeline helpers     |
-| `@luna-estelar/gas-cli`             | The `gas` command                                      |
-| `@luna-estelar/gas-notation`        | Alda notation and MIDI encoding                        |
-| `@luna-estelar/gas-highlight`       | Syntax classes and code-fence helpers                  |
+| Package                             | Purpose                                                           |
+| ----------------------------------- | ----------------------------------------------------------------- |
+| `@luna-estelar/gas`                 | Everything below, pinned to one tested set                        |
+| `@luna-estelar/gas-api`             | Load a document, play it, and change it while it plays            |
+| `@luna-estelar/gas-language`        | Parser and compiler for `.gas` documents and live commands        |
+| `@luna-estelar/gas-connector-lyria` | Plays GAS through Google's Lyria RealTime                         |
+| `@luna-estelar/gas-browser`         | Browser playback, a ready-made session, and timeline data for UIs |
+| `@luna-estelar/gas-renderer`        | Schedules each change on the right bar and streams audio          |
+| `@luna-estelar/gas-cli`             | The `gas` command: compile a `.gas` file offline                  |
+| `@luna-estelar/gas-core`            | Session state and conversion between bars and seconds             |
+| `@luna-estelar/gas-protocol`        | Types and JSON Schemas, for writing your own connector            |
+| `@luna-estelar/gas-notation`        | The Alda subset for notes and motifs, and MIDI export             |
+| `@luna-estelar/gas-highlight`       | Syntax highlighting without the parser                            |
 
 Each package has its own README, with exports and usage examples, and a changelog. Packages are
 ESM-only and versioned independently; internal dependencies use caret ranges, and the umbrella
 pins exact versions.
 
-For Node consumers, Protocol, Core, Notation, Renderer and the Lyria connector require
-Node 20 or newer. Language, Highlight, API, CLI and Browser require Node 22 or newer
-because their dependency tree includes Chevrotain. Browser runtime use is independent of
-these Node requirements.
+In Node, Protocol, Core, Notation, Renderer and the Lyria connector need Node 20 or newer, and
+the rest need Node 22 or newer. Language, API, CLI and Browser need it because they load
+Chevrotain. In browsers none of this applies.
 
 ## Architecture
 

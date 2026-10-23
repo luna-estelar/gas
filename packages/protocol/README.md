@@ -1,12 +1,9 @@
 # @luna-estelar/gas-protocol
 
-The Protocol 1.0 contracts shared by every stage of `document → language → timeline → session →
-renderer → connector → model`: timelines, commands, state, events, and the Renderer and
-connector interfaces, with the JSON Schemas that define them. It depends on no other GAS package.
+Types and JSON Schemas for GAS timelines, commands, state and events, and the interface a
+connector implements. Start here to write your own connector for another music model.
 
 [![npm](https://img.shields.io/npm/v/@luna-estelar/gas-protocol)](https://www.npmjs.com/package/@luna-estelar/gas-protocol)
-[![license](https://img.shields.io/npm/l/@luna-estelar/gas-protocol)](https://github.com/luna-estelar/gas/blob/main/LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/release.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/release.yml)
 
 ## Install
 
@@ -14,7 +11,7 @@ connector interfaces, with the JSON Schemas that define them. It depends on no o
 npm install @luna-estelar/gas-protocol
 ```
 
-Part of `@luna-estelar/gas`, which installs every package.
+Also included in `@luna-estelar/gas` as `@luna-estelar/gas/protocol`.
 
 ## Example
 
@@ -27,18 +24,18 @@ if (!result.ok) console.log(result.issues);
 
 ## Exports
 
-| Entry point    | Exports                                                                              | Purpose                                                         |
-| -------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
-| `.`            | `Timeline`, `TimelineEvent`, `MusicalPosition`, `BeatPosition`, …                    | Compiled timelines and musical positions (types only)           |
-| `.`            | `Command` and the `Set…` / `Clear…` / `…Track` command types                         | The canonical command set (types only)                          |
-| `.`            | `InputState`, `EffectiveState`, `SessionState`, `LifecycleEvent`, `CommandResult`, … | Session input, derived state and host-facing session payloads   |
-| `.`            | `Renderer`, `Connector`, `MonotonicClock`, `AudioChunk`, `RendererFailure`, …        | Renderer, connector, clock and audio contracts                  |
-| `.`            | `ConnectorConfigProblem`, `ConnectorConfigValidation`                                | Connector-owned configuration validation results                |
-| `.`            | `ConnectorError`, `isCloseCode`                                                      | The connector failure class, and the one close-code range check |
-| `.`            | `slugify`                                                                            | How a display name becomes a timeline id segment                |
-| `.`            | `version`                                                                            | This package's version                                          |
-| `./validation` | `validateTimelinePayload`, `PROTOCOL_SCHEMA_IDS`                                     | Structural timeline validation with a precompiled validator     |
-| `./schemas/*`  | `schemas/1.0/*.schema.json`                                                          | Draft 2020-12 JSON Schemas for every JSON-compatible value      |
+| Entry point    | Exports                                                                              | Purpose                                                       |
+| -------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| `.`            | `Timeline`, `TimelineEvent`, `MusicalPosition`, `BeatPosition`, …                    | Compiled timelines and musical positions (types only)         |
+| `.`            | `Command` and the `Set…` / `Clear…` / `…Track` command types                         | The canonical command set (types only)                        |
+| `.`            | `InputState`, `EffectiveState`, `SessionState`, `LifecycleEvent`, `CommandResult`, … | Session input, derived state and host-facing session payloads |
+| `.`            | `Renderer`, `Connector`, `MonotonicClock`, `AudioChunk`, `RendererFailure`, …        | Renderer, connector, clock and audio contracts                |
+| `.`            | `ConnectorConfigProblem`, `ConnectorConfigValidation`                                | Results of a connector checking its configuration             |
+| `.`            | `ConnectorError`, `isCloseCode`                                                      | The connector failure class, and the close-code range check   |
+| `.`            | `slugify`                                                                            | How a display name becomes a timeline id segment              |
+| `.`            | `version`                                                                            | This package's version                                        |
+| `./validation` | `validateTimelinePayload`, `PROTOCOL_SCHEMA_IDS`                                     | Structural timeline validation with a precompiled validator   |
+| `./schemas/*`  | `schemas/1.0/*.schema.json`                                                          | Draft 2020-12 JSON Schemas for every JSON-compatible value    |
 
 Importing types from the root is runtime-free. The `validation` subpath carries a validator
 precompiled from the packaged JSON Schemas, so it generates no code at runtime and works under a
@@ -92,9 +89,9 @@ Tempo is beats per minute where a beat is the meter's `beatUnit` note. So `secon
 anywhere: at 120 BPM an event on beat 3 lands 1.0 s into its bar in 6/8 exactly as it does in 4/4,
 because a beat in 6/8 is an eighth note. A bar takes 2.0 s in 4/4 and 3.0 s in 6/8.
 
-Timelines themselves hold no seconds. `@luna-estelar/gas-core` owns the one conversion between a
-`MusicalPosition` and clock seconds — `positionToTime` and `timeToPosition` — so the Renderer and
-a browser host agree on where a position falls in time without either owning the rule. A derived
+Timelines themselves hold no seconds. `@luna-estelar/gas-core` converts between a
+`MusicalPosition` and clock seconds with `positionToTime` and `timeToPosition`, so the Renderer and
+a browser host agree on where a position falls in time. A derived
 position is always a legal one: a whole bar, and a beat offset in whole ticks over 960.
 
 ## Completion and the audible position
@@ -162,9 +159,7 @@ requires them.
 
 ## Related packages
 
-Depends on no GAS package; `./validation` uses `ajv`'s runtime helpers only. Every other GAS
-package depends on it: `gas-language`, `gas-core`, `gas-api`, `gas-renderer`, `gas-notation`,
-`gas-connector-lyria` and `gas-browser`.
+For a working connector built on these types, see `@luna-estelar/gas-connector-lyria`.
 
 ## License
 

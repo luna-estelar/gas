@@ -1,12 +1,9 @@
 # @luna-estelar/gas-renderer
 
-Turns a loaded timeline into a played session. It schedules changes against a host-supplied
-monotonic clock and drives one connector per session, which is the renderer stage of
-`document → language → timeline → session → renderer → connector → model`.
+Plays a GAS timeline. It schedules each change on the right bar against your clock and streams
+audio from a connector such as Lyria.
 
 [![npm](https://img.shields.io/npm/v/@luna-estelar/gas-renderer)](https://www.npmjs.com/package/@luna-estelar/gas-renderer)
-[![license](https://img.shields.io/npm/l/@luna-estelar/gas-renderer)](https://github.com/luna-estelar/gas/blob/main/LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/release.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/release.yml)
 
 ## Install
 
@@ -14,7 +11,7 @@ monotonic clock and drives one connector per session, which is the renderer stag
 npm install @luna-estelar/gas-renderer
 ```
 
-Part of `@luna-estelar/gas`, which installs every package.
+Also included in `@luna-estelar/gas` as `@luna-estelar/gas/renderer`.
 
 ## Example
 
@@ -44,8 +41,8 @@ implementations and does not parse GAS source. Most applications hand `createRen
 | `positionToTime`, `timeToPosition`, `comparePositions`, `createTempoSegmentMap`, … | Musical-time helpers, re-exported from `@luna-estelar/gas-core`  |
 | `version`                                                                          | This package's version                                           |
 
-The musical-time conversions are owned by `@luna-estelar/gas-core` and re-exported here, so a host
-that only needs to place a position in time can take them from Core without the Renderer.
+The musical-time conversions come from `@luna-estelar/gas-core`. A host that only needs to place a
+position in time can import them from there without loading the renderer.
 
 ## When musical time starts
 
@@ -95,9 +92,8 @@ defaults always pass through its validator at startup; rejected defaults fail in
 
 ## Related packages
 
-Depends on `@luna-estelar/gas-protocol`, `gas-core` and `gas-notation`. Works with any connector,
-such as `@luna-estelar/gas-connector-lyria`. `@luna-estelar/gas-browser` composes it with a session
-and Web Audio playback.
+Works with any connector, such as `@luna-estelar/gas-connector-lyria`. `@luna-estelar/gas-browser`
+pairs it with a session and Web Audio playback.
 
 ## License
 

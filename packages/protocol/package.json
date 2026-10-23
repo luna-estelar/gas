@@ -1,10 +1,9 @@
 {
   "name": "@luna-estelar/gas-protocol",
   "version": "0.3.0",
-  "description": "Shared, transport-neutral payload schemas and types used across the GAS packages.",
+  "description": "Types and JSON Schemas for GAS timelines, commands, events and connectors. Use it to write your own connector.",
   "keywords": [
     "gas",
-    "generative-audio",
     "music",
     "protocol",
     "json-schema"

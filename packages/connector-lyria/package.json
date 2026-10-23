@@ -1,13 +1,14 @@
 {
   "name": "@luna-estelar/gas-connector-lyria",
   "version": "0.2.1",
-  "description": "Model-specific Lyria boundary: prompt translation, transport, and config interpretation.",
+  "description": "Drive Google's Lyria RealTime music model from GAS: turns tracks, tempo and sections into Lyria prompts and config.",
   "keywords": [
     "gas",
-    "generative-audio",
-    "music",
     "lyria",
-    "connector"
+    "lyria-realtime",
+    "gemini",
+    "generative-music",
+    "ai-music"
   ],
   "homepage": "https://gas.lunaestelar.com",
   "bugs": {

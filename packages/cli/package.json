@@ -1,10 +1,9 @@
 {
   "name": "@luna-estelar/gas-cli",
   "version": "0.1.3",
-  "description": "Command-line entrypoint for GAS.",
+  "description": "The gas command: compile a .gas file to timeline JSON offline, with no API key.",
   "keywords": [
     "gas",
-    "generative-audio",
     "music",
     "cli",
     "compiler"

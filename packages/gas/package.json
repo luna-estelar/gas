@@ -1,13 +1,18 @@
 {
   "name": "@luna-estelar/gas",
   "version": "0.2.0",
-  "description": "GAS — Generative Audio Syntax. Language, runtime and Lyria connector in one install.",
+  "description": "Write music structure as code: tempo, sections and tracks in a small language, played live through generative music models such as Lyria RealTime.",
   "keywords": [
     "gas",
-    "generative-audio",
-    "music",
+    "generative-music",
+    "ai-music",
+    "music-generation",
     "lyria",
-    "dsl"
+    "lyria-realtime",
+    "dsl",
+    "live-coding",
+    "web-audio",
+    "text-to-music"
   ],
   "homepage": "https://gas.lunaestelar.com",
   "bugs": {

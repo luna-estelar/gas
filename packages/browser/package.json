@@ -1,11 +1,11 @@
 {
   "name": "@luna-estelar/gas-browser",
   "version": "0.3.0",
-  "description": "Browser host for GAS sessions: prebuffered Web Audio playback, session composition, and timeline view models.",
+  "description": "Play GAS documents in the browser: gapless Web Audio playback, a ready-made session, and timeline data for UIs.",
   "keywords": [
     "gas",
-    "generative-audio",
     "music",
+    "ai-music",
     "browser",
     "web-audio"
   ],

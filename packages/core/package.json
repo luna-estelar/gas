@@ -1,12 +1,11 @@
 {
   "name": "@luna-estelar/gas-core",
   "version": "0.2.1",
-  "description": "Pure GAS semantics: the session input state, command validation, and the effective-state cascade. Owns no clock, no I/O, and no instance state.",
+  "description": "Session state and musical time for GAS: apply commands, find what is playing at any bar, and convert bars to seconds.",
   "keywords": [
     "gas",
-    "generative-audio",
     "music",
-    "semantics",
+    "session",
     "state"
   ],
   "homepage": "https://gas.lunaestelar.com",

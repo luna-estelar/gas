@@ -1,6 +1,6 @@
 {
   "name": "gas",
-  "description": "GAS — a readable language and runtime for controlling generative audio models.",
+  "description": "GAS: write music structure as code, played live through generative music models such as Lyria RealTime.",
   "homepage": "https://gas.lunaestelar.com",
   "bugs": {
     "url": "https://github.com/luna-estelar/gas/issues"

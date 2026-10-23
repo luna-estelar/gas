@@ -1,12 +1,9 @@
 # @luna-estelar/gas-api
 
-The application-facing GAS session: load source, issue programmatic and live commands, control
-playback, and observe state, warnings, positions and audio. It is the session stage of
-`document → language → timeline → session → renderer → connector → model`.
+Load a GAS document, play it, and change it while it plays. Send live commands or programmatic
+ones, and listen for state, warnings, the playhead position and audio.
 
 [![npm](https://img.shields.io/npm/v/@luna-estelar/gas-api)](https://www.npmjs.com/package/@luna-estelar/gas-api)
-[![license](https://img.shields.io/npm/l/@luna-estelar/gas-api)](https://github.com/luna-estelar/gas/blob/main/LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/release.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/release.yml)
 
 ## Install
 
@@ -14,7 +11,7 @@ playback, and observe state, warnings, positions and audio. It is the session st
 npm install @luna-estelar/gas-api
 ```
 
-Part of `@luna-estelar/gas`, which installs every package.
+Also included in `@luna-estelar/gas`, where it is the root import.
 
 ## Example
 
@@ -47,15 +44,15 @@ try {
 
 ## Exports
 
-| Export                                                                                    | Purpose                                                                 |
-| ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `createSession`, `GasSession`                                                             | Create and drive a session                                              |
-| `sourceText`, `sourceBytes`, `sourceBlob`, `sourceFile`, `sourceUrl`, `sourcePath`        | Describe where GAS source comes from                                    |
-| `GasOperationError`                                                                       | The one error every rejecting operation throws                          |
-| `SessionWiring`, `RendererControl`                                                        | The renderer factory a host supplies, and the control the session keeps |
-| `SessionState`, `TrackView`, `CommandResult`, `LiveCommandResult`, `LoadResult`, …        | Results and state the session hands back                                |
-| `SessionEvent`, `SessionEventMap`, `LifecycleEvent`, `DiagnosticEvent`, `WarningEvent`, … | Event names and payloads                                                |
-| `version`                                                                                 | This package's version                                                  |
+| Export                                                                                    | Purpose                                                              |
+| ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `createSession`, `GasSession`                                                             | Create and drive a session                                           |
+| `sourceText`, `sourceBytes`, `sourceBlob`, `sourceFile`, `sourceUrl`, `sourcePath`        | Describe where GAS source comes from                                 |
+| `GasOperationError`                                                                       | The error every failed operation throws                              |
+| `SessionWiring`, `RendererControl`                                                        | The renderer factory a host supplies, and what the session gets back |
+| `SessionState`, `TrackView`, `CommandResult`, `LiveCommandResult`, `LoadResult`, …        | Results and state the session hands back                             |
+| `SessionEvent`, `SessionEventMap`, `LifecycleEvent`, `DiagnosticEvent`, `WarningEvent`, … | Event names and payloads                                             |
+| `version`                                                                                 | This package's version                                               |
 
 ## Completion and failures
 
@@ -77,9 +74,9 @@ service behind the endpoint, so the host maps it.
 
 ## Related packages
 
-Depends on `@luna-estelar/gas-protocol`, `gas-language` (to compile source) and `gas-core`. A host
-supplies a renderer such as `@luna-estelar/gas-renderer`; `@luna-estelar/gas-browser` composes the
-session, renderer and audio for browsers. The root of `@luna-estelar/gas` re-exports this package.
+To make sound, pair it with `@luna-estelar/gas-renderer` and a connector such as
+`@luna-estelar/gas-connector-lyria`. In a browser, `@luna-estelar/gas-browser` sets all three up
+for you.
 
 ## License
 

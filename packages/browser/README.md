@@ -1,12 +1,9 @@
 # @luna-estelar/gas-browser
 
-The browser host for GAS: it composes a session, the renderer and gapless Web Audio playback for
-any site, and adds timeline view models, in `document → language → timeline → session → renderer →
-connector → model`.
+Play GAS documents in the browser. One call gives you a session wired to gapless Web Audio
+playback, plus timeline data for drawing a playhead or an arrangement view.
 
 [![npm](https://img.shields.io/npm/v/@luna-estelar/gas-browser)](https://www.npmjs.com/package/@luna-estelar/gas-browser)
-[![license](https://img.shields.io/npm/l/@luna-estelar/gas-browser)](https://github.com/luna-estelar/gas/blob/main/LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/release.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/release.yml)
 
 ## Install
 
@@ -14,7 +11,7 @@ connector → model`.
 npm install @luna-estelar/gas-browser
 ```
 
-Part of `@luna-estelar/gas`, which installs every package; there it is the `/browser/*` subpaths.
+Also included in `@luna-estelar/gas` as `@luna-estelar/gas/browser/*`.
 
 ## Example
 
@@ -54,14 +51,14 @@ own backend arrive the same way.
 
 ## Exports
 
-| Subpath      | Exports                                                                                    | Purpose                                                                         |
-| ------------ | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
-| `./session`  | `createBrowserSession`, `BrowserSession`, `BrowserSessionOptions`, `version`               | Compose api, renderer and audio engine; the only module that loads the renderer |
-| `./audio`    | `PlaybackEngine`, `ChainedSourceEngine`, `AudioClock`, `openAudioContext`, `detectSupport` | Web Audio playback and the device clock                                         |
-| `./capture`  | `PcmCapture`, `decodeS16lePcm`, `encodeWave`                                               | Record a run and offer it as a WAV file                                         |
-| `./compile`  | `compileGas`, `highlightGas`, `previewLiveCommands`, …                                     | Compile and highlight GAS source; loads the parser                              |
-| `./timeline` | `deriveTimeline`, `positionSeconds`, `formatClock`, …                                      | Timeline view models, with positions placed by `gas-core`                       |
-| `./inspect`  | `inspectTimeline`                                                                          | Effective state at a position, without the compiler                             |
+| Subpath      | Exports                                                                                    | Purpose                                                    |
+| ------------ | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
+| `./session`  | `createBrowserSession`, `BrowserSession`, `BrowserSessionOptions`, `version`               | Compose api, renderer and audio engine; loads the renderer |
+| `./audio`    | `PlaybackEngine`, `ChainedSourceEngine`, `AudioClock`, `openAudioContext`, `detectSupport` | Web Audio playback and the device clock                    |
+| `./capture`  | `PcmCapture`, `decodeS16lePcm`, `encodeWave`                                               | Record a run and offer it as a WAV file                    |
+| `./compile`  | `compileGas`, `highlightGas`, `previewLiveCommands`, …                                     | Compile and highlight GAS source; loads the parser         |
+| `./timeline` | `deriveTimeline`, `positionSeconds`, `formatClock`, …                                      | Timeline view models, with positions placed by `gas-core`  |
+| `./inspect`  | `inspectTimeline`                                                                          | Effective state at a position, without the compiler        |
 
 There is no root entry. `./compile` loads the language package, Langium and Chevrotain, so
 import it dynamically when compilation can wait.
@@ -99,14 +96,11 @@ An adopted `context` is never closed by the session. A context the session opene
 ## Runtime support
 
 ESM-only. Runs in current browsers with Web Audio. Node.js 22 or newer is required only to
-install and build (the compiler dependency). Importing any subpath touches no browser global;
-only `./audio`'s clock listens for `visibilitychange`, and only after it is constructed.
+install and build (the compiler dependency).
 
 ## Related packages
 
-Depends on `@luna-estelar/gas-protocol`, `gas-core`, `gas-api`, `gas-renderer` and
-`gas-language` (through `./compile` only). It works with any connector, such as
-`@luna-estelar/gas-connector-lyria`.
+Works with any connector, such as `@luna-estelar/gas-connector-lyria`.
 
 ## License
 

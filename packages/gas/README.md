@@ -1,12 +1,49 @@
 # @luna-estelar/gas
 
-GAS (Generative Audio Syntax) in one install: the language, the session runtime, the renderer and
-the Lyria connector, with the `gas` command. It re-exports the individual `@luna-estelar/gas-*`
-packages, pinned to one tested set of versions.
+Music models like Lyria RealTime take a text prompt and stream audio back. You can't tell them
+"piano for four bars, then bring in the strings". GAS adds that part: a small language for tempo,
+sections and tracks, and a runtime that makes each change happen on the right bar while the
+model plays.
 
 [![npm](https://img.shields.io/npm/v/@luna-estelar/gas)](https://www.npmjs.com/package/@luna-estelar/gas)
 [![license](https://img.shields.io/npm/l/@luna-estelar/gas)](https://github.com/luna-estelar/gas/blob/main/LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/release.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/release.yml)
+
+```gas
+tempo 100
+key "A minor"
+length bars 16
+
+track piano "Solo grand piano, dry and close"
+track strings "Lush orchestral strings, warm vibrato"
+
+section intro:
+    length bars 8
+    bar 1:
+        piano.play
+    bar 5:
+        strings.play
+
+section peak:
+    length bars 8
+    flavor "full, urgent"
+
+intro()
+peak()
+```
+
+You can change a piece while it plays. Live commands take effect at the next bar:
+
+```gas-live
+strings.flavor "intense, full bow pressure"
+```
+
+GAS decides the structure: what plays, when, and in what style. The model writes the notes, so
+two renders of the same document sound different.
+
+[Website and live demos](https://gas.lunaestelar.com) ·
+[Example documents](https://github.com/luna-estelar/gas/tree/main/examples/documents) ·
+[Source](https://github.com/luna-estelar/gas)
 
 ## Install
 
@@ -14,13 +51,16 @@ packages, pinned to one tested set of versions.
 npm install @luna-estelar/gas
 ```
 
-This is the whole of GAS in one package; the individual `@luna-estelar/gas-*` packages it
-re-exports are also published on their own.
+Check a document without an API key. This prints the compiled timeline as JSON:
+
+```bash
+npx @luna-estelar/gas compile song.gas
+```
 
 ## Example
 
-A Node host that plays a GAS document through Lyria. The root is the application layer; the
-renderer and the connector come from their own subpaths.
+Play a document in Node through Lyria RealTime. You need a Gemini API key, and you supply the
+clock the session schedules against.
 
 ```ts
 import { createSession, sourceText } from '@luna-estelar/gas';
@@ -35,19 +75,29 @@ const session = await createSession({
   createRenderer: () =>
     createRenderer({ clock, connector: createLyriaConnector(), settings: { apiKey } })
 });
-await session.loadSource(sourceText('tempo 96\nlength bars 8\n'));
+
+await session.loadSource(
+  sourceText(`tempo 88
+length bars 8
+track piano "Soft felt piano"
+section a:
+    length bars 8
+    bar 1:
+        piano.play
+a()
+`)
+);
 await session.play();
+await session.submitLiveCommands(sourceText('piano.flavor "busier, left hand walking"'));
 ```
 
-In a browser, `@luna-estelar/gas/browser/session` composes the session, the renderer and a Web
-Audio playback engine for you; see
+In a browser, `@luna-estelar/gas/browser/session` sets up the session, the renderer and Web Audio
+playback for you. See
 [`@luna-estelar/gas-browser`](https://github.com/luna-estelar/gas/tree/main/packages/browser).
 
 ## Exports
 
-The root re-exports [`@luna-estelar/gas-api`](https://github.com/luna-estelar/gas/tree/main/packages/api): sessions, source helpers,
-`GasOperationError`, and the protocol types a host handles. Every package is also available at a
-subpath that mirrors it:
+The root is the session API from [`@luna-estelar/gas-api`](https://github.com/luna-estelar/gas/tree/main/packages/api); everything else is a subpath:
 
 | Import                                                                       | Re-exports                              |
 | ---------------------------------------------------------------------------- | --------------------------------------- |
@@ -66,20 +116,14 @@ subpath that mirrors it:
 The root exports `version` for this package; each subpath exports the
 underlying package's own.
 
-### Why most of GAS is behind subpaths
-
-Node evaluates every module an import reaches, so a root that re-exported everything would load
-the parser, the renderer, the Google GenAI SDK and browser code into every program. The root stays
-small, and each subpath loads only its own package. The Lyria connector is the only entry point
-that loads `@google/genai`, and browser code is only reached through `browser/*`.
+Each subpath loads only what it needs. Only `/lyria` pulls in `@google/genai`, and only
+`browser/*` contains browser code.
 
 ## One install or individual packages, not both
 
-This package pins exact versions of the packages it re-exports. If an application also installs
-one of them directly at a different version, it gets two copies of that package, and values from
-one copy are not recognized by the other. Use either `@luna-estelar/gas` or the individual
-`@luna-estelar/gas-*` packages. If you do need both, match the versions this package pins
-(`npm view @luna-estelar/gas dependencies`).
+Installing this package and an individual `@luna-estelar/gas-*` package at a different version gives
+you two copies that don't recognize each other's values. Pick one, or match the versions shown by
+`npm view @luna-estelar/gas dependencies`.
 
 ## The `gas` command
 
@@ -96,14 +140,12 @@ globally, not both; npm refuses to link a second `gas` over the first.
 - ESM only.
 - Node.js 22 or newer.
 - The root, `api`, `protocol`, `core`, `renderer`, `notation`, `highlight`, `language` and `lyria`
-  run in Node and in browsers. `browser/*` targets browsers and imports without touching browser
-  globals.
+  run in Node and in browsers. `browser/*` targets browsers.
 - TypeScript types ship with every entry point.
 
 ## Related packages
 
-This package depends on every `@luna-estelar/gas-*` package and adds no code of its own beyond the
-`gas` command shim. Nothing in the GAS workspace depends on it.
+Bundles every `@luna-estelar/gas-*` package listed above and adds the `gas` command.
 
 ## License
 

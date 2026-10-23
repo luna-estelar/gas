@@ -1,10 +1,9 @@
 {
   "name": "@luna-estelar/gas-renderer",
   "version": "0.3.0",
-  "description": "Audio generation and playback: clock, scheduling, musical-to-clock conversion, and session state derived through gas-core.",
+  "description": "Plays a GAS timeline: schedules each change on the right bar against your clock and streams audio from a connector.",
   "keywords": [
     "gas",
-    "generative-audio",
     "music",
     "renderer",
     "audio",

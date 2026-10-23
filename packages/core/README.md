@@ -1,13 +1,10 @@
 # @luna-estelar/gas-core
 
-The pure semantics of a GAS session: the input state a host accumulates, the commands that change
-it, the state in effect at any musical position, and the one conversion between musical positions
-and seconds. It sits between the timeline and the session in `document → language → timeline →
-session → renderer → connector → model`.
+Session state and musical time for GAS. Apply commands to a session, ask what is playing at any
+bar, and convert between bars and seconds. Everything here is a plain function over plain values,
+so it runs the same in Node, a browser or a test.
 
 [![npm](https://img.shields.io/npm/v/@luna-estelar/gas-core)](https://www.npmjs.com/package/@luna-estelar/gas-core)
-[![license](https://img.shields.io/npm/l/@luna-estelar/gas-core)](https://github.com/luna-estelar/gas/blob/main/LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/release.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/release.yml)
 
 ## Install
 
@@ -15,7 +12,7 @@ session → renderer → connector → model`.
 npm install @luna-estelar/gas-core
 ```
 
-Part of `@luna-estelar/gas`, which installs every package.
+Also included in `@luna-estelar/gas` as `@luna-estelar/gas/core`.
 
 ## Example
 
@@ -32,23 +29,23 @@ console.log(state.tracks);
 
 ## Exports
 
-| Export                                                                       | Purpose                                                              |
-| ---------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| `createInputState`                                                           | Start a session's input state from a timeline                        |
-| `applyCommand`, `defineTrack`                                                | Apply a canonical command, or declare a host track, with warnings    |
-| `validateTimeline`                                                           | Structural and cross-record timeline validation                      |
-| `warningsForTimeline`                                                        | Capability warnings for the intents a timeline uses                  |
-| `effectiveStateAt`, `sectionInstanceAt`                                      | The state in effect, and the section instance, at a musical position |
-| `authoredEventSchedule`                                                      | The authored events in playback order                                |
-| `applyStop`, `applyCompletion`, `applyLoopBoundary`, `applyRetry`            | Session transitions for stop, completion, loop boundaries and retry  |
-| `comparePositions`, `positionsEqual`                                         | Order and compare musical positions, fractions included              |
-| `positionToTime`, `timeToPosition`                                           | Convert between a position and clock seconds through a tempo map     |
-| `barToTime`, `timeToBarFraction`                                             | Bar-only conversions; the fraction is continuous                     |
-| `createTempoSegmentMap`, `reanchorTempo`, `resolveTiming`                    | Build and re-anchor the tempo map                                    |
-| `secondsPerBar`, `secondsPerBeat`                                            | Durations at a tempo and meter                                       |
-| `DEFAULT_TEMPO`, `DEFAULT_TIME_SIGNATURE`, `TICKS_PER_BEAT`                  | Defaults, and the resolution of derived beat offsets (960)           |
-| `Command`, `InputState`, `EffectiveState`, `TempoSegment`, `TimelineProblem` | The type families above                                              |
-| `version`                                                                    | This package's version                                               |
+| Export                                                                       | Purpose                                                             |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `createInputState`                                                           | Start a session's input state from a timeline                       |
+| `applyCommand`, `defineTrack`                                                | Apply a canonical command, or declare a host track, with warnings   |
+| `validateTimeline`                                                           | Structural and cross-record timeline validation                     |
+| `warningsForTimeline`                                                        | Capability warnings for the intents a timeline uses                 |
+| `effectiveStateAt`, `sectionInstanceAt`                                      | What is playing, and which section instance, at a musical position  |
+| `authoredEventSchedule`                                                      | The authored events in playback order                               |
+| `applyStop`, `applyCompletion`, `applyLoopBoundary`, `applyRetry`            | Session transitions for stop, completion, loop boundaries and retry |
+| `comparePositions`, `positionsEqual`                                         | Order and compare musical positions, fractions included             |
+| `positionToTime`, `timeToPosition`                                           | Convert between a position and clock seconds through a tempo map    |
+| `barToTime`, `timeToBarFraction`                                             | Bar-only conversions; the fraction is continuous                    |
+| `createTempoSegmentMap`, `reanchorTempo`, `resolveTiming`                    | Build and re-anchor the tempo map                                   |
+| `secondsPerBar`, `secondsPerBeat`                                            | Durations at a tempo and meter                                      |
+| `DEFAULT_TEMPO`, `DEFAULT_TIME_SIGNATURE`, `TICKS_PER_BEAT`                  | Defaults, and the resolution of derived beat offsets (960)          |
+| `Command`, `InputState`, `EffectiveState`, `TempoSegment`, `TimelineProblem` | The type families above                                             |
+| `version`                                                                    | This package's version                                              |
 
 ## Musical time
 
@@ -66,13 +63,12 @@ Renderer share these functions for session semantics.
 
 - ESM-only.
 - Node.js 20 or newer; runs in browsers.
-- `"sideEffects": false`. `validateTimeline` imports `@luna-estelar/gas-protocol/validation`,
-  whose validator is precompiled rather than built at runtime, so bundlers can drop it when it is
-  unused. Check the consuming application's output to confirm tree shaking.
+- `"sideEffects": false`.
 
 ## Related packages
 
-Depends on `@luna-estelar/gas-protocol`. Used by `gas-api`, `gas-renderer` and `gas-browser`.
+`@luna-estelar/gas-api` and `@luna-estelar/gas-renderer` use it for you. Install it directly when
+you need session state or musical time on their own, for example to draw a playhead.
 
 ## License
 

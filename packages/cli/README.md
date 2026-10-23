@@ -1,12 +1,9 @@
 # @luna-estelar/gas-cli
 
-The `gas` command: compiles GAS source into timeline JSON locally, without credentials or network
-access. It runs the language stage of `document → language → timeline → session → renderer →
-connector → model` from a terminal.
+The `gas` command: compile a `.gas` file to timeline JSON on your machine. It needs no API key and
+no network, so you can check a piece before you play it.
 
 [![npm](https://img.shields.io/npm/v/@luna-estelar/gas-cli)](https://www.npmjs.com/package/@luna-estelar/gas-cli)
-[![license](https://img.shields.io/npm/l/@luna-estelar/gas-cli)](https://github.com/luna-estelar/gas/blob/main/LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/release.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/release.yml)
 
 ## Install
 
@@ -14,8 +11,7 @@ connector → model` from a terminal.
 npm install @luna-estelar/gas-cli
 ```
 
-Part of `@luna-estelar/gas`, which installs every package and the same `gas` command. Either runs
-without a permanent installation:
+The same `gas` command ships with `@luna-estelar/gas`. Either runs without installing:
 
 ```bash
 npx @luna-estelar/gas-cli compile song.gas
@@ -74,8 +70,7 @@ stderr as `file:line:column: severity [category/code] message`, and a compile er
 
 ## Related packages
 
-Depends on `@luna-estelar/gas-language` for compilation; applications that compile source directly
-can import that package instead. `@luna-estelar/gas` depends on this package for its `gas` command.
+To compile from your own code instead of a terminal, use `@luna-estelar/gas-language`.
 
 ## License
 

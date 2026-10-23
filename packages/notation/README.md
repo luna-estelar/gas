@@ -1,13 +1,9 @@
 # @luna-estelar/gas-notation
 
-Pure notation helpers for the `notes` and `motif` intents: parsing the minimal Alda subset GAS
-accepts, and encoding note events as a standard MIDI file. The timeline stage of `document →
-language → timeline → session → renderer → connector → model` carries these values as strings,
-and this package reads them.
+Read the notes and motifs written in a GAS document. It parses the small Alda subset GAS accepts
+for `notes` and `motif`, and writes the result as a standard MIDI file.
 
 [![npm](https://img.shields.io/npm/v/@luna-estelar/gas-notation)](https://www.npmjs.com/package/@luna-estelar/gas-notation)
-[![license](https://img.shields.io/npm/l/@luna-estelar/gas-notation)](https://github.com/luna-estelar/gas/blob/main/LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/release.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/release.yml)
 
 ## Install
 
@@ -15,7 +11,7 @@ and this package reads them.
 npm install @luna-estelar/gas-notation
 ```
 
-Part of `@luna-estelar/gas`, which installs every package; there it is the `/notation` subpath.
+Also included in `@luna-estelar/gas` as `@luna-estelar/gas/notation`.
 
 ## Example
 
@@ -68,7 +64,8 @@ package to read them.
 
 ## Related packages
 
-Depends on `@luna-estelar/gas-protocol`. Used by `@luna-estelar/gas-renderer`.
+`@luna-estelar/gas-renderer` uses it to read notes and motifs. A connector that renders notation
+can use it the same way.
 
 ## License
 

@@ -1,13 +1,9 @@
 # @luna-estelar/gas-highlight
 
-Pure presentation helpers for GAS source: syntax classes for compiler highlight tokens, per-line
-spans, and the supported documentation-fence metadata. It presents the document stage of
-`document → language → timeline → session → renderer → connector → model` without loading the
-parser.
+Syntax highlighting for GAS source and `gas` code fences in your docs. It turns highlight tokens
+into per-line spans with CSS classes, and it never loads the parser.
 
 [![npm](https://img.shields.io/npm/v/@luna-estelar/gas-highlight)](https://www.npmjs.com/package/@luna-estelar/gas-highlight)
-[![license](https://img.shields.io/npm/l/@luna-estelar/gas-highlight)](https://github.com/luna-estelar/gas/blob/main/LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/release.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/release.yml)
 
 ## Install
 
@@ -15,7 +11,7 @@ parser.
 npm install @luna-estelar/gas-highlight
 ```
 
-Part of `@luna-estelar/gas`, which installs every package; there it is the `/highlight` subpath.
+Also included in `@luna-estelar/gas` as `@luna-estelar/gas/highlight`.
 
 ## Example
 
@@ -50,14 +46,13 @@ is structural, so tokens from the language package's `highlightSource` pass stra
 ## Runtime support
 
 - ESM-only.
-- Node.js 22 or newer when used in Node, matching the baseline across these packages; runs in
-  browsers.
-- Pure and browser-safe, with no dependencies.
+- Node.js 22 or newer when used in Node; runs in browsers.
+- No dependencies.
 
 ## Related packages
 
-Depends on nothing. Pairs with `@luna-estelar/gas-language`, whose `highlightSource` produces the
-tokens; installing this package pulls in neither the parser, Langium, nor Chevrotain.
+Pair it with `@luna-estelar/gas-language`, whose `highlightSource` produces the tokens. This
+package does not pull in the parser.
 
 ## License
 

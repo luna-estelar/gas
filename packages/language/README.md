@@ -1,12 +1,9 @@
 # @luna-estelar/gas-language
 
-Parses, validates and compiles GAS documents and live fragments into model-independent timelines
-in musical time. It is the language stage of `document → language → timeline → session → renderer
-→ connector → model`.
+The parser and compiler for the GAS music language. It turns `.gas` documents and live commands
+into timelines in bars and beats, with diagnostics that point at the line and column.
 
 [![npm](https://img.shields.io/npm/v/@luna-estelar/gas-language)](https://www.npmjs.com/package/@luna-estelar/gas-language)
-[![license](https://img.shields.io/npm/l/@luna-estelar/gas-language)](https://github.com/luna-estelar/gas/blob/main/LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/luna-estelar/gas/release.yml?branch=main)](https://github.com/luna-estelar/gas/actions/workflows/release.yml)
 
 ## Install
 
@@ -14,7 +11,7 @@ in musical time. It is the language stage of `document → language → timeline
 npm install @luna-estelar/gas-language
 ```
 
-Part of `@luna-estelar/gas`, which installs every package.
+Also included in `@luna-estelar/gas` as `@luna-estelar/gas/language`.
 
 ## Example
 
@@ -41,7 +38,7 @@ else console.log(result.diagnostics);
 | `GasDiagnostic`, `Timeline`, `MusicalPosition`, …                             | Protocol types, re-exported                               |
 | `version`                                                                     | This package's version                                    |
 
-No Langium types, CST nodes, or service objects leak through that surface.
+No Langium types, CST nodes or service objects appear in these exports.
 
 Timelines carry a `compilerVersion` field recording this package's version, and a `formatVersion`
 of `{ major: 1, minor: 0 }` recording the Protocol contract they satisfy. The two move
@@ -62,10 +59,9 @@ through `exports`, so resolve it as a file within the package.
 
 ## Related packages
 
-Depends on `@luna-estelar/gas-protocol`, `langium` and `chevrotain`. Used by `gas-api`, `gas-cli`
-and `gas-browser`. For token presentation alone, `@luna-estelar/gas-highlight` has no dependencies:
-it declares a structurally identical token type, so `highlightSource` output passes straight into
-it.
+To play what you compile, see `@luna-estelar/gas-api`. For highlighting alone,
+`@luna-estelar/gas-highlight` takes the tokens `highlightSource` produces without loading the
+parser.
 
 ## License
 
