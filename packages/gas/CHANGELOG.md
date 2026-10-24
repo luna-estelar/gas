@@ -1,5 +1,30 @@
 # @luna-estelar/gas
 
+## 0.3.0
+
+### Minor Changes
+
+- GAS is now one package. The ten `@luna-estelar/gas-*` packages it used to depend on are folded
+  in, and the export map is smaller:
+
+  - `@luna-estelar/gas` exports what `./api` did, plus `createRenderer` and `version`.
+  - `@luna-estelar/gas/browser` replaces `./browser/session`, `./browser/audio`, `./browser/capture`,
+    `./browser/timeline` and `./browser/inspect`.
+  - `@luna-estelar/gas/language` also has the editor helpers from `./browser/compile`.
+  - `./core` and `./notation` are internal now. `./renderer` is gone; use `createRenderer` from the
+    root.
+  - `./lyria` is gone. The connector is a separate package, `@luna-estelar/gas-lyria-rt`.
+
+  `./protocol`, `./protocol/validation` and `./highlight` are unchanged.
+
+- Stop and Close no longer wait behind a slow connector. They overtake in-flight connector work and
+  wait for its stop or close only up to a cleanup timeout, measured in wall time so a suspended
+  AudioContext cannot stall it. A second Stop shares the first one's outcome.
+
+  A Play that settles after Stop, Close or `retryRenderer()` is ignored instead of reviving the
+  session. A connector can prepare again after a Stop that landed during prepare. Connectors now get
+  the run's default tempo in `ConnectorTiming`, not an override that happened to be active at start.
+
 ## 0.2.0
 
 ### Minor Changes

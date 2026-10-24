@@ -63,8 +63,7 @@ same document sound different.
 
 To play a document in Node you need a connector, a clock and an API key. This uses the Lyria
 RealTime connector,
-[`@luna-estelar/gas-lyria-rt`](https://github.com/luna-estelar/gas/tree/main/packages/lyria-rt),
-which is not on npm yet:
+[`@luna-estelar/gas-lyria-rt`](https://github.com/luna-estelar/gas/tree/main/packages/lyria-rt):
 
 ```ts
 import { createRenderer, createSession, sourceText } from '@luna-estelar/gas';

@@ -62,5 +62,4 @@ The workflow publishes missing versions with provenance and pushes tags like
 versions are skipped. Never unpublish.
 
 Connectors peer on GAS with `>=0.3.0 <1.0.0`, not `^0.3.0`, which on 0.x would mean `<0.4.0`.
-The Lyria RealTime connector stays private until 0.3. Before its first publish, check that the npm
-token can create packages in the scope.
+Before a connector's first publish, check that the npm token can create packages in the scope.
