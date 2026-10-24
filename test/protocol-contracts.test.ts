@@ -9,12 +9,8 @@ import {
   type CompileResult,
   type SessionState
 } from '../packages/gas/src/api/index.js';
-import {
-  createLyriaRtConnector,
-  LYRIA_RT_CAPABILITIES,
-  LYRIA_RT_CONFIG_SCHEMA,
-  DEFAULT_LYRIA_RT_CONFIG
-} from '../packages/lyria-rt/src/index.js';
+import { createLyriaRtConnector, LYRIA_RT_CAPABILITIES } from '../packages/lyria-rt/src/index.js';
+import { createMagentaRt2Connector } from '../packages/magenta-rt2/src/index.js';
 import {
   applyCommand,
   createInputState,
@@ -169,18 +165,15 @@ describe('landed values match canonical protocol schemas', () => {
 
     expect(schema(`${base}/state.schema.json#/$defs/InputState`)(input)).toBe(true);
     expect(schema(`${base}/state.schema.json#/$defs/EffectiveState`)(effective)).toBe(true);
-    expect(schema(`${base}/capabilities.schema.json`)(LYRIA_RT_CAPABILITIES)).toBe(true);
-    expect(
-      schema(`${base}/config.schema.json#/$defs/ConnectorConfigSchema`)(LYRIA_RT_CONFIG_SCHEMA)
-    ).toBe(true);
-    expect(
-      schema(`${base}/config.schema.json#/$defs/ConnectorConfig`)(DEFAULT_LYRIA_RT_CONFIG)
-    ).toBe(true);
 
-    const description = await createLyriaRtConnector().describe();
-    expect(schema(`${base}/renderer.schema.json#/$defs/ConnectorDescription`)(description)).toBe(
-      true
-    );
+    // A description carries the capabilities, config schema and default config,
+    // and its schema checks each of them.
+    for (const connector of [createLyriaRtConnector(), createMagentaRt2Connector()]) {
+      const description = await connector.describe();
+      expect(schema(`${base}/renderer.schema.json#/$defs/ConnectorDescription`)(description)).toBe(
+        true
+      );
+    }
   });
 
   it('validates representative Renderer and API event payloads', async () => {
