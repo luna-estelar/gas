@@ -2,8 +2,8 @@
 
 Module tests live under `packages/gas/test/<module>/` and follow that module's import
 boundaries; each connector's tests live under its own `test/` directory, and
-`test/support/connector-conformance.ts` holds the lifecycle cases every connector runs. Integration tests
-that combine modules live in the root `test/` directory.
+`test/support/connector-conformance.ts` holds the lifecycle cases every connector runs.
+Integration tests that combine modules live in the root `test/` directory.
 
 ```bash
 pnpm test
@@ -21,4 +21,4 @@ and that README examples compile. Corpus collectors fail when their input direct
 cannot pass with zero cases.
 
 The automated tests use deterministic clocks and fake transports. Live listening and
-transport checks are documented separately in the Lyria RealTime connector's manual guide.
+transport checks are documented separately in each connector's manual guide.

@@ -53,8 +53,8 @@ those rules belong in the root `test/` directory. See [test/README.md](./test/RE
 
 The top-level files in `src/` are the package's entry points. They only re-export, each from the
 modules its export-map subpath needs. Only the browser session and the root reach the renderer.
-Shared test helpers live in `test/support/` and depend only on the protocol module, and the Lyria
-RealTime connector imports only `@luna-estelar/gas/protocol`.
+Shared test helpers live in `test/support/` and depend only on the protocol module, and each
+connector package imports only `@luna-estelar/gas/protocol`.
 
 Two checks keep browser globals out of code that runs in Node. `pnpm check:no-dom` typechecks
 every module except `browser/` without DOM types. Node's own typings declare `localStorage`,
@@ -102,10 +102,10 @@ maintained here and included in npm tarballs.
 
 ## Releases
 
-GAS publishes `@luna-estelar/gas` and its connector packages (`@luna-estelar/gas-lyria-rt`,
-`@luna-estelar/gas-magenta-rt2`), each versioned on
-its own with [Changesets](https://github.com/changesets/changesets). Every PR that changes a
-published package adds a changeset:
+GAS publishes `@luna-estelar/gas` and its connector packages, `@luna-estelar/gas-lyria-rt` and
+`@luna-estelar/gas-magenta-rt2`, each versioned on its own with
+[Changesets](https://github.com/changesets/changesets). Every PR that changes a published package
+adds a changeset:
 
 ```bash
 pnpm changeset
@@ -115,9 +115,9 @@ Choose the affected packages and a bump for each, and write the summary for some
 package's changelog. Changes that only touch tests, CI or the private root need no changeset.
 There are no fixed or linked release groups.
 
-The Lyria RealTime connector peers on GAS with a written-out range, `>=0.3.0 <1.0.0`, and develops
-against the workspace copy through `workspace:^`. The range is not a caret range because on 0.x
-`^0.3.0` means `<0.4.0`, which would force a Lyria RealTime release for every GAS minor.
+Each connector peers on GAS with a written-out range, `>=0.3.0 <1.0.0`, and develops against the
+workspace copy through `workspace:^`. The range is not a caret range because on 0.x `^0.3.0`
+means `<0.4.0`, which would force a connector release for every GAS minor.
 
 CI runs the security audit and full tests on pull requests and pushes to `main`.
 Merges never publish automatically.
@@ -146,6 +146,5 @@ version; investigate it before preparing a replacement version. Do not unpublish
 
 The Lyria RealTime connector stays private until its redesign is ready. The first 0.3 release waits
 for that work: prepare GAS and Lyria RealTime 0.3 together and remove its private flag in that
-release PR.
-Before the first release of `@luna-estelar/gas-lyria-rt`, confirm the npm token permits creating
-that package in the scope. This requires an owner check; the workflow does not test it by publishing.
+release PR. Before the first release of each connector package, confirm the npm token permits
+creating that package in the scope. This requires an owner check; the workflow does not test it by publishing.

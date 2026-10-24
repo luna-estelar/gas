@@ -44,9 +44,9 @@ npx @luna-estelar/gas compile song.gas
 ```
 
 The CLI prints timeline JSON. Use `--out timeline.json` to write a file. Audio generation
-requires a model: a Gemini key for Lyria RealTime (see the
-[Lyria RealTime manual guide](./packages/lyria-rt/manual/README.md)), or a Magenta RT2 bridge running on your own Apple Silicon Mac (see the
-[Magenta RT2 connector](./packages/magenta-rt2/README.md)).
+requires a model: Lyria RealTime needs a Gemini key (see its
+[manual guide](./packages/lyria-rt/manual/README.md)), and Magenta RT2 needs a
+[bridge](./packages/magenta-rt2/README.md#start-a-bridge) running on Apple Silicon.
 
 ## Install
 
@@ -110,7 +110,8 @@ Each connector reports what its model can render:
 
 Unsupported intents compile and remain in session state, and GAS reports capability warnings. See
 [Lyria RealTime](./packages/lyria-rt/README.md#what-lyria-realtime-can-and-cannot-do) and
-[Magenta RT2](./packages/magenta-rt2/README.md#what-magenta-rt2-can-and-cannot-do) for details. The GAS website and its demos are maintained separately from this library.
+[Magenta RT2](./packages/magenta-rt2/README.md#what-magenta-rt2-can-and-cannot-do) for details.
+The GAS website and its demos are maintained separately from this library.
 
 ## Repository and development
 
@@ -147,7 +148,7 @@ pnpm test
 | `pnpm clean`                    | Remove TypeScript build outputs                                                      |
 
 The automated gate does not make model calls. Manual transport and listening checks are
-kept in the Lyria RealTime connector's manual guide.
+kept in each connector's manual guide.
 
 ## Contributing and license
 
