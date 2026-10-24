@@ -110,8 +110,6 @@ export class GasSession {
     this.renderer = this.buildRendererControl();
   }
 
-  // ---- Source and loading -------------------------------------------------
-
   // Pure: compiles source to a timeline without touching session or Renderer
   // state. A compile error rejects with the diagnostics attached.
   async compileSource(input: SourceInput, options: CompileOptions = {}): Promise<CompileResult> {
@@ -185,8 +183,6 @@ export class GasSession {
     return { warnings };
   }
 
-  // ---- Programmatic commands ----------------------------------------------
-
   defineTrack(track: DefineTrackInput): Promise<CommandResult> {
     return this.runCommand({
       kind: 'defineTrack',
@@ -250,8 +246,6 @@ export class GasSession {
     return this.runCommand({ kind: 'clearTempo' });
   }
 
-  // ---- Live commands ------------------------------------------------------
-
   // Parse the whole submission first (a structural error rejects everything),
   // then apply statements sequentially through the same Core path. Earlier
   // successes stay committed; a later failure resolves with a failure payload
@@ -306,8 +300,6 @@ export class GasSession {
     }
     return { ok: true, applied, warnings, ...(this.phase === 'active' ? positions : {}) };
   }
-
-  // ---- Playback -----------------------------------------------------------
 
   async play(): Promise<void> {
     this.ensureOpen();
@@ -458,16 +450,12 @@ export class GasSession {
     this.events.clear();
   }
 
-  // ---- Events -------------------------------------------------------------
-
   on<K extends SessionEvent>(
     event: K,
     listener: (payload: SessionEventMap[K]) => void
   ): () => void {
     return this.events.on(event, listener);
   }
-
-  // ---- Internals ----------------------------------------------------------
 
   // One path for every command — programmatic or live: validate through Core,
   // commit the returned state, allocate warning ids, forward the new state to

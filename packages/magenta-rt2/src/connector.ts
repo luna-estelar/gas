@@ -159,7 +159,7 @@ function deferred<T>(): Deferred<T> {
   return { promise, resolve, reject };
 }
 
-/** Calls into the host's sink. Its exceptions are its own. */
+/** Calls the host's sink and ignores what it throws. */
 function hostCall(call: () => void): void {
   try {
     call();

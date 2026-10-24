@@ -262,7 +262,7 @@ describe('Magenta RT2 startup', () => {
     expect(harness.clock.pendingDeadlines()).toEqual([]);
   });
 
-  it('starts paused-free with nothing to play and sends start once tracks enter', async () => {
+  it('sends start only once a track becomes active', async () => {
     const harness = setup();
     harness.bridge.autoAnswer = true;
     await harness.connector.open({ endpoint: 'ws://localhost:8765' });

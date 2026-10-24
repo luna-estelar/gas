@@ -1,4 +1,4 @@
-// Enforce module boundaries inside packages/gas, plus the lyria-rt, fixture and
+// Enforce module boundaries inside packages/gas, plus the connector, fixture and
 // example units. Modules import each other by relative path, so a specifier is
 // resolved to the directory it lands in and checked against that module's list.
 import { readFile, readdir } from 'node:fs/promises';

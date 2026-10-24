@@ -131,16 +131,13 @@ interface ActiveRun {
   throttled: boolean;
   stream: ConnectorStreamStatus | undefined;
   /**
-   * The run takes no more audio. Set before a stop the run may not survive, so a
-   * chunk already in flight is refused without making the run terminal — `ended`
-   * is what decides that, and a failure still needs to get out.
+   * Refuse further audio. Set before a stop that may fail, so a late chunk is
+   * dropped while the run can still report that failure.
    */
   audioClosed: boolean;
   /**
-   * The run is over and its outcome has been decided. Set exactly once, by Stop,
-   * a failure or completion, before anything is awaited: every continuation that
-   * resumes afterwards checks it on this object and backs off. A run stops being
-   * `this.run` only after it has ended, so `ended` also covers a replaced run.
+   * Set once, by Stop, a failure or completion, before anything is awaited.
+   * Continuations check it and back off. A replaced run has always ended first.
    */
   ended: boolean;
   /** The failure that ended the run, when one did. */
@@ -590,12 +587,9 @@ class RendererSession implements Renderer {
   }
 
   /**
-   * Asks the connector to check a configuration. An empty result means valid.
-   *
-   * The advertised `configSchema` is never compiled (see protocol/validation.ts).
-   * A connector without `validateConfig` gets its configuration through
-   * unchecked, with one warning, which a host only hears once `createRenderer`
-   * has resolved.
+   * Asks the connector to check a configuration; an empty result means valid.
+   * `configSchema` is never compiled. A connector without `validateConfig` gets
+   * its configuration unchecked, with one warning after `createRenderer` resolves.
    */
   private checkConfig(candidate: ConnectorConfig): readonly ConnectorConfigProblem[] {
     const validate = this.options.connector.validateConfig;
@@ -728,12 +722,8 @@ class RendererSession implements Renderer {
   }
 
   /**
-   * Arms every authored boundary and the run's own end.
-   *
-   * `afterTime` is where to resume from, as a clock instant rather than a bar: a
-   * live tempo change re-arms the schedule from the exact instant it took effect,
-   * which is part-way through a bar, and an authored event can sit on a beat. Both
-   * compare exactly as times and neither survives being rounded to a bar.
+   * Arms every authored boundary and the run's own end. `afterTime` is a clock
+   * instant, not a bar, because a live tempo change can land mid-bar.
    */
   private scheduleRun(
     loaded: LoadedDocument,
@@ -807,11 +797,8 @@ class RendererSession implements Renderer {
   }
 
   /**
-   * Anchors once both halves are true: startup has settled and audio has arrived.
-   * Either can happen first — a connector may push a chunk from inside `start()` —
-   * so both entry points call this and the anchor lands at whichever came last.
-   * Anchoring earlier than that would credit musical time no listener heard, since
-   * nothing is delivered before the anchor exists.
+   * Anchors once startup has settled and audio has arrived, in either order (a
+   * connector may push a chunk from inside `start()`).
    */
   private maybeAnchor(loaded: LoadedDocument, run: ActiveRun): void {
     if (run.anchored || run.ended || !run.startSettled) return;
@@ -916,15 +903,9 @@ class RendererSession implements Renderer {
   }
 
   /**
-   * Reports a finite piece reaching its declared length: a terminal status
-   * carrying the run id and `completed`, then the ordinary `stopped` status.
-   *
-   * The run stops taking audio before the connector is stopped, so a chunk
-   * generated during that round trip is refused rather than accepted into a run
-   * that is over. It becomes `ended` only once the stop succeeds: a stop that
-   * rejects has to reach the host as a failure, and `failRun` treats an ended run
-   * as already reported. A host Stop landing meanwhile shares the same connector
-   * stop, so it hears that rejection too, and then owns the outcome.
+   * Ends a finite piece at its declared length with `completed`, then `stopped`.
+   * The run is marked ended only after the connector stop succeeds, so a failed
+   * stop is still reported. A host Stop meanwhile shares the same connector stop.
    */
   private async completeFiniteRun(run: ActiveRun): Promise<void> {
     if (run.ended) return;
@@ -1015,19 +996,10 @@ class RendererSession implements Renderer {
   }
 
   /**
-   * The musical position `seconds` after this run's anchor, through the live tempo
-   * map. A host uses it to place what a listener is hearing, which lags the last
-   * position event by whatever its own audio path buffers.
-   *
-   * Undefined for an instant the live map cannot place. A loop boundary rebuilds
-   * the map from bar one at that instant, so a host still catching up to the
-   * rollover is asking about an iteration the map no longer describes; saying so
-   * is better than answering bar one and walking its playhead backwards. A tempo
-   * change keeps its earlier segments, so it does not have this effect.
-   *
-   * A completed finite run keeps answering, capped at its declared end, until the
-   * next run starts or playback is stopped: the host is still playing the audio
-   * it buffered after the renderer finished.
+   * The musical position `seconds` after this run's anchor, for hosts that place
+   * buffered audio. Undefined before the last loop boundary, since the map
+   * restarts at bar one there. After a finite run completes it stays capped at the
+   * declared end until the next run or a Stop.
    */
   positionAtSeconds(seconds: number): MusicalPosition | undefined {
     if (!Number.isFinite(seconds)) return undefined;
@@ -1178,10 +1150,8 @@ class RendererSession implements Renderer {
   }
 
   /**
-   * Resolves true once `work` settles, or false if the cleanup timeout passes
-   * first. Timed in wall time, not on the renderer's clock: in a browser that is
-   * the audio device, which stops while its context is suspended, and cleanup
-   * must not wait on audio that is not playing.
+   * Resolves true once `work` settles, or false after the cleanup timeout. Uses
+   * wall time, because the audio clock stops while a browser context is suspended.
    */
   private async withinCleanupTimeout(work: Promise<void>): Promise<boolean> {
     let timer: ReturnType<typeof setTimeout> | undefined;

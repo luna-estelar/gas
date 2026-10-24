@@ -161,8 +161,6 @@ export class FakeRenderer implements Renderer {
     return this.configSchema;
   }
 
-  // ---- test-side emitters -------------------------------------------------
-
   emitStatus(status: RendererStatusEvent): void {
     this.dispatch('status', status);
   }

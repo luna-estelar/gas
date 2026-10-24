@@ -291,7 +291,7 @@ function cancelledStart(): ConnectorError {
   return connectorError('lyria-rt-start-cancelled', 'internal', false);
 }
 
-/** Calls into the host's sink. Its exceptions are its own, never the provider's. */
+/** Calls the host's sink and ignores what it throws. */
 function hostCall(call: () => void): void {
   try {
     call();
