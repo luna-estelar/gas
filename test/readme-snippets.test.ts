@@ -81,7 +81,11 @@ afterAll(() => {
   if (scratch !== undefined) rmSync(scratch, { recursive: true, force: true });
 });
 
-/** Typechecks every snippet in one tsc pass; returns errors keyed by snippet index. */
+/**
+ * Typechecks every snippet in one tsc pass; returns errors keyed by snippet index.
+ * Errors that name no snippet, such as a rejected tsconfig, are keyed -1: tsc
+ * stops on those before checking anything, so they must fail too.
+ */
 function typecheckSnippets(items: readonly Snippet[]): Map<number, string> {
   const failures = new Map<number, string>();
   if (items.length === 0) return failures;
@@ -119,7 +123,6 @@ function typecheckSnippets(items: readonly Snippet[]): Map<number, string> {
         noEmit: true,
         skipLibCheck: true,
         types: [],
-        baseUrl: '.',
         paths
       },
       include
@@ -136,9 +139,9 @@ function typecheckSnippets(items: readonly Snippet[]): Map<number, string> {
     const result = error as { stdout?: string; stderr?: string };
     const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
     for (const line of output.split('\n')) {
+      if (!/error TS\d+/.test(line)) continue;
       const match = /snippet-(\d+)\.ts\(/.exec(line);
-      if (match === null) continue;
-      const index = Number(match[1]);
+      const index = match === null ? -1 : Number(match[1]);
       failures.set(index, `${failures.get(index) ?? ''}${line.trim()}\n`);
     }
   }
@@ -150,6 +153,7 @@ const tsFailures = typecheckSnippets(tsSnippets);
 describe('README TypeScript snippets', () => {
   test('the READMEs contain checkable TypeScript snippets', () => {
     expect(tsSnippets.length).toBeGreaterThan(0);
+    expect(tsFailures.get(-1) ?? '').toBe('');
   });
 
   test.each(tsSnippets.map((snippet, index) => ({ ...snippet, index })))(
