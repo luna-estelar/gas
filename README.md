@@ -75,8 +75,8 @@ See the [package README](./packages/gas/README.md) for every entry point.
 | `@luna-estelar/gas-lyria-rt`    | Plays GAS through Google's Lyria RealTime; a peer of `@luna-estelar/gas` |
 | `@luna-estelar/gas-magenta-rt2` | Plays GAS through Magenta RealTime 2 via a local or hosted bridge        |
 
-Each has its own README and changelog. All are ESM-only and need Node 22 or newer; in browsers
-that does not apply. The two connectors are not yet published to npm.
+Each has its own README and changelog. All are ESM-only and run on Node 22 or newer, or in a
+browser. The two connectors are not yet published to npm.
 
 ## Architecture
 

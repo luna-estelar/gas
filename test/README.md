@@ -10,15 +10,15 @@ pnpm test
 ```
 
 This runs formatting, the generated-file checks, the TypeScript build, the no-DOM typecheck,
-schema validation, boundary and publication checks, then Vitest. For a shorter test loop after building, use
-`pnpm exec vitest run`.
+schema validation, boundary and publication checks, then Vitest. For a shorter test loop after
+building, use `pnpm exec vitest run`.
 
 Integration suites cover compiled examples through Core, Renderer, browser helpers and
 notation; protocol contracts; consumer command paths; and connector configuration.
 
 Release checks verify versions, package metadata and entrypoints, what each entry point loads,
-and that README examples compile. Corpus collectors fail when their input directory is empty, so an incomplete checkout
-cannot pass with zero cases.
+and that README examples compile. Corpus collectors fail when their input directory is empty, so
+an incomplete checkout cannot pass with zero cases.
 
 The automated tests use deterministic clocks and fake transports. Live listening and
 transport checks are documented separately in each connector's manual guide.

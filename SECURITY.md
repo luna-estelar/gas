@@ -14,8 +14,7 @@ Please report security issues privately through
 rather than opening a public issue.
 
 Include what you did, what happened, and which package and version you were on. A minimal
-reproduction — a GAS document, a timeline, or a short script — helps more than anything
-else.
+reproduction (a GAS document, a timeline or a short script) helps more than anything else.
 
 Expect an acknowledgement within a week. If a report turns out to be valid, you will be
 credited in the advisory unless you prefer otherwise.
@@ -31,8 +30,8 @@ encoding MIDI. The parts worth looking hardest at are:
   passes validation and then breaks an invariant downstream is in scope.
 - **`@luna-estelar/gas-lyria-rt`** and **`@luna-estelar/gas-magenta-rt2`** take
   credentials (a Gemini API key, a bridge token) and open network connections. Anything
-  that leaks one — into a diagnostic, an error message, a log line, or a prompt — is in
-  scope and is the thing to look for first. So is anything the Magenta RT2 connector
+  that leaks one into a diagnostic, an error message, a log line or a prompt is in scope,
+  and is the thing to look for first. So is anything the Magenta RT2 connector
   trusts from a bridge without checking it.
 - **`@luna-estelar/gas/browser`** composes credentials and playback in a page.
 

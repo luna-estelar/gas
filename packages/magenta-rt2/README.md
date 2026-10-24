@@ -98,7 +98,7 @@ to be encoded first, which takes noticeably longer.
 The bridge sends 160 ms packets of 48 kHz stereo 16-bit PCM, paced to real time plus a one-second
 lead. The renderer's lookahead is one packet (160 ms), so set the browser's `prebufferSeconds` and
 the renderer's `firstAudioTimeoutSeconds` explicitly if your network or machine needs more room.
-Measured behaviour on real hardware is recorded in the [manual guide](./manual/README.md).
+The [manual guide](./manual/README.md) records measurements as they are taken.
 
 ## Failures
 

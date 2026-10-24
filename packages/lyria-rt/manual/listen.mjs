@@ -1,4 +1,4 @@
-// Manual listening comparison using GEMINI_API_KEY from the environment.
+// Manual listening comparison using GAS_LYRIA_RT_API_KEY from the environment.
 // Makes provider calls and writes audio plus a manifest; excluded from CI.
 // See the adjacent README for options and listening results.
 
@@ -18,10 +18,10 @@ if (!existsSync(outIndex)) {
   process.exit(1);
 }
 
-const apiKey = process.env.GEMINI_API_KEY;
+const apiKey = process.env.GAS_LYRIA_RT_API_KEY;
 if (apiKey === undefined || apiKey.trim() === '') {
   console.error(
-    'Set GEMINI_API_KEY to your own Gemini API key before running the listening harness.\n' +
+    'Set GAS_LYRIA_RT_API_KEY to your own Gemini API key before running the listening harness.\n' +
       'The harness calls the Google SDK directly and never reads the connector settings.'
   );
   process.exit(1);

@@ -3,15 +3,15 @@
 ## Listening comparison
 
 This manual command is intentionally outside the automated test gate. It uses the pinned official
-Google SDK directly and requires an authorized `GEMINI_API_KEY` environment
+Google SDK directly and requires an authorized `GAS_LYRIA_RT_API_KEY` environment
 variable. Never pass a key on the command line or place it in a fixture.
 
 ```sh
-GEMINI_API_KEY=... \
+GAS_LYRIA_RT_API_KEY=... \
 pnpm --filter @luna-estelar/gas-lyria-rt manual:listen \
   --fixture /absolute/path/to/example.gas \
   --strategy global-plus-tracks \
-  --seed 42 \
+  --seed 47 \
   --duration 30 \
   --out /absolute/path/to/ignored-listening
 ```
@@ -22,8 +22,7 @@ key, a proxy URL, raw vendor messages, or a user IP. Keep the output directory i
 the repository.
 
 The authorized seed-47 matrix was auditioned on 2026-07-21. The selected captures all contained
-non-zero PCM; two short or empty per-track takes were replaced before review. The human decisions
-were:
+non-zero PCM; two short or empty per-track takes were replaced before review. Results:
 
 | Case | Fixture/change                                | Decision         |
 | ---- | --------------------------------------------- | ---------------- |
@@ -57,5 +56,6 @@ pnpm --filter @luna-estelar/gas-lyria-rt manual:smoke
 
 `GAS_LYRIA_RT_ENDPOINT` is optional and sends the same request to another HTTPS origin that speaks
 the Lyria RealTime WebSocket protocol, for checking a deployment of your own.
-`GAS_LYRIA_RT_SMOKE_OUTPUT` is also optional; without it the script retains chunks only in memory and reports their count and duration.
+`GAS_LYRIA_RT_SMOKE_OUTPUT` is also optional; without it the script keeps chunks only in memory
+and reports their count and duration.
 Do not run this command in CI or attach the resulting audio to a public issue without reviewing it.

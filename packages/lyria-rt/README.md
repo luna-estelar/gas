@@ -128,9 +128,8 @@ covers provider checks that the automated tests cannot make.
 
 ## Related packages
 
-Pass it to `createRenderer` from `@luna-estelar/gas` or `createBrowserSession` from
-`@luna-estelar/gas/browser`. Neither depends on this package, so you can swap in another
-connector.
+Neither `createRenderer` nor `createBrowserSession` depends on this package, so you can swap in
+another connector.
 
 ## License
 

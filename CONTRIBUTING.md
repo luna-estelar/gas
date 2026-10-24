@@ -18,7 +18,7 @@ CI runs the live npm advisory check separately with `pnpm check:security`.
 ## Generated files
 
 Browsers run these packages under a Content Security Policy without `'unsafe-eval'`, so no
-package compiles a validator, or any other code, at runtime. Full stop. Schema validation is
+package compiles a validator, or any other code, at runtime. Schema validation is
 precompiled at build time, and connector configuration is checked by hand-written connector code
 (see [Writing a connector](#writing-a-connector)).
 
@@ -147,4 +147,5 @@ version; investigate it before preparing a replacement version. Do not unpublish
 The Lyria RealTime connector stays private until its redesign is ready. The first 0.3 release waits
 for that work: prepare GAS and Lyria RealTime 0.3 together and remove its private flag in that
 release PR. Before the first release of each connector package, confirm the npm token permits
-creating that package in the scope. This requires an owner check; the workflow does not test it by publishing.
+creating that package in the scope. This requires an owner check; the workflow does not test it
+by publishing.
