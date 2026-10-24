@@ -8,6 +8,7 @@ import {
   reanchorTempo,
   resolveTiming,
   sectionInstanceAt,
+  secondsPerBar,
   timeToBarFraction,
   timeToPosition,
   validateTimeline,
@@ -405,13 +406,16 @@ class RendererSession implements Renderer {
       // flight; a run that has ended must not reach the provider at all.
       if (run.ended) throw this.endedBeforeStart(run);
       run.connectorStartAttempted = true;
+      // Timing carries the run's defaults, not the initial effective tempo: the
+      // connector already has that in the prepared state, and falls back to these
+      // whenever a later state leaves tempo unset, such as after a cleared override.
       await this.options.connector.start(
         this.createAudioSink(run),
         {
-          tempo: run.tempo,
+          tempo: loaded.timing.tempo,
           timeSignature: loaded.timing.timeSignature,
           ...(loaded.timing.key !== undefined ? { key: loaded.timing.key } : {}),
-          secondsPerBar: (60 / run.tempo) * loaded.timing.timeSignature.beatsPerBar
+          secondsPerBar: secondsPerBar(loaded.timing.tempo, loaded.timing.timeSignature.beatsPerBar)
         },
         runId
       );

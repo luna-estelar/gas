@@ -58,6 +58,12 @@ export interface ConnectorDescription {
   readonly supportsFlowControl: boolean;
 }
 
+/**
+ * The run's defaults: the document's timing, with any renderer defaults applied.
+ * They are what applies wherever an effective state leaves tempo or key unset,
+ * so a connector resolves `state.globals.tempo ?? timing.tempo`. An override
+ * already present when the run starts arrives in the prepared state, not here.
+ */
 export interface ConnectorTiming {
   /**
    * Beats per minute where a beat is `timeSignature.beatUnit`, so 120 in 6/8 is
@@ -68,6 +74,7 @@ export interface ConnectorTiming {
   readonly tempo: number;
   readonly timeSignature: TimeSignature;
   readonly key?: string;
+  /** The length of a bar at the default `tempo`. */
   readonly secondsPerBar: number;
 }
 
