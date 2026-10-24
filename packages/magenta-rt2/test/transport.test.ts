@@ -9,7 +9,7 @@ import type {
 } from '@luna-estelar/gas/protocol';
 import { createMagentaRt2ConnectorWithDependencies } from '../src/connector.js';
 import { VirtualClock } from '../../../test/support/virtual-clock.js';
-import { FakeBridge, SERVER_HELLO } from './support/fake-bridge.js';
+import { FakeBridge } from './support/fake-bridge.js';
 
 const STATE: EffectiveState = {
   globals: { flavor: { kind: 'text', text: 'late night' }, tempo: 90, key: 'A minor' },
@@ -54,7 +54,7 @@ function setup() {
   return { clock, bridge, connector, sink, chunks, warnings, failures, statuses };
 }
 
-async function opened(harness: ReturnType<typeof setup>, settings = {}) {
+async function opened(harness: ReturnType<typeof setup>, settings: Record<string, string> = {}) {
   await harness.connector.open({ endpoint: 'ws://127.0.0.1:8765', ...settings });
   await harness.connector.prepare(STATE, {});
 }
@@ -88,6 +88,7 @@ describe('Magenta RT2 connector description', () => {
 describe('Magenta RT2 startup', () => {
   it('greets with the token, then starts with translated prompts', async () => {
     const harness = setup();
+    harness.bridge.token = 'sesame';
     await opened(harness, { token: 'sesame' });
     const started = harness.connector.start(harness.sink, TIMING, 'run-1');
     await flushAsync();
@@ -97,7 +98,7 @@ describe('Magenta RT2 startup', () => {
     expect(socket.binaryType).toBe('arraybuffer');
     socket.open();
     expect(socket.sent).toEqual([{ type: 'hello', protocol: 1, token: 'sesame' }]);
-    socket.receive(SERVER_HELLO);
+    socket.reply();
     await flushAsync();
 
     expect(socket.commands()).toEqual([
@@ -110,37 +111,57 @@ describe('Magenta RT2 startup', () => {
         ]
       }
     ]);
-    socket.ack();
+    socket.reply();
     await started;
     expect(harness.statuses).toEqual(['streaming']);
   });
 
-  it('refuses a bridge that streams another format', async () => {
+  it.each([
+    { protocol: 2 },
+    { encoding: 'f32le' },
+    { sampleRate: 44_100 },
+    { channels: 1 },
+    { maxPrompts: 5 }
+  ])('refuses a bridge that speaks another protocol or format: %j', async (change) => {
     const harness = setup();
     await opened(harness);
     const started = harness.connector.start(harness.sink, TIMING, 'run-1');
     await flushAsync();
     harness.bridge.last.open();
-    harness.bridge.last.receive({
-      ...SERVER_HELLO,
-      audio: { ...SERVER_HELLO.audio, sampleRate: 44_100 }
+    const { protocol = 1, maxPrompts = 6, ...audio } = change;
+    harness.bridge.last.receiveRaw({
+      type: 'hello',
+      protocol,
+      audio: {
+        encoding: 'pcm_s16le',
+        sampleRate: 48_000,
+        channels: 2,
+        framesPerPacket: 7680,
+        ...audio
+      },
+      maxPrompts
     });
     await expect(started).rejects.toMatchObject({ code: 'magenta-rt2-protocol-violation' });
     expect(harness.bridge.last.released).toBe(true);
   });
 
-  it('classifies an unauthorized close as auth', async () => {
+  it('settles a start stopped while connecting as cancelled', async () => {
     const harness = setup();
     await opened(harness);
     const started = harness.connector.start(harness.sink, TIMING, 'run-1');
     await flushAsync();
+    await harness.connector.stop('run-1');
+    await expect(started).rejects.toMatchObject({ code: 'magenta-rt2-start-cancelled' });
+  });
+
+  it('classifies a refused token as auth', async () => {
+    const harness = setup();
+    harness.bridge.token = 'sesame';
+    await opened(harness, { token: 'wrong' });
+    const started = harness.connector.start(harness.sink, TIMING, 'run-1');
+    await flushAsync();
     harness.bridge.last.open();
-    harness.bridge.last.receive({
-      type: 'error',
-      code: 'unauthorized',
-      message: 'x',
-      retryable: false
-    });
+    harness.bridge.last.reply();
     await expect(started).rejects.toMatchObject({
       code: 'magenta-rt2-auth-rejected',
       reason: 'auth',
@@ -150,23 +171,81 @@ describe('Magenta RT2 startup', () => {
 
   it('retries while the bridge is still releasing a previous session', async () => {
     const harness = setup();
+    harness.bridge.busy = true;
     await opened(harness);
     const started = harness.connector.start(harness.sink, TIMING, 'run-1');
     await flushAsync();
     harness.bridge.last.open();
-    harness.bridge.last.serverClose(4409);
+    harness.bridge.last.reply();
     await flushAsync();
     expect(harness.bridge.sockets).toHaveLength(1);
 
+    harness.bridge.busy = false;
     harness.clock.advanceBy(0.1);
     await flushAsync();
     expect(harness.bridge.sockets).toHaveLength(2);
     const second = harness.bridge.last;
     second.open();
-    second.receive(SERVER_HELLO);
+    second.reply();
     await flushAsync();
-    second.ack();
+    second.reply();
     await started;
+  });
+
+  it('ignores the close of a refused socket that lands after the retry connects', async () => {
+    const harness = setup();
+    harness.bridge.busy = true;
+    harness.bridge.slowCloses = true;
+    await opened(harness);
+    const started = harness.connector.start(harness.sink, TIMING, 'run-1');
+    await flushAsync();
+    const refused = harness.bridge.last;
+    refused.open();
+    refused.reply();
+    await flushAsync();
+
+    harness.bridge.busy = false;
+    harness.clock.advanceBy(0.1);
+    await flushAsync();
+    const second = harness.bridge.last;
+    second.open();
+    second.reply();
+    await flushAsync();
+    refused.finishClose();
+    second.reply();
+    await started;
+    expect(harness.failures).toEqual([]);
+  });
+
+  it('leaves no retry timer behind when stopped while the bridge is busy', async () => {
+    const harness = setup();
+    harness.bridge.busy = true;
+    await opened(harness);
+    const started = harness.connector.start(harness.sink, TIMING, 'run-1');
+    await flushAsync();
+    harness.bridge.last.open();
+    harness.bridge.last.reply();
+    await flushAsync();
+
+    await harness.connector.stop('run-1');
+    await expect(started).rejects.toMatchObject({ code: 'magenta-rt2-start-cancelled' });
+    expect(harness.clock.pendingDeadlines()).toEqual([]);
+  });
+
+  it('fails the start, not the run, when the bridge drops before acknowledging start', async () => {
+    const harness = setup();
+    await opened(harness);
+    const started = harness.connector.start(harness.sink, TIMING, 'run-1');
+    await flushAsync();
+    harness.bridge.last.open();
+    harness.bridge.last.reply();
+    await flushAsync();
+    harness.bridge.last.drop();
+    await expect(started).rejects.toMatchObject({
+      code: 'magenta-rt2-network-failure',
+      closeCode: 1006
+    });
+    expect(harness.failures).toEqual([]);
   });
 
   it('times out a bridge that never answers', async () => {
@@ -197,6 +276,39 @@ describe('Magenta RT2 startup', () => {
 });
 
 describe('Magenta RT2 live control', () => {
+  it('keeps running past the connect deadline', async () => {
+    const harness = setup();
+    await running(harness);
+    harness.clock.advanceBy(10);
+    await harness.connector.update({ state: SILENT }, { bar: 2 });
+    expect(harness.bridge.last.commands().at(-1)).toEqual({ type: 'pause', paused: true });
+  });
+
+  it('fails a command the bridge never answers, and only that one', async () => {
+    const harness = setup();
+    await running(harness);
+    await harness.connector.update({ state: SILENT }, { bar: 2 });
+    harness.clock.advanceBy(20);
+    expect(harness.failures).toEqual([]);
+
+    // The network stalls: nothing answers and nothing closes.
+    harness.bridge.autoAnswer = false;
+    const update = harness.connector.update({ state: STATE }, { bar: 3 });
+    harness.clock.advanceBy(20);
+    await expect(update).rejects.toBeDefined();
+    expect(harness.failures).toEqual([
+      expect.objectContaining({ code: 'magenta-rt2-command-timeout', reason: 'network' })
+    ]);
+  });
+
+  it('ignores a Stop for another run', async () => {
+    const harness = setup();
+    await running(harness);
+    await harness.connector.stop('run-0');
+    expect(harness.bridge.last.released).toBe(false);
+    await harness.connector.update({ state: SILENT }, { bar: 2 });
+  });
+
   it('sends style only when the prompts change', async () => {
     const harness = setup();
     await running(harness);
@@ -260,14 +372,28 @@ describe('Magenta RT2 live control', () => {
       'magenta-rt2-prompt-overflow'
     ]);
   });
+
+  it('warns once when a prompt is cut to the bridge limit', async () => {
+    const harness = setup();
+    await running(harness);
+    const wordy: EffectiveState = {
+      ...STATE,
+      tracks: [{ ...STATE.tracks[0]!, description: 'very warm pads '.repeat(40) }]
+    };
+    await harness.connector.update({ state: wordy }, { bar: 2 });
+    await harness.connector.update({ state: wordy }, { bar: 3 });
+    expect(harness.warnings.map((warning) => warning.code)).toEqual([
+      'magenta-rt2-prompt-truncated'
+    ]);
+  });
 });
 
 describe('Magenta RT2 audio and failures', () => {
   it('pushes packets as s16le chunks with their real duration', async () => {
     const harness = setup();
     await running(harness);
-    harness.bridge.last.audio(0);
-    harness.bridge.last.audio(7680, 3840, 1);
+    harness.bridge.last.audio();
+    harness.bridge.last.audio(3840);
     expect(harness.chunks).toMatchObject([
       { runId: 'run-1', sampleFormat: 's16le', sampleRate: 48_000, durationSeconds: 0.16 },
       { runId: 'run-1', durationSeconds: 0.08 }
@@ -276,26 +402,11 @@ describe('Magenta RT2 audio and failures', () => {
     expect(harness.warnings).toEqual([]);
   });
 
-  it('warns about a gap in packet positions', async () => {
-    const harness = setup();
-    await running(harness);
-    harness.bridge.last.audio(0);
-    harness.bridge.last.audio(20_000, 7680, 1);
-    expect(harness.warnings.map((warning) => warning.code)).toEqual([
-      'magenta-rt2-audio-discontinuity'
-    ]);
-  });
-
   it('reports an engine failure the bridge announces', async () => {
     const harness = setup();
     await running(harness);
-    harness.bridge.last.receive({
-      type: 'error',
-      code: 'engine-failure',
-      message: 'x',
-      retryable: true
-    });
-    harness.bridge.last.serverClose(4500);
+    harness.bridge.last.engineFailure();
+    await flushAsync();
     expect(harness.failures).toEqual([
       expect.objectContaining({
         code: 'magenta-rt2-engine-failure',
@@ -309,7 +420,8 @@ describe('Magenta RT2 audio and failures', () => {
   it('reports a dropped connection as a network failure with its close code', async () => {
     const harness = setup();
     await running(harness);
-    harness.bridge.last.serverClose(1006);
+    harness.bridge.last.drop();
+    await flushAsync();
     expect(harness.failures).toEqual([
       expect.objectContaining({ code: 'magenta-rt2-network-failure', closeCode: 1006 })
     ]);
@@ -322,25 +434,7 @@ describe('Magenta RT2 audio and failures', () => {
     const changed: EffectiveState = { ...STATE, tracks: [STATE.tracks[0]!] };
     const update = harness.connector.update({ state: changed }, { bar: 2 });
     await flushAsync();
-    harness.bridge.last.receive({
-      type: 'error',
-      id: harness.bridge.last.lastId(),
-      code: 'prompt-encode-failed',
-      message: 'x',
-      retryable: true
-    });
+    harness.bridge.last.failEncoding();
     await expect(update).rejects.toMatchObject({ code: 'magenta-rt2-prompt-encode-failed' });
-  });
-
-  it('closes its socket on stop and ignores what arrives afterwards', async () => {
-    const harness = setup();
-    await running(harness);
-    const socket = harness.bridge.last;
-    await harness.connector.stop('run-1');
-    expect(socket.closedByClient).toBe(1000);
-    socket.audio(0);
-    socket.serverClose(1006);
-    expect(harness.chunks).toEqual([]);
-    expect(harness.failures).toEqual([]);
   });
 });

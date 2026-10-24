@@ -1,7 +1,7 @@
 // The Magenta RT2 connector: one WebSocket to the bridge per run, carrying style
 // prompts out and 160 ms PCM packets back. Each start is an attempt that owns
-// its socket, timers and pending commands; callbacks act only while their
-// attempt is current, so Stop, Close and late arrivals cannot cross runs.
+// its socket, timers and pending commands; ending it detaches the socket's
+// handlers, so nothing from an ended attempt reaches a later one.
 
 import type {
   AudioSink,
@@ -133,20 +133,6 @@ const protocolViolation = () => connectorError('magenta-rt2-protocol-violation',
 const networkFailure = (closeCode?: number) =>
   connectorError('magenta-rt2-network-failure', 'network', true, closeCode);
 
-// Close codes the bridge uses for refusals it explains; see PROTOCOL.md.
-function classifyClose(code: number, greeted: boolean): ConnectorError {
-  if (code === 4401 || code === 4403) {
-    return connectorError('magenta-rt2-auth-rejected', 'auth', false, code);
-  }
-  if (code === 4409) return connectorError('magenta-rt2-busy', 'provider', true, code);
-  if (code === 4400)
-    return connectorError('magenta-rt2-protocol-violation', 'provider', false, code);
-  if (code === 4500 && greeted) {
-    return connectorError('magenta-rt2-engine-failure', 'provider', true, code);
-  }
-  return networkFailure(code);
-}
-
 function commandError(code: string, retryable: boolean): ConnectorError {
   if (code === 'prompt-encode-failed') {
     return connectorError('magenta-rt2-prompt-encode-failed', 'provider', retryable);
@@ -164,28 +150,13 @@ interface Deferred<T> {
 }
 
 function deferred<T>(): Deferred<T> {
-  let settled = false;
-  let resolvePromise!: (value: T) => void;
-  let rejectPromise!: (error: ConnectorError) => void;
-  const promise = new Promise<T>((resolve, reject) => {
-    resolvePromise = resolve;
-    rejectPromise = reject;
+  let resolve!: (value: T) => void;
+  let reject!: (error: ConnectorError) => void;
+  const promise = new Promise<T>((settle, fail) => {
+    resolve = settle;
+    reject = fail;
   });
-  // Rejected on every ending, including when nobody is waiting any more.
-  promise.catch(() => undefined);
-  return {
-    promise,
-    resolve(value) {
-      if (settled) return;
-      settled = true;
-      resolvePromise(value);
-    },
-    reject(error) {
-      if (settled) return;
-      settled = true;
-      rejectPromise(error);
-    }
-  };
+  return { promise, resolve, reject };
 }
 
 /** Calls into the host's sink. Its exceptions are its own. */
@@ -213,16 +184,15 @@ interface Attempt {
   readonly runId: string;
   readonly sink: AudioSink;
   readonly timing: ConnectorTiming;
-  /** Rejects with whatever ends startup first: a failure, the deadline or Stop. */
+  readonly config: MagentaRt2ConnectorConfig;
+  /** Rejects with whatever ends the attempt first: a failure, the deadline or Stop. */
   readonly startup: Deferred<never>;
   readonly timers: Set<ClockTimer>;
   readonly pending: Map<number, Deferred<void>>;
   socket: BridgeSocket | undefined;
   greeted: boolean;
-  active: boolean;
   cancelled: boolean;
   starting: boolean;
-  terminalFailureReported: boolean;
   nextCommandId: number;
   /** The bridge has been sent `start` and is generating, paused or not. */
   generating: boolean;
@@ -232,7 +202,6 @@ interface Attempt {
   silent: boolean;
   flowPaused: boolean;
   bridgePaused: boolean;
-  nextPosition: number;
   warnedOverflow: boolean;
   warnedTruncation: boolean;
 }
@@ -261,8 +230,7 @@ export class MagentaRt2Connector implements Connector {
   }
 
   async prepare(initialState: EffectiveState, config: ConnectorConfig): Promise<void> {
-    // Preparing again replaces an earlier preparation that never started: the
-    // renderer abandons a run stopped during prepare without calling start.
+    // The renderer abandons a run stopped during prepare without calling start.
     if (this.state !== 'opened' && this.state !== 'stopped' && this.state !== 'prepared') {
       throw stateConflict();
     }
@@ -282,34 +250,31 @@ export class MagentaRt2Connector implements Connector {
       runId,
       sink,
       timing,
+      config,
       startup: deferred<never>(),
       timers: new Set(),
       pending: new Map(),
       socket: undefined,
       greeted: false,
-      active: true,
       cancelled: false,
       starting: true,
-      terminalFailureReported: false,
       nextCommandId: 1,
       generating: false,
       bridgePrompts: [],
       silent: false,
       flowPaused: false,
       bridgePaused: false,
-      nextPosition: 0,
       warnedOverflow: false,
       warnedTruncation: false
     };
     this.attempt = attempt;
     const deadline = this.schedule(attempt, config.connectTimeoutSeconds, () =>
-      this.failStartup(attempt, connectorError('magenta-rt2-connect-timeout', 'network', true))
+      attempt.startup.reject(connectorError('magenta-rt2-connect-timeout', 'network', true))
     );
 
     try {
       await this.greet(attempt, settings);
       await this.apply(attempt, initialState);
-      this.assertCurrent(attempt);
       attempt.starting = false;
       this.state = 'running';
     } catch (error) {
@@ -333,9 +298,7 @@ export class MagentaRt2Connector implements Connector {
     requestedBoundary: MusicalPosition
   ): Promise<MusicalPosition> {
     const attempt = this.attempt;
-    if (this.state !== 'running' || attempt === undefined || !attempt.active) {
-      throw stateConflict();
-    }
+    if (this.state !== 'running' || attempt === undefined) throw stateConflict();
     await this.apply(attempt, update.state);
     return requestedBoundary;
   }
@@ -348,7 +311,6 @@ export class MagentaRt2Connector implements Connector {
   }
 
   async stop(runId: string): Promise<void> {
-    if (this.state === 'closed') return;
     const attempt = this.attempt;
     if (attempt === undefined || attempt.runId !== runId) return;
     attempt.cancelled = true;
@@ -357,7 +319,6 @@ export class MagentaRt2Connector implements Connector {
   }
 
   async close(): Promise<void> {
-    if (this.state === 'closed') return;
     const attempt = this.attempt;
     if (attempt !== undefined) {
       attempt.cancelled = true;
@@ -368,8 +329,6 @@ export class MagentaRt2Connector implements Connector {
     this.config = undefined;
     this.state = 'closed';
   }
-
-  // ---- Startup ------------------------------------------------------------
 
   /** Connect and exchange hellos, retrying while the bridge is busy. */
   private async greet(attempt: Attempt, settings: MagentaRt2ConnectorSettings): Promise<void> {
@@ -391,7 +350,7 @@ export class MagentaRt2Connector implements Connector {
         return;
       } catch (error) {
         const busy = ConnectorError.isConnectorError(error) && error.code === 'magenta-rt2-busy';
-        if (!busy || !attempt.active) throw error;
+        if (!busy) throw error;
         // The previous session on this bridge, often this connector's own last
         // run, is still being released. Try again shortly, within the deadline.
         this.dropSocket(attempt);
@@ -415,7 +374,6 @@ export class MagentaRt2Connector implements Connector {
     attempt.socket = socket;
     socket.binaryType = 'arraybuffer';
     socket.onopen = () => {
-      if (!this.owns(attempt, socket)) return;
       this.sendRaw(attempt, {
         type: 'hello',
         protocol: PROTOCOL_VERSION,
@@ -423,32 +381,26 @@ export class MagentaRt2Connector implements Connector {
       });
     };
     socket.onmessage = (event) => {
-      if (!this.owns(attempt, socket)) return;
       if (typeof event.data === 'string') this.handleText(attempt, event.data, hello);
       else if (event.data instanceof ArrayBuffer) this.handleAudio(attempt, event.data);
       else this.handleFailure(attempt, protocolViolation());
     };
     // A WebSocket always reports a close after an error, and only the close
-    // carries a code, so the error event itself is ignored.
+    // carries a code, so the error event itself is ignored. Every refusal the
+    // bridge explains arrives as an error message before its close.
     socket.onerror = () => undefined;
     socket.onclose = (event) => {
-      if (!this.owns(attempt, socket)) return;
-      attempt.socket = undefined;
-      const failure = classifyClose(event.code, attempt.greeted);
+      const failure = networkFailure(event.code);
       if (!attempt.greeted) hello.reject(failure);
       else this.handleFailure(attempt, failure);
     };
   }
 
-  // ---- Applying state -----------------------------------------------------
-
   private async apply(attempt: Attempt, state: EffectiveState): Promise<void> {
-    const config = this.config;
-    if (config === undefined) throw stateConflict();
     const { prompts, overflowed, truncated } = translatePrompts(
       attempt.timing,
       state,
-      config.prompt
+      attempt.config.prompt
     );
     if (overflowed && !attempt.warnedOverflow) {
       attempt.warnedOverflow = true;
@@ -460,7 +412,7 @@ export class MagentaRt2Connector implements Connector {
     }
     if (prompts.length > 0) {
       if (!attempt.generating) {
-        const generation = config.generation;
+        const generation = attempt.config.generation;
         await this.command(attempt, {
           type: 'start',
           id: 0,
@@ -469,7 +421,6 @@ export class MagentaRt2Connector implements Connector {
           ...(generation.topK !== undefined ? { topK: generation.topK } : {})
         });
         attempt.generating = true;
-        attempt.bridgePaused = false;
       } else if (!samePrompts(prompts, attempt.bridgePrompts)) {
         await this.command(attempt, { type: 'style', id: 0, prompts });
       }
@@ -499,7 +450,6 @@ export class MagentaRt2Connector implements Connector {
     attempt: Attempt,
     message: Exclude<ClientMessage, { readonly type: 'hello' }>
   ): Promise<void> {
-    this.assertCurrent(attempt);
     const id = attempt.nextCommandId++;
     const answer = deferred<void>();
     attempt.pending.set(id, answer);
@@ -513,20 +463,15 @@ export class MagentaRt2Connector implements Connector {
       attempt.pending.delete(id);
       this.cancelTimer(attempt, timeout);
     }
-    this.assertCurrent(attempt);
   }
 
   private sendRaw(attempt: Attempt, message: ClientMessage): void {
-    const socket = attempt.socket;
-    if (socket === undefined) throw networkFailure();
     try {
-      socket.send(JSON.stringify(message));
+      attempt.socket!.send(JSON.stringify(message));
     } catch {
       throw networkFailure();
     }
   }
-
-  // ---- Incoming -----------------------------------------------------------
 
   private handleText(attempt: Attempt, text: string, hello: Deferred<ServerHello>): void {
     const message = parseServerMessage(text);
@@ -545,8 +490,8 @@ export class MagentaRt2Connector implements Connector {
     // An error answering a command fails that command; one without an id is
     // the bridge ending the session, and its close follows.
     const failure = commandError(message.code, message.retryable);
-    if (message.id !== undefined && attempt.pending.has(message.id)) {
-      attempt.pending.get(message.id)!.reject(failure);
+    if (message.id !== undefined) {
+      attempt.pending.get(message.id)?.reject(failure);
     } else if (!attempt.greeted) {
       hello.reject(
         message.code === 'busy'
@@ -555,7 +500,7 @@ export class MagentaRt2Connector implements Connector {
             ? connectorError('magenta-rt2-auth-rejected', 'auth', false)
             : failure
       );
-    } else if (message.id === undefined) {
+    } else {
       this.handleFailure(attempt, failure);
     }
   }
@@ -566,10 +511,6 @@ export class MagentaRt2Connector implements Connector {
       this.handleFailure(attempt, protocolViolation());
       return;
     }
-    if (packet.position !== attempt.nextPosition) {
-      this.emitWarning(attempt, 'magenta-rt2-audio-discontinuity');
-    }
-    attempt.nextPosition = packet.position + packet.frames;
     hostCall(() =>
       attempt.sink.push({
         runId: attempt.runId,
@@ -584,19 +525,11 @@ export class MagentaRt2Connector implements Connector {
   }
 
   private handleFailure(attempt: Attempt, failure: ConnectorError): void {
-    if (!this.isCurrent(attempt)) return;
-    if (attempt.starting) this.failStartup(attempt, failure);
+    if (attempt.starting) attempt.startup.reject(failure);
     else this.reportTerminalFailure(attempt, failure);
   }
 
-  private failStartup(attempt: Attempt, failure: ConnectorError): void {
-    if (!this.isCurrent(attempt)) return;
-    attempt.startup.reject(failure);
-  }
-
   private reportTerminalFailure(attempt: Attempt, failure: ConnectorError): void {
-    if (!this.isCurrent(attempt) || attempt.terminalFailureReported) return;
-    attempt.terminalFailureReported = true;
     const event: RendererFailure = {
       code: failure.code,
       message: FAILURE_MESSAGE,
@@ -612,43 +545,20 @@ export class MagentaRt2Connector implements Connector {
 
   private emitWarning(
     attempt: Attempt,
-    code:
-      | 'magenta-rt2-prompt-overflow'
-      | 'magenta-rt2-prompt-truncated'
-      | 'magenta-rt2-audio-discontinuity'
+    code: 'magenta-rt2-prompt-overflow' | 'magenta-rt2-prompt-truncated'
   ): void {
-    if (!this.isCurrent(attempt)) return;
     hostCall(() => attempt.sink.warning({ code, message: WARNING_MESSAGE, runId: attempt.runId }));
-  }
-
-  // ---- Ownership ----------------------------------------------------------
-
-  private isCurrent(attempt: Attempt): boolean {
-    return this.attempt === attempt && attempt.active;
-  }
-
-  /** The socket still belongs to the current attempt. */
-  private owns(attempt: Attempt, socket: BridgeSocket): boolean {
-    return this.isCurrent(attempt) && attempt.socket === socket;
-  }
-
-  private assertCurrent(attempt: Attempt): void {
-    if (this.isCurrent(attempt)) return;
-    throw attempt.cancelled ? cancelledStart() : stateConflict();
   }
 
   private schedule(attempt: Attempt, delaySeconds: number, callback: () => void): ClockTimer {
     const clock = this.dependencies.clock;
-    const timer = clock.schedule(clock.now() + delaySeconds, () => {
-      attempt.timers.delete(timer);
-      callback();
-    });
+    const timer = clock.schedule(clock.now() + delaySeconds, callback);
     attempt.timers.add(timer);
     return timer;
   }
 
   private cancelTimer(attempt: Attempt, timer: ClockTimer): void {
-    if (!attempt.timers.delete(timer)) return;
+    attempt.timers.delete(timer);
     this.dependencies.clock.cancel(timer);
   }
 
@@ -663,20 +573,14 @@ export class MagentaRt2Connector implements Connector {
   }
 
   /**
-   * Ends an attempt: settles anything waiting on it, cancels its timers and
-   * closes its socket, which the bridge takes as the end of the session.
-   * Touches only this attempt's own resources; safe to call more than once.
+   * Ends the current attempt, once: settles anything waiting on it, cancels its
+   * timers and closes its socket, which the bridge takes as the end of the session.
    */
   private finishAttempt(attempt: Attempt): void {
-    if (!attempt.active) return;
-    attempt.active = false;
-    if (this.attempt === attempt) this.attempt = undefined;
+    this.attempt = undefined;
     for (const timer of attempt.timers) this.dependencies.clock.cancel(timer);
     attempt.timers.clear();
-    const ending = attempt.cancelled ? cancelledStart() : stateConflict();
-    attempt.startup.reject(ending);
-    for (const pending of attempt.pending.values()) pending.reject(ending);
-    attempt.pending.clear();
+    attempt.startup.reject(stateConflict());
     this.dropSocket(attempt);
   }
 }

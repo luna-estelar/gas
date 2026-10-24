@@ -179,26 +179,13 @@ interface Deferred<T> {
 }
 
 function deferred<T>(): Deferred<T> {
-  let settled = false;
-  let resolvePromise!: (value: T) => void;
-  let rejectPromise!: (error: ConnectorError) => void;
-  const promise = new Promise<T>((resolve, reject) => {
-    resolvePromise = resolve;
-    rejectPromise = reject;
+  let resolve!: (value: T) => void;
+  let reject!: (error: ConnectorError) => void;
+  const promise = new Promise<T>((settle, fail) => {
+    resolve = settle;
+    reject = fail;
   });
-  return {
-    promise,
-    resolve(value): void {
-      if (settled) return;
-      settled = true;
-      resolvePromise(value);
-    },
-    reject(error): void {
-      if (settled) return;
-      settled = true;
-      rejectPromise(error);
-    }
-  };
+  return { promise, resolve, reject };
 }
 
 class SystemClock implements MonotonicClock {
@@ -276,41 +263,27 @@ function decodeBase64Pcm(data: unknown): Uint8Array {
 }
 
 /**
- * How long an `onerror` waits for the close that usually follows it. The SDK
- * reports a bare error first and the close code second, and only the close code
- * says whether a key was rejected.
- */
-const ERROR_CLOSE_GRACE_SECONDS = 0.25;
-
-/**
  * One start of one run: everything the provider hands back for it, and every
- * timer it arms. Callbacks, continuations and late connections hold on to the
- * attempt object and act only while it is still the connector's current one,
- * so a stale attempt can only ever clean up after itself.
+ * timer it arms. The SDK's callbacks cannot be detached, so they act only while
+ * their attempt is the current one.
  */
 interface Attempt {
   readonly runId: string;
   readonly sink: AudioSink;
   readonly timing: ConnectorTiming;
-  /** Resolves when the provider reports setup complete. */
+  readonly config: LyriaRtConnectorConfig;
+  readonly transition: PromptTransition;
   readonly setup: Deferred<void>;
-  /** Rejects with whatever ends startup first: a callback failure, the timeout or Stop. */
+  /** Rejects with whatever ends the attempt first: a failure, the timeout or Stop. */
   readonly startup: Deferred<never>;
-  readonly timers: Set<ClockTimer>;
-  transition: PromptTransition | undefined;
   session: LyriaRtMusicSession | undefined;
-  active: boolean;
   /** Ended by Stop or Close rather than by a failure. */
   cancelled: boolean;
   starting: boolean;
   setupReceived: boolean;
-  startupFailure: ConnectorError | undefined;
-  terminalFailureReported: boolean;
-  errorGrace: ClockTimer | undefined;
   promptsNonEmpty: boolean;
   flowPaused: boolean;
   playbackState: 'paused' | 'playing';
-  stopSent: boolean;
   lastModelContext: ModelContext | undefined;
 }
 
@@ -360,8 +333,7 @@ export class LyriaRtConnector implements Connector {
   }
 
   async prepare(initialState: EffectiveState, config: ConnectorConfig): Promise<void> {
-    // Preparing again replaces an earlier preparation that never started: the
-    // renderer abandons a run stopped during prepare without calling start.
+    // The renderer abandons a run stopped during prepare without calling start.
     if (this.state !== 'opened' && this.state !== 'stopped' && this.state !== 'prepared') {
       throw stateConflict();
     }
@@ -378,100 +350,85 @@ export class LyriaRtConnector implements Connector {
     if (initialState === undefined || config === undefined) throw stateConflict();
 
     this.state = 'starting';
-    // Recorded before anything is awaited, so Stop and Close can always find it.
     const attempt: Attempt = {
       runId,
       sink,
       timing,
+      config,
+      transition: createPromptTransition({
+        clock: this.dependencies.clock,
+        transitionDurationMs: config.prompt.transitionDurationMs,
+        transitionSteps: config.prompt.transitionSteps,
+        sender: {
+          send: (prompts) => this.sendPrompts(attempt, prompts),
+          requestPlay: () => this.reconcilePlayback(attempt),
+          requestPause: () => this.reconcilePlayback(attempt)
+        },
+        onFailure: (failure) => this.reportTerminalFailure(attempt, failure)
+      }),
       setup: deferred<void>(),
       startup: deferred<never>(),
-      timers: new Set(),
-      transition: undefined,
       session: undefined,
-      active: true,
       cancelled: false,
       starting: true,
       setupReceived: false,
-      startupFailure: undefined,
-      terminalFailureReported: false,
-      errorGrace: undefined,
       promptsNonEmpty: false,
       flowPaused: false,
       playbackState: 'paused',
-      stopSent: false,
       lastModelContext: undefined
     };
-    // Rejected on every ending, including after startup when nobody races it.
-    attempt.startup.promise.catch(() => undefined);
     this.attempt = attempt;
+    attempt.transition.beginRun(runId);
 
-    const transition = createPromptTransition({
-      clock: this.dependencies.clock,
-      transitionDurationMs: config.prompt.transitionDurationMs,
-      transitionSteps: config.prompt.transitionSteps,
-      sender: {
-        send: (prompts) => this.sendPrompts(attempt, prompts),
-        requestPlay: () => this.reconcilePlayback(attempt),
-        requestPause: () => this.reconcilePlayback(attempt)
-      },
-      onFailure: (failure) => this.reportTerminalFailure(attempt, failure)
-    });
-    attempt.transition = transition;
-    transition.beginRun(runId);
-
-    const setupTimeout = this.schedule(attempt, this.dependencies.setupTimeoutSeconds, () =>
-      this.failStartup(attempt, connectorError('lyria-rt-setup-timeout', 'network', true))
+    const clock = this.dependencies.clock;
+    const setupTimeout = clock.schedule(clock.now() + this.dependencies.setupTimeoutSeconds, () =>
+      attempt.startup.reject(connectorError('lyria-rt-setup-timeout', 'network', true))
     );
 
     try {
       const client = this.dependencies.createClient(this.clientOptions());
-      // The connection belongs to this attempt whenever it lands. Arriving after
-      // Stop, Close or the timeout, it is closed at once: the SDK gives no way
-      // to cancel a connect in flight, so this is the earliest it can be.
+      // The SDK cannot cancel a connect in flight, so a session that lands after
+      // its attempt ended is closed on arrival.
       const connected = client
         .connect({
           model: LYRIA_RT_MODEL_ID,
           callbacks: {
             onmessage: (message) => this.handleMessage(attempt, message),
-            onerror: () => this.handleError(attempt),
+            // ws and browsers always follow an error with a close, and only
+            // the close carries the code that classifies it.
+            onerror: () => undefined,
             onclose: (event) => this.handleClose(attempt, event.code)
           }
         })
         .then(
           (session) => {
-            if (attempt.active) attempt.session = session;
+            if (this.attempt === attempt) attempt.session = session;
             else closeQuietly(session);
           },
           () => {
             throw connectorError('lyria-rt-network-failure', 'network', true);
           }
         );
-      connected.catch(() => undefined);
       await Promise.race([connected, attempt.startup.promise]);
       await Promise.race([attempt.setup.promise, attempt.startup.promise]);
-      this.assertCurrent(attempt);
 
-      const context = this.modelContext(initialState, timing);
+      const context = this.modelContext(attempt, initialState);
       await this.sendModelConfig(attempt, context);
       attempt.lastModelContext = context;
-      await transition.update(translatePrompts(initialState, config.prompt));
-      if (attempt.startupFailure !== undefined) throw attempt.startupFailure;
-      this.assertCurrent(attempt);
+      await attempt.transition.update(translatePrompts(initialState, config.prompt));
       attempt.starting = false;
       this.state = 'running';
     } catch (error) {
       const failure = attempt.cancelled
         ? cancelledStart()
         : safeError(error, connectorError('lyria-rt-startup-failure', 'internal', false));
-      // Only the current attempt may move the connector; a stale one has
-      // already been replaced or closed by whoever ended it.
       if (this.attempt === attempt) {
         this.finishAttempt(attempt, false);
         this.state = 'stopped';
       }
       throw failure;
     } finally {
-      this.cancelTimer(attempt, setupTimeout);
+      clock.cancel(setupTimeout);
     }
   }
 
@@ -480,39 +437,28 @@ export class LyriaRtConnector implements Connector {
     requestedBoundary: MusicalPosition
   ): Promise<MusicalPosition> {
     const attempt = this.attempt;
-    if (
-      this.state !== 'running' ||
-      attempt === undefined ||
-      !attempt.active ||
-      this.config === undefined
-    ) {
-      throw stateConflict();
-    }
+    if (this.state !== 'running' || attempt === undefined) throw stateConflict();
 
-    const context = this.modelContext(update.state, attempt.timing);
+    const context = this.modelContext(attempt, update.state);
     const last = attempt.lastModelContext;
     if (last === undefined || context.bpm !== last.bpm || context.scale !== last.scale) {
       await this.sendModelConfig(attempt, context);
-      this.requireSession(attempt).resetContext();
+      attempt.session!.resetContext();
       attempt.lastModelContext = context;
     }
 
-    const prompts = translatePrompts(update.state, this.config.prompt);
-    if (attempt.transition === undefined) throw stateConflict();
-    await attempt.transition.update(prompts);
+    await attempt.transition.update(translatePrompts(update.state, attempt.config.prompt));
     return requestedBoundary;
   }
 
   async setGenerationPaused(paused: boolean): Promise<void> {
     const attempt = this.attempt;
     if (this.state !== 'running' || attempt === undefined) throw stateConflict();
-    if (attempt.flowPaused === paused) return;
     attempt.flowPaused = paused;
     await this.reconcilePlayback(attempt);
   }
 
   async stop(runId: string): Promise<void> {
-    if (this.state === 'closed') return;
     const attempt = this.attempt;
     if (attempt === undefined || attempt.runId !== runId) return;
     attempt.cancelled = true;
@@ -521,7 +467,6 @@ export class LyriaRtConnector implements Connector {
   }
 
   async close(): Promise<void> {
-    if (this.state === 'closed') return;
     const attempt = this.attempt;
     if (attempt !== undefined) {
       attempt.cancelled = true;
@@ -548,7 +493,8 @@ export class LyriaRtConnector implements Connector {
   // quarter notes, 60-200, so the meter has to come out of the number before it
   // is sent: without the conversion a 6/8 document would be generated at twice
   // the tempo the renderer's clock assumes, and the two would drift apart.
-  private modelContext(state: EffectiveState, timing: ConnectorTiming): ModelContext {
+  private modelContext(attempt: Attempt, state: EffectiveState): ModelContext {
+    const { timing } = attempt;
     const requestedTempo = state.globals.tempo ?? timing.tempo;
     const quarterTempo = (requestedTempo * 4) / timing.timeSignature.beatUnit;
     const bpm = Math.min(200, Math.max(60, Math.round(quarterTempo)));
@@ -556,7 +502,7 @@ export class LyriaRtConnector implements Connector {
     // wrote, so the warning fires once for the tempo they can see and change.
     if ((quarterTempo < 60 || quarterTempo > 200) && !this.warnedTempos.has(requestedTempo)) {
       this.warnedTempos.add(requestedTempo);
-      this.emitWarning('lyria-rt-tempo-clamped');
+      this.emitWarning(attempt, 'lyria-rt-tempo-clamped');
     }
     const key = state.globals.key ?? timing.key;
     if (key === undefined) return { bpm };
@@ -566,9 +512,10 @@ export class LyriaRtConnector implements Connector {
       : { bpm, scale: classification.nativeScale };
   }
 
-  private generationConfig(context: ModelContext): LyriaRtMusicGenerationConfig {
-    const generation = this.config?.generation;
-    if (generation === undefined) throw stateConflict();
+  private generationConfig(
+    { generation }: LyriaRtConnectorConfig,
+    context: ModelContext
+  ): LyriaRtMusicGenerationConfig {
     return {
       temperature: generation.temperature,
       guidance: generation.guidance,
@@ -589,8 +536,8 @@ export class LyriaRtConnector implements Connector {
 
   private async sendModelConfig(attempt: Attempt, context: ModelContext): Promise<void> {
     try {
-      await this.requireSession(attempt).setMusicGenerationConfig({
-        musicGenerationConfig: this.generationConfig(context)
+      await attempt.session!.setMusicGenerationConfig({
+        musicGenerationConfig: this.generationConfig(attempt.config, context)
       });
     } catch (error) {
       throw safeError(error, connectorError('lyria-rt-network-failure', 'network', true));
@@ -603,7 +550,7 @@ export class LyriaRtConnector implements Connector {
       return;
     }
     try {
-      await this.requireSession(attempt).setWeightedPrompts({
+      await attempt.session!.setWeightedPrompts({
         weightedPrompts: prompts.map(({ text, weight }) => ({ text, weight }))
       });
       attempt.promptsNonEmpty = true;
@@ -613,8 +560,8 @@ export class LyriaRtConnector implements Connector {
   }
 
   private async reconcilePlayback(attempt: Attempt): Promise<void> {
-    const session = this.requireSession(attempt);
-    const shouldPlay = attempt.active && attempt.promptsNonEmpty && !attempt.flowPaused;
+    const session = attempt.session!;
+    const shouldPlay = attempt.promptsNonEmpty && !attempt.flowPaused;
     const nextState = shouldPlay ? 'playing' : 'paused';
     if (nextState === attempt.playbackState) return;
     try {
@@ -634,13 +581,8 @@ export class LyriaRtConnector implements Connector {
       attempt.setupReceived = true;
       attempt.setup.resolve(undefined);
     }
-    if (message.filteredPrompt !== undefined) {
-      this.emitWarning('lyria-rt-prompt-filtered');
-      if (attempt.starting) {
-        this.failStartup(attempt, connectorError('lyria-rt-filtered-startup', 'provider', true));
-      }
-    }
-    if (message.warning !== undefined) this.emitWarning('lyria-rt-provider-warning');
+    if (message.filteredPrompt !== undefined) this.emitWarning(attempt, 'lyria-rt-prompt-filtered');
+    if (message.warning !== undefined) this.emitWarning(attempt, 'lyria-rt-provider-warning');
 
     try {
       for (const chunk of message.serverContent?.audioChunks ?? []) {
@@ -665,39 +607,14 @@ export class LyriaRtConnector implements Connector {
     }
   }
 
-  // The SDK's error event carries nothing usable; the close that normally
-  // follows carries the code that classifies it. Wait briefly for that close,
-  // and report a plain network failure only if none comes.
-  private handleError(attempt: Attempt): void {
-    if (!this.isCurrent(attempt) || attempt.errorGrace !== undefined) return;
-    attempt.errorGrace = this.schedule(attempt, ERROR_CLOSE_GRACE_SECONDS, () => {
-      attempt.errorGrace = undefined;
-      this.handleCallbackFailure(
-        attempt,
-        connectorError('lyria-rt-network-failure', 'network', true)
-      );
-    });
-  }
-
   private handleClose(attempt: Attempt, code: number | undefined): void {
     if (!this.isCurrent(attempt)) return;
-    if (attempt.errorGrace !== undefined) {
-      this.cancelTimer(attempt, attempt.errorGrace);
-      attempt.errorGrace = undefined;
-    }
     this.handleCallbackFailure(attempt, this.classifyClose(code, !attempt.setupReceived));
   }
 
   private handleCallbackFailure(attempt: Attempt, failure: ConnectorError): void {
-    if (!this.isCurrent(attempt)) return;
-    if (attempt.starting) this.failStartup(attempt, failure);
+    if (attempt.starting) attempt.startup.reject(failure);
     else this.reportTerminalFailure(attempt, failure);
-  }
-
-  private failStartup(attempt: Attempt, failure: ConnectorError): void {
-    if (!this.isCurrent(attempt)) return;
-    attempt.startupFailure ??= failure;
-    attempt.startup.reject(failure);
   }
 
   /**
@@ -720,18 +637,15 @@ export class LyriaRtConnector implements Connector {
   }
 
   private emitWarning(
+    attempt: Attempt,
     code: 'lyria-rt-tempo-clamped' | 'lyria-rt-prompt-filtered' | 'lyria-rt-provider-warning'
   ): void {
-    const attempt = this.attempt;
-    if (attempt === undefined || !attempt.active) return;
     hostCall(() =>
       attempt.sink.warning({ code, message: LYRIA_RT_WARNING_MESSAGE, runId: attempt.runId })
     );
   }
 
   private reportTerminalFailure(attempt: Attempt, failure: ConnectorError): void {
-    if (!this.isCurrent(attempt) || attempt.terminalFailureReported) return;
-    attempt.terminalFailureReported = true;
     const event: RendererFailure = {
       code: failure.code,
       message: LYRIA_RT_FAILURE_MESSAGE,
@@ -746,54 +660,20 @@ export class LyriaRtConnector implements Connector {
   }
 
   private isCurrent(attempt: Attempt): boolean {
-    return this.attempt === attempt && attempt.active;
-  }
-
-  private assertCurrent(attempt: Attempt): void {
-    if (this.isCurrent(attempt)) return;
-    throw attempt.cancelled ? cancelledStart() : stateConflict();
-  }
-
-  private requireSession(attempt: Attempt): LyriaRtMusicSession {
-    if (!this.isCurrent(attempt) || attempt.session === undefined) throw stateConflict();
-    return attempt.session;
-  }
-
-  private schedule(attempt: Attempt, delaySeconds: number, callback: () => void): ClockTimer {
-    const clock = this.dependencies.clock;
-    const timer = clock.schedule(clock.now() + delaySeconds, () => {
-      attempt.timers.delete(timer);
-      callback();
-    });
-    attempt.timers.add(timer);
-    return timer;
-  }
-
-  private cancelTimer(attempt: Attempt, timer: ClockTimer): void {
-    if (!attempt.timers.delete(timer)) return;
-    this.dependencies.clock.cancel(timer);
+    return this.attempt === attempt;
   }
 
   /**
-   * Ends an attempt: settles a startup still waiting on it, cancels its timers
-   * and releases its session. Safe to call more than once, and only ever touches
-   * this attempt's own resources.
+   * Ends the current attempt, once: settles a startup still waiting on it,
+   * cancels its transition, and releases its session.
    */
   private finishAttempt(attempt: Attempt, sendStop: boolean): void {
-    if (!attempt.active) return;
-    attempt.active = false;
-    if (this.attempt === attempt) this.attempt = undefined;
-    for (const timer of attempt.timers) this.dependencies.clock.cancel(timer);
-    attempt.timers.clear();
-    attempt.errorGrace = undefined;
-    attempt.transition?.endRun(attempt.runId);
-    attempt.transition = undefined;
-    attempt.startup.reject(attempt.cancelled ? cancelledStart() : stateConflict());
+    this.attempt = undefined;
+    attempt.transition.endRun(attempt.runId);
+    attempt.startup.reject(stateConflict());
     const session = attempt.session;
-    attempt.session = undefined;
     if (session === undefined) return;
-    if (sendStop && !attempt.stopSent) {
-      attempt.stopSent = true;
+    if (sendStop) {
       try {
         session.stop();
       } catch {

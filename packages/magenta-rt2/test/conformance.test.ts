@@ -1,7 +1,7 @@
 import { createMagentaRt2ConnectorWithDependencies } from '../src/connector.js';
 import { describeConnectorConformance } from '../../../test/support/connector-conformance.js';
 import { VirtualClock } from '../../../test/support/virtual-clock.js';
-import { FakeBridge, SERVER_HELLO } from './support/fake-bridge.js';
+import { FakeBridge } from './support/fake-bridge.js';
 
 describeConnectorConformance('Magenta RT2', () => {
   const clock = new VirtualClock();
@@ -22,12 +22,11 @@ describeConnectorConformance('Magenta RT2', () => {
     timing: { tempo: 96, timeSignature: { beatsPerBar: 4, beatUnit: 4 }, secondsPerBar: 2.5 },
     // A bridge connection is up once the socket opens and the hellos are exchanged.
     connect: (index) => {
-      const socket = bridge.sockets[index]!;
-      socket.open();
-      socket.receive(SERVER_HELLO);
+      bridge.sockets[index]!.open();
+      bridge.sockets[index]!.reply();
     },
-    ready: (index) => bridge.sockets[index]!.ack(),
-    audio: (index) => bridge.sockets[index]!.audio(0),
+    ready: (index) => bridge.sockets[index]!.reply(),
+    audio: (index) => bridge.sockets[index]!.audio(),
     released: (index) => bridge.sockets[index]!.released
   };
 });
