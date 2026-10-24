@@ -91,8 +91,8 @@ Application close codes (4000-4999) belong to whoever is serving the endpoint, s
 as network failures and passed through as `closeCode` for the host to interpret. The connector never
 invents a meaning for one.
 
-The SDK reports a bare error event before the close that explains it, so an error waits a quarter
-of a second for that close and is reported as `lyria-rt-network-failure` only if none arrives.
+An error event is always followed by a close, which carries the code, so the connector ignores the
+error and classifies the close.
 
 ## Stopping while connecting
 

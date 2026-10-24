@@ -19,6 +19,9 @@ pnpm --filter @luna-estelar/gas-magenta-rt2 manual:listen \
   --out /absolute/path/to/ignored-listening
 ```
 
+For a bridge started with `--token`, set `GAS_MAGENTA_RT2_TOKEN` in the environment; the script
+never takes the token as an argument.
+
 The script plays the fixture through the real session, renderer and connector,
 applies one live command part-way, and writes `capture.wav` and `manifest.json`:
 

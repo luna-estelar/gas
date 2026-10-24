@@ -5,6 +5,8 @@
 //
 //   pnpm --filter @luna-estelar/gas-magenta-rt2 manual:listen \
 //     --fixture manual/fixtures/01-two-tracks.gas --duration 20 --out /tmp/mrt2-listen
+//
+// A bridge started with --token reads it from GAS_MAGENTA_RT2_TOKEN, never argv.
 
 import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -58,7 +60,10 @@ const session = await createSession({
     createRenderer({
       clock,
       connector: createMagentaRt2Connector(),
-      settings: { endpoint: values.endpoint },
+      settings: {
+        endpoint: values.endpoint,
+        ...(process.env.GAS_MAGENTA_RT2_TOKEN ? { token: process.env.GAS_MAGENTA_RT2_TOKEN } : {})
+      },
       firstAudioTimeoutSeconds: 15
     })
 });

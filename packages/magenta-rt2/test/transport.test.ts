@@ -427,6 +427,19 @@ describe('Magenta RT2 audio and failures', () => {
     ]);
   });
 
+  it('fails a run the bridge closes for never starting generation', async () => {
+    const harness = setup();
+    harness.bridge.autoAnswer = true;
+    await harness.connector.open({ endpoint: 'ws://localhost:8765' });
+    await harness.connector.prepare(SILENT, {});
+    await harness.connector.start(harness.sink, TIMING, 'run-1');
+    harness.bridge.last.idle();
+    await flushAsync();
+    expect(harness.failures).toEqual([
+      expect.objectContaining({ code: 'magenta-rt2-network-failure', closeCode: 4408 })
+    ]);
+  });
+
   it('fails a command the bridge rejects', async () => {
     const harness = setup();
     await running(harness);

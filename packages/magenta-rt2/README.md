@@ -102,15 +102,21 @@ Measured behaviour on real hardware is recorded in the [manual guide](./manual/R
 
 ## Failures
 
-| Code                               | Reason     | Retryable | When                                              |
-| ---------------------------------- | ---------- | --------- | ------------------------------------------------- |
-| `magenta-rt2-connect-timeout`      | `network`  | yes       | No answer within `connectTimeoutSeconds`          |
-| `magenta-rt2-network-failure`      | `network`  | yes       | The connection dropped; carries `closeCode`       |
-| `magenta-rt2-auth-rejected`        | `auth`     | no        | Wrong token, or origin not allowed                |
-| `magenta-rt2-busy`                 | `provider` | yes       | Another session held the bridge past the deadline |
-| `magenta-rt2-engine-failure`       | `provider` | yes       | The engine stopped producing audio                |
-| `magenta-rt2-prompt-encode-failed` | `provider` | yes       | The text encoder could not encode a prompt        |
-| `magenta-rt2-protocol-violation`   | `provider` | no        | The bridge spoke another protocol or format       |
+| Code                               | Reason     | Retryable | When                                                              |
+| ---------------------------------- | ---------- | --------- | ----------------------------------------------------------------- |
+| `magenta-rt2-connect-timeout`      | `network`  | yes       | Not connected, greeted and started within `connectTimeoutSeconds` |
+| `magenta-rt2-network-failure`      | `network`  | yes       | The connection closed; carries `closeCode`                        |
+| `magenta-rt2-command-timeout`      | `network`  | yes       | The bridge did not answer a command within 20 seconds             |
+| `magenta-rt2-auth-rejected`        | `auth`     | no        | Wrong token, or origin not allowed                                |
+| `magenta-rt2-engine-failure`       | `provider` | yes       | The engine stopped producing audio                                |
+| `magenta-rt2-prompt-encode-failed` | `provider` | yes       | The text encoder could not encode a prompt                        |
+| `magenta-rt2-protocol-violation`   | `provider` | no        | The bridge spoke another protocol or format                       |
+| `magenta-rt2-command-rejected`     | `internal` | no        | The bridge refused a command as invalid                           |
+
+A bridge serving another session is retried every 0.1 seconds until `connectTimeoutSeconds`, then the
+start fails with `magenta-rt2-connect-timeout`. The bridge closes a connection that has not started
+generation within 30 seconds (close code `4408`), so a run whose first 30 seconds have no active track
+fails with `magenta-rt2-network-failure`.
 
 `stop()` and `close()` settle a start still connecting with `magenta-rt2-start-cancelled`, which is
 not a provider failure.

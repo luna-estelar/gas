@@ -15,9 +15,6 @@ export const SERVER_HELLO = {
   controls: ['style', 'pause', 'temperature', 'topK']
 };
 
-/** A connection that is greeted but never starts generation is closed after this long. */
-export const IDLE_TIMEOUT_SECONDS = 30;
-
 type Message = Record<string, unknown>;
 
 const encoder = new TextEncoder();
