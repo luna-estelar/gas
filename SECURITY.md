@@ -2,38 +2,28 @@
 
 ## Supported versions
 
-GAS packages are versioned independently and are all pre-1.0. Security fixes land on each
-package's latest minor release; there are no maintained older lines yet. Before 1.0,
-security fixes may accompany other breaking changes in a minor release and will be
-identified in that package's changelog.
+All GAS packages are pre-1.0. Fixes go into each package's latest minor release, and a fix may
+ship alongside breaking changes. The package's changelog says when it does.
 
 ## Reporting a vulnerability
 
-Please report security issues privately through
-[GitHub's private vulnerability reporting](https://github.com/luna-estelar/gas/security/advisories/new)
-rather than opening a public issue.
+Report security issues privately through
+[GitHub's private vulnerability reporting](https://github.com/luna-estelar/gas/security/advisories/new),
+not in a public issue.
 
-Include what you did, what happened, and which package and version you were on. A minimal
-reproduction (a GAS document, a timeline or a short script) helps more than anything else.
+Say what you did, what happened, and which package and version you used. A small reproduction (a
+GAS document, a timeline or a short script) helps most. You'll hear back within a week, and valid
+reports are credited in the advisory unless you'd rather not be.
 
-Expect an acknowledgement within a week. If a report turns out to be valid, you will be
-credited in the advisory unless you prefer otherwise.
+## Where to look
 
-## Scope
+- `@luna-estelar/gas/language` parses untrusted text. A document that hangs the compiler, exhausts
+  memory or escapes its diagnostics is in scope.
+- `@luna-estelar/gas/protocol/validation` validates timelines. A payload that passes validation and
+  then breaks something downstream is in scope.
+- `@luna-estelar/gas-lyria-rt` holds a Gemini API key and opens network connections. Any way the
+  key ends up in a diagnostic, error, log line or prompt is in scope.
+- `@luna-estelar/gas/browser` handles credentials and playback in a page.
 
-Most of GAS is deterministic computation over plain values: parsing text, deriving state,
-encoding MIDI. The parts worth looking hardest at are:
-
-- **`@luna-estelar/gas/language`** parses untrusted text. A document that hangs the
-  compiler, exhausts memory, or escapes its diagnostics is in scope.
-- **`@luna-estelar/gas/protocol/validation`** validates timelines against JSON Schema. A payload that
-  passes validation and then breaks an invariant downstream is in scope.
-- **`@luna-estelar/gas-lyria-rt`** takes a credential (a Gemini API key) and opens network
-  connections. Anything that leaks it into a diagnostic, an error message, a log line or a
-  prompt is in scope, and is the thing to look for first.
-- **`@luna-estelar/gas/browser`** composes credentials and playback in a page.
-
-A GAS document is _input_, not a sandbox boundary: it has no imports, no file access and
-no evaluation, and compiling one is expected to be safe. If you find a way to make
-compiling a document do anything beyond producing a timeline and diagnostics, that is
-exactly the kind of report wanted here.
+Compiling a GAS document should be safe: the language has no imports, file access or evaluation.
+If compiling one can do anything besides produce a timeline and diagnostics, please report it.

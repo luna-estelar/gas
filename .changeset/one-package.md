@@ -13,5 +13,4 @@ in, and the export map is smaller:
   root.
 - `./lyria` is gone. The connector is a separate package, `@luna-estelar/gas-lyria-rt`.
 
-`./protocol`, `./protocol/validation` and `./highlight` are unchanged. Package descriptions and
-README introductions are also plainer.
+`./protocol`, `./protocol/validation` and `./highlight` are unchanged.

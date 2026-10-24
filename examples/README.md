@@ -1,8 +1,8 @@
 # Examples
 
-The seven documents under `documents/` form the shared compiler and integration-test corpus.
-`manifest.ts` describes their labels, playback modes and musical metadata. `support.ts`
-provides filesystem access for tests and checks that the directory matches the manifest.
+The seven documents in `documents/` are the test corpus for the compiler and integration tests.
+`manifest.ts` lists their labels, playback modes and musical metadata. `support.ts` reads them
+for tests and checks that the directory matches the manifest.
 
 ## Compile a document
 
@@ -25,5 +25,4 @@ read these shared fixtures without importing another package's implementation.
 2. Set the expected playback mode, bars and tempo from the compiled timeline.
 3. Run `pnpm test` to include the new document in each corpus suite.
 
-The optional `homepage` index records display order for consumers. Website teaching
-examples are maintained separately.
+The optional `homepage` index sets the display order on the website.

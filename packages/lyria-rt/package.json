@@ -2,7 +2,7 @@
   "name": "@luna-estelar/gas-lyria-rt",
   "version": "0.2.1",
   "private": true,
-  "description": "Drive Google's Lyria RealTime music model from GAS: turns tracks, tempo and sections into prompts and config.",
+  "description": "Plays GAS documents through Lyria RealTime, Google's real-time music model.",
   "keywords": [
     "gas",
     "lyria",

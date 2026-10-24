@@ -1,6 +1,6 @@
 ## What changes for a user
 
-<!-- One or two sentences. If nothing changes for a user, say so — a refactor is fine. -->
+<!-- One or two sentences. If nothing changes for a user, say so. A refactor is fine. -->
 
 ## Notes for the reviewer
 
