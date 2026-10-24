@@ -75,14 +75,19 @@ connector's `validateConfig`.
 MRT2 is steered by a blend of up to six text prompts. Each run translates GAS state the same way:
 
 - The global description, key and tempo become one prompt, for example
-  `late night. In A minor. 90 BPM.` The model has no native key or tempo control, so these
-  are suggestions in words and it may not follow them.
+  `late night. In A minor. 90 BPM.` Key and tempo fall back to the run's defaults, including
+  any the host set, and tempo is stated in quarter-note BPM, so 120 in 6/8 reads `60 BPM`. The
+  model has no native key or tempo control, so these are suggestions in words and it may not
+  follow them.
 - Each active track becomes a prompt from its description, flavor and timbre, weighted by its
   level. Level changes the track's share of the blend, not its volume in the mix: MRT2 generates
   one mixed stream, with no separate stems.
 - Tracks are ordered heaviest first. If more are active than there are slots, the extra tracks
-  share the last slot and the connector warns once with `magenta-rt2-prompt-overflow`. No track
-  is dropped.
+  share the last slot and the connector warns once with `magenta-rt2-prompt-overflow`. Every
+  track's weight still counts toward that slot.
+- Each prompt is limited to 512 bytes of UTF-8, the bridge's limit. Longer text is cut at a word
+  break and the connector warns once with `magenta-rt2-prompt-truncated`. When folded tracks do
+  not all fit, the slot keeps as many whole descriptions as fit.
 - With no active track, generation pauses and resumes when one returns.
 
 When only weights change, the bridge re-blends cached text embeddings, which is fast. New text has

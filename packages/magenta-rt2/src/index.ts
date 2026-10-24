@@ -14,7 +14,7 @@ export type {
   MagentaRt2PromptConfig
 } from './config.js';
 
-export { MAX_PROMPTS, translatePrompts } from './prompts.js';
+export { MAX_PROMPT_BYTES, MAX_PROMPTS, translatePrompts } from './prompts.js';
 export type { PromptTranslation, WeightedPrompt } from './prompts.js';
 
 export {
