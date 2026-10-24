@@ -119,6 +119,8 @@ interface ActiveRun {
   connectorStartAttempted: boolean;
   /** The one `connector.stop` call for this run, shared by everyone who needs it. */
   connectorStop: Promise<void> | undefined;
+  /** The host Stop in progress, shared by any Stop that overlaps it. */
+  stopping: Promise<void> | undefined;
   readonly ledger: BufferLedger;
   readonly heldAudio: BufferedAudio[];
   audioCursor: number;
@@ -137,7 +139,8 @@ interface ActiveRun {
   /**
    * The run is over and its outcome has been decided. Set exactly once, by Stop,
    * a failure or completion, before anything is awaited: every continuation that
-   * resumes afterwards checks it on this object and backs off.
+   * resumes afterwards checks it on this object and backs off. A run stops being
+   * `this.run` only after it has ended, so `ended` also covers a replaced run.
    */
   ended: boolean;
   /** The failure that ended the run, when one did. */
@@ -373,6 +376,7 @@ class RendererSession implements Renderer {
       loopIteration: 1,
       connectorStartAttempted: false,
       connectorStop: undefined,
+      stopping: undefined,
       ledger: new BufferLedger(),
       heldAudio: [],
       audioCursor: this.options.clock.now(),
@@ -402,13 +406,9 @@ class RendererSession implements Renderer {
         run.startTime
       );
       await this.options.connector.prepare(initialState, this.connectorConfig);
-      // Stop, Close or a failure may have ended the run while prepare was in
-      // flight; a run that has ended must not reach the provider at all.
+      // A run that ended during prepare must not reach the provider at all.
       if (run.ended) throw this.endedBeforeStart(run);
       run.connectorStartAttempted = true;
-      // Timing carries the run's defaults, not the initial effective tempo: the
-      // connector already has that in the prepared state, and falls back to these
-      // whenever a later state leaves tempo unset, such as after a cleared override.
       await this.options.connector.start(
         this.createAudioSink(run),
         {
@@ -419,7 +419,6 @@ class RendererSession implements Renderer {
         },
         runId
       );
-      if (run.ended) throw this.endedBeforeStart(run);
       const initialUpdate = this.buildConnectorUpdate(initialState, run);
       if (initialUpdate.notation !== undefined) {
         await this.options.connector.update(initialUpdate, initialPosition);
@@ -432,8 +431,7 @@ class RendererSession implements Renderer {
       this.maybeAnchor(loaded, run);
       return runId;
     } catch (error) {
-      // Whoever ended the run already published its outcome. A late rejection
-      // from the provider is the stopped attempt winding down, not a failure.
+      // Whoever ended the run already published its outcome.
       if (run.ended) throw error instanceof RendererError ? error : this.endedBeforeStart(run);
       run.ended = true;
       this.cancelTimers(run);
@@ -470,18 +468,24 @@ class RendererSession implements Renderer {
     this.assertReady();
     this.completedTail = undefined;
     const run = this.run;
+    if (run?.stopping !== undefined) return run.stopping;
     if (run === undefined || run.ended) {
       this.playback = 'stopped';
       this.emitStatus();
       return;
     }
+    run.stopping = this.stopRun(run);
+    return run.stopping;
+  }
+
+  private async stopRun(run: ActiveRun): Promise<void> {
     this.playback = 'stopping';
     this.emitStatus();
     run.ended = true;
     this.cancelTimers(run);
     this.rejectHeldAudio(run, 'Buffered audio was rejected because playback stopped.');
-    // Not behind run.chain: a state update the provider never answers must not
-    // hold Stop hostage. Updates still queued see `ended` and do nothing.
+    // Not behind run.chain: an update the provider never answers must not hold
+    // Stop. Updates still queued see `ended` and do nothing.
     let released: boolean;
     try {
       released = await this.withinCleanupTimeout(this.stopConnector(run));
@@ -498,7 +502,7 @@ class RendererSession implements Renderer {
       throw new RendererError('connector-unavailable', failure.message, { failure });
     }
     if (!released) this.warnCleanupTimeout('connector-stop-timeout', run.id);
-    if (this.run === run) this.run = undefined;
+    this.run = undefined;
     this.playback = 'stopped';
     this.emitStatus();
   }
@@ -985,9 +989,7 @@ class RendererSession implements Renderer {
     this.publishFailure(failure);
   }
 
-  /** Makes the renderer failed and reports it, unless Close already made it terminal. */
   private publishFailure(failure: RendererFailure): void {
-    if (this.lifecycle === 'closing' || this.lifecycle === 'closed') return;
     this.lifecycle = 'failed';
     this.playback = 'failed';
     this.emit('failure', failure);
@@ -1051,6 +1053,7 @@ class RendererSession implements Renderer {
     run.gain = globalGain(state);
     run.tempo = state.globals.tempo ?? run.tempo;
     await this.options.connector.update(this.buildConnectorUpdate(state, run), position);
+    if (run.ended) return;
     this.playback = 'holding';
     this.emitStatus();
     this.emitPosition(position, run);
@@ -1170,9 +1173,6 @@ class RendererSession implements Renderer {
     if (run.connectorStop === undefined) {
       const connector = this.options.connector;
       run.connectorStop = (async () => connector.stop(run.id))();
-      // Callers that stop waiting (a timeout, a best-effort failure path) must
-      // not leave the rejection unhandled; those still waiting see it.
-      run.connectorStop.catch(() => undefined);
     }
     return run.connectorStop;
   }
@@ -1236,7 +1236,6 @@ class RendererSession implements Renderer {
         );
       },
       failure: (failure) => {
-        if (this.run !== run) return;
         if (failure.runId !== undefined && failure.runId !== run.id) return;
         // Straight to failRun, not behind run.chain: a blocked update must not
         // keep the failure that probably explains it from reaching the host.
@@ -1254,23 +1253,19 @@ class RendererSession implements Renderer {
   }
 
   private receiveAudio(run: ActiveRun, chunk: ConnectorAudioChunk): void {
-    const stale = run.ended || run.audioClosed || chunk.runId !== run.id || this.run !== run;
     try {
       run.ledger.receive(chunk.durationSeconds);
     } catch {
-      // The connector called push; throwing back into it would only break the
-      // provider's own callback. A chunk with no usable duration fails the run.
-      if (!stale) {
-        this.failRun(run, {
-          code: 'invalid-audio',
-          message: 'The connector delivered audio with an invalid duration.',
-          reason: 'provider',
-          retryable: false
-        });
-      }
+      // Throwing back into push would only break the provider's own callback.
+      this.failRun(run, {
+        code: 'invalid-audio',
+        message: 'The connector delivered audio with an invalid duration.',
+        reason: 'provider',
+        retryable: false
+      });
       return;
     }
-    if (stale) {
+    if (run.ended || run.audioClosed || chunk.runId !== run.id || this.run !== run) {
       run.ledger.reject(chunk.durationSeconds);
       this.emit(
         'warning',
@@ -1388,7 +1383,8 @@ class RendererSession implements Renderer {
 
   private async closeConnectorBestEffort(): Promise<void> {
     try {
-      await this.options.connector.close();
+      const released = await this.withinCleanupTimeout(this.options.connector.close());
+      if (!released) this.warnCleanupTimeout('connector-close-timeout');
     } catch {
       // A failed renderer is already terminal; closing remains best effort.
     }

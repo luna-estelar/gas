@@ -342,14 +342,9 @@ export class GasSession {
       throw failure;
     }
     if (this.pendingPlay !== attempt) {
-      // The renderer started a run nobody wants any more. If it is still this
-      // session's renderer and nothing newer is starting, stop that run.
-      if (
-        !this.closed &&
-        attempt.renderer === this.rendererInstance &&
-        this.pendingPlay === undefined &&
-        this.phase === 'stopped'
-      ) {
+      // The renderer started a run nobody wants any more. Stop it, unless a newer
+      // Play is starting or playing on the same renderer.
+      if (this.pendingPlay === undefined && this.phase === 'stopped') {
         void attempt.renderer.stop().catch(() => undefined);
       }
       throw abandonedPlay();

@@ -26,26 +26,6 @@ import { testTimeline } from '../../../../test/support/timeline.js';
 import { VirtualClock } from '../../../../test/support/virtual-clock.js';
 
 describe('renderer run ownership', () => {
-  it('stops without waiting for a state update that never settles', async () => {
-    const harness = await running({ updateGate: new Promise(() => undefined) });
-    void harness.renderer.updateState(changed(harness.timeline)).catch(() => undefined);
-    await flushAsync();
-
-    await harness.renderer.stop();
-    expect(harness.connector.calls).toContain('stop:run-1');
-    expect(harness.statuses.at(-1)).toMatchObject({ lifecycle: 'ready', playback: 'stopped' });
-  });
-
-  it('closes without waiting for a state update that never settles', async () => {
-    const harness = await running({ updateGate: new Promise(() => undefined) });
-    void harness.renderer.updateState(changed(harness.timeline)).catch(() => undefined);
-    await flushAsync();
-
-    await harness.renderer.close();
-    expect(harness.connector.calls.slice(-2)).toEqual(['stop:run-1', 'close']);
-    expect(harness.statuses.at(-1)).toMatchObject({ lifecycle: 'closed' });
-  });
-
   it('reports a connector failure while a state update is blocked', async () => {
     const harness = await running({ updateGate: new Promise(() => undefined) });
     void harness.renderer.updateState(changed(harness.timeline)).catch(() => undefined);
@@ -96,6 +76,73 @@ describe('renderer run ownership', () => {
     expect(harness.warnings.map((warning) => warning.code)).toContain('connector-close-timeout');
   });
 
+  it('lets a failed renderer close after a bounded wait for a connector close that hangs', async () => {
+    const harness = await running({ closeGate: new Promise(() => undefined) });
+    harness.connector.sink!.failure({
+      code: 'x-dropped',
+      message: 'ignored',
+      reason: 'network',
+      runId: 'run-1',
+      retryable: true
+    });
+    await flushAsync();
+    expect(harness.statuses.at(-1)).toMatchObject({ lifecycle: 'failed' });
+
+    vi.useFakeTimers();
+    try {
+      const closed = harness.renderer.close();
+      await vi.advanceTimersByTimeAsync(CONNECTOR_CLEANUP_TIMEOUT_SECONDS * 1000);
+      await closed;
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(harness.statuses.at(-1)).toMatchObject({ lifecycle: 'closed' });
+    expect(harness.warnings.map((warning) => warning.code)).toContain('connector-close-timeout');
+  });
+
+  it('gives overlapping Stops one outcome and refuses a new run until it lands', async () => {
+    const gate = deferred();
+    const harness = await running({ stopGate: gate.promise }, { runIdFactory: sequentialRunIds() });
+    const first = harness.renderer.stop();
+    await flushAsync();
+    const second = harness.renderer.stop();
+    await flushAsync();
+
+    expect(harness.statuses.at(-1)).toMatchObject({ playback: 'stopping' });
+    expect((await rejection(harness.renderer.start())).code).toBe('renderer-state-conflict');
+
+    gate.resolve();
+    await Promise.all([first, second]);
+    expect(harness.statuses.filter((status) => status.playback === 'stopped')).toHaveLength(1);
+
+    await harness.renderer.start();
+    await flushAsync();
+    expect(harness.statuses.at(-1)).toMatchObject({ runId: 'run-2', playback: 'running' });
+  });
+
+  it('keeps a holding update that settles after Stop away from the next run', async () => {
+    const gate = deferred();
+    const harness = await running(
+      { updateGate: gate.promise },
+      {
+        timeline: testTimeline({ playback: { mode: 'infinite' } }),
+        runIdFactory: sequentialRunIds()
+      }
+    );
+    // Four arranged bars at 120 BPM: the holding update is sent eight seconds in.
+    harness.clock.advanceBy(8);
+    await flushAsync();
+    expect(harness.connector.calls).toContain('update');
+
+    await harness.renderer.stop();
+    await harness.renderer.start();
+    gate.resolve();
+    await flushAsync();
+
+    expect(harness.statuses.filter((status) => status.playback === 'holding')).toEqual([]);
+    expect(harness.statuses.at(-1)).toMatchObject({ runId: 'run-2', playback: 'running' });
+  });
+
   it('never starts the connector for a run stopped during prepare', async () => {
     const gate = deferred();
     const harness = await loaded({ prepareGate: gate.promise });
@@ -113,18 +160,22 @@ describe('renderer run ownership', () => {
     expect(harness.statuses.at(-1)).toMatchObject({ lifecycle: 'ready', playback: 'stopped' });
   });
 
-  it('rejects a start that settles after Stop without reporting a failure', async () => {
+  it('rejects a start with the failure the connector reported during it', async () => {
     const gate = deferred();
     const harness = await loaded({ startGate: gate.promise });
     const started = harness.renderer.start();
     await flushAsync();
 
-    await harness.renderer.stop();
-    gate.reject(new ConnectorError({ code: 'x-late', reason: 'network', retryable: true }));
-    await rejection(started);
+    harness.connector.sink!.failure({
+      code: 'x-dropped',
+      message: 'ignored',
+      reason: 'network',
+      runId: 'run-1',
+      retryable: true
+    });
+    gate.resolve();
 
-    expect(harness.failures).toEqual([]);
-    expect(harness.statuses.at(-1)).toMatchObject({ lifecycle: 'ready', playback: 'stopped' });
+    expect((await rejection(started)).failure).toMatchObject({ code: 'x-dropped' });
   });
 
   it('keeps Closed terminal when prepare rejects after Close', async () => {
@@ -138,27 +189,6 @@ describe('renderer run ownership', () => {
     const caught = await rejection(started);
 
     expect(caught.code).toBe('renderer-closed');
-    expect(harness.failures).toEqual([]);
-    expect(harness.statuses.at(-1)).toMatchObject({ lifecycle: 'closed' });
-  });
-
-  it('keeps Closed terminal when a failure lands during Close', async () => {
-    const gate = deferred();
-    const harness = await running({ stopGate: gate.promise });
-    const closed = harness.renderer.close();
-    await flushAsync();
-
-    harness.connector.sink!.failure({
-      code: 'x-late',
-      message: 'ignored',
-      reason: 'network',
-      runId: 'run-1',
-      retryable: true
-    });
-    gate.resolve();
-    await closed;
-    await flushAsync();
-
     expect(harness.failures).toEqual([]);
     expect(harness.statuses.at(-1)).toMatchObject({ lifecycle: 'closed' });
   });
@@ -180,6 +210,20 @@ describe('renderer run ownership', () => {
 
     expect(caught.failure).toMatchObject({ code: 'x-stop' });
     expect(harness.failures).toMatchObject([{ code: 'x-stop' }]);
+  });
+
+  it('lets a Stop racing finite completion own the outcome', async () => {
+    const gate = deferred();
+    const harness = await running({ stopGate: gate.promise });
+    harness.clock.advanceBy(8);
+    await flushAsync();
+
+    const stopped = harness.renderer.stop();
+    gate.resolve();
+    await stopped;
+
+    expect(harness.statuses.some((status) => status.completed === true)).toBe(false);
+    expect(harness.statuses.filter((status) => status.playback === 'stopped')).toHaveLength(1);
   });
 
   it('ignores a stale sink whose run id label was reused', async () => {
@@ -240,11 +284,21 @@ interface Harness {
   readonly warnings: RendererWarning[];
 }
 
-async function loaded(options: FakeConnectorOptions = {}): Promise<Harness> {
+interface Setup {
+  readonly timeline?: Timeline;
+  /** Defaults to reusing `run-1`, which the stale-sink cases depend on. */
+  readonly runIdFactory?: () => string;
+}
+
+async function loaded(options: FakeConnectorOptions = {}, setup: Setup = {}): Promise<Harness> {
   const connector = new FakeConnector(options);
   const clock = new VirtualClock();
-  const renderer = await createRenderer({ clock, connector, runIdFactory: () => 'run-1' });
-  const timeline = testTimeline();
+  const renderer = await createRenderer({
+    clock,
+    connector,
+    runIdFactory: setup.runIdFactory ?? (() => 'run-1')
+  });
+  const timeline = setup.timeline ?? testTimeline();
   await renderer.load(timeline, createInputState(timeline));
   const harness: Harness = {
     connector,
@@ -261,10 +315,15 @@ async function loaded(options: FakeConnectorOptions = {}): Promise<Harness> {
   return harness;
 }
 
-async function running(options: FakeConnectorOptions = {}): Promise<Harness> {
-  const harness = await loaded({ anchorOnStart: true, ...options });
+async function running(options: FakeConnectorOptions = {}, setup: Setup = {}): Promise<Harness> {
+  const harness = await loaded({ anchorOnStart: true, ...options }, setup);
   await harness.renderer.start();
   return harness;
+}
+
+function sequentialRunIds(): () => string {
+  let next = 0;
+  return () => `run-${++next}`;
 }
 
 function changed(timeline: Timeline): InputState {

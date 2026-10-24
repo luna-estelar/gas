@@ -658,21 +658,10 @@ describe('pending play ownership', () => {
     return { release: () => release(), fail: (error: unknown) => fail(error) };
   }
 
-  it('stays stopped when Play succeeds after Stop', async () => {
-    const loaded = await loadedSession();
-    const gate = gated(loaded);
-    const play = loaded.session.play();
-    await Promise.resolve();
-
-    await loaded.session.stop();
-    gate.release();
-    await expect(play).rejects.toBeInstanceOf(GasOperationError);
-
-    expect(loaded.session.getState().playback).toBe('stopped');
-    expect(loaded.session.getState().runId).toBeUndefined();
-  });
-
-  it('reports nothing when Play rejects after Stop', async () => {
+  it.each([
+    ['succeeds', true],
+    ['rejects', false]
+  ] as const)('stays stopped and reports nothing when Play %s after Stop', async (_label, ok) => {
     const loaded = await loadedSession();
     const gate = gated(loaded);
     const errors: unknown[] = [];
@@ -681,12 +670,42 @@ describe('pending play ownership', () => {
     await Promise.resolve();
 
     await loaded.session.stop();
-    gate.fail(new Error('late start failure'));
+    if (ok) gate.release();
+    else gate.fail(new Error('late start failure'));
     await expect(play).rejects.toBeInstanceOf(GasOperationError);
 
     expect(errors).toEqual([]);
-    expect(loaded.session.getState().lifecycle).toBe('ready');
+    expect(loaded.session.getState()).toMatchObject({ lifecycle: 'ready', playback: 'stopped' });
+    expect(loaded.session.getState().runId).toBeUndefined();
+    // A run the renderer started for nobody is stopped again.
+    expect(loaded.wiring.current().stops).toBe(ok ? 2 : 1);
   });
+
+  it.each([
+    ['before', true],
+    ['after', false]
+  ] as const)(
+    'leaves a newer Play alone when the abandoned one settles %s it',
+    async (_label, olderFirst) => {
+      const loaded = await loadedSession();
+      const older = gated(loaded);
+      const first = loaded.session.play();
+      await Promise.resolve();
+      await loaded.session.stop();
+
+      const newer = gated(loaded);
+      const second = loaded.session.play();
+      await Promise.resolve();
+      if (olderFirst) older.release();
+      newer.release();
+      await second;
+      if (!olderFirst) older.release();
+      await expect(first).rejects.toBeInstanceOf(GasOperationError);
+
+      expect(loaded.wiring.current().stops).toBe(1);
+      expect(loaded.session.getState().playback).toBe('active');
+    }
+  );
 
   it('stays closed when Play settles after Close', async () => {
     const loaded = await loadedSession();
