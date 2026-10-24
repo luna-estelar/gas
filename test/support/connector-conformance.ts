@@ -113,6 +113,16 @@ export function describeConnectorConformance(
       await expect(harness.connector.prepare(harness.state, harness.config)).rejects.toBeDefined();
     });
 
+    it('prepares again after a Stop that lands before start', async () => {
+      // The renderer stops a run cancelled during prepare without ever starting
+      // it; the next Play prepares the connector again.
+      const harness = await prepared();
+      await harness.connector.stop('run-1');
+      await harness.connector.prepare(harness.state, harness.config);
+      await running(harness, 0, recorder());
+      expect(harness.released(0)).toBe(false);
+    });
+
     it('stops and closes idempotently and leaves no timers behind', async () => {
       const harness = await prepared();
       const recorded = recorder();

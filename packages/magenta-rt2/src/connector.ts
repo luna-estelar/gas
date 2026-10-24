@@ -212,6 +212,7 @@ function closeQuietly(socket: BridgeSocket): void {
 interface Attempt {
   readonly runId: string;
   readonly sink: AudioSink;
+  readonly timing: ConnectorTiming;
   /** Rejects with whatever ends startup first: a failure, the deadline or Stop. */
   readonly startup: Deferred<never>;
   readonly timers: Set<ClockTimer>;
@@ -233,6 +234,7 @@ interface Attempt {
   bridgePaused: boolean;
   nextPosition: number;
   warnedOverflow: boolean;
+  warnedTruncation: boolean;
 }
 
 export class MagentaRt2Connector implements Connector {
@@ -259,13 +261,17 @@ export class MagentaRt2Connector implements Connector {
   }
 
   async prepare(initialState: EffectiveState, config: ConnectorConfig): Promise<void> {
-    if (this.state !== 'opened' && this.state !== 'stopped') throw stateConflict();
+    // Preparing again replaces an earlier preparation that never started: the
+    // renderer abandons a run stopped during prepare without calling start.
+    if (this.state !== 'opened' && this.state !== 'stopped' && this.state !== 'prepared') {
+      throw stateConflict();
+    }
     this.config = validateAndResolveMagentaRt2Config(config);
     this.preparedState = initialState;
     this.state = 'prepared';
   }
 
-  async start(sink: AudioSink, _timing: ConnectorTiming, runId: string): Promise<void> {
+  async start(sink: AudioSink, timing: ConnectorTiming, runId: string): Promise<void> {
     const settings = this.settings;
     const config = this.config;
     const initialState = this.preparedState;
@@ -275,6 +281,7 @@ export class MagentaRt2Connector implements Connector {
     const attempt: Attempt = {
       runId,
       sink,
+      timing,
       startup: deferred<never>(),
       timers: new Set(),
       pending: new Map(),
@@ -291,7 +298,8 @@ export class MagentaRt2Connector implements Connector {
       flowPaused: false,
       bridgePaused: false,
       nextPosition: 0,
-      warnedOverflow: false
+      warnedOverflow: false,
+      warnedTruncation: false
     };
     this.attempt = attempt;
     const deadline = this.schedule(attempt, config.connectTimeoutSeconds, () =>
@@ -437,10 +445,18 @@ export class MagentaRt2Connector implements Connector {
   private async apply(attempt: Attempt, state: EffectiveState): Promise<void> {
     const config = this.config;
     if (config === undefined) throw stateConflict();
-    const { prompts, overflowed } = translatePrompts(state, config.prompt);
+    const { prompts, overflowed, truncated } = translatePrompts(
+      attempt.timing,
+      state,
+      config.prompt
+    );
     if (overflowed && !attempt.warnedOverflow) {
       attempt.warnedOverflow = true;
       this.emitWarning(attempt, 'magenta-rt2-prompt-overflow');
+    }
+    if (truncated && !attempt.warnedTruncation) {
+      attempt.warnedTruncation = true;
+      this.emitWarning(attempt, 'magenta-rt2-prompt-truncated');
     }
     if (prompts.length > 0) {
       if (!attempt.generating) {
@@ -596,7 +612,10 @@ export class MagentaRt2Connector implements Connector {
 
   private emitWarning(
     attempt: Attempt,
-    code: 'magenta-rt2-prompt-overflow' | 'magenta-rt2-audio-discontinuity'
+    code:
+      | 'magenta-rt2-prompt-overflow'
+      | 'magenta-rt2-prompt-truncated'
+      | 'magenta-rt2-audio-discontinuity'
   ): void {
     if (!this.isCurrent(attempt)) return;
     hostCall(() => attempt.sink.warning({ code, message: WARNING_MESSAGE, runId: attempt.runId }));

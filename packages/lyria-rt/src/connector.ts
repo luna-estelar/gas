@@ -360,7 +360,11 @@ export class LyriaConnector implements Connector {
   }
 
   async prepare(initialState: EffectiveState, config: ConnectorConfig): Promise<void> {
-    if (this.state !== 'opened' && this.state !== 'stopped') throw stateConflict();
+    // Preparing again replaces an earlier preparation that never started: the
+    // renderer abandons a run stopped during prepare without calling start.
+    if (this.state !== 'opened' && this.state !== 'stopped' && this.state !== 'prepared') {
+      throw stateConflict();
+    }
     this.config = validateAndResolveLyriaConfig(config);
     this.preparedState = initialState;
     this.warnedTempos.clear();
