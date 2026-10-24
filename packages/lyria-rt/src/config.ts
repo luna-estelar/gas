@@ -44,7 +44,7 @@ export type LyriaRtConnectorConfig = {
 };
 
 /** Recursively freeze a plain JSON structure and return the same reference. */
-function deepFreeze<T>(value: T): T {
+export function deepFreeze<T>(value: T): T {
   if (value !== null && typeof value === 'object') {
     for (const member of Object.values(value as Record<string, unknown>)) {
       deepFreeze(member);

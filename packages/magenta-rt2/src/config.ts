@@ -43,7 +43,7 @@ const RULES = {
   connectTimeoutSeconds: { minimum: 1, maximum: 120 }
 } as const satisfies Record<string, NumberRule>;
 
-function deepFreeze<T>(value: T): T {
+export function deepFreeze<T>(value: T): T {
   if (value !== null && typeof value === 'object') {
     for (const member of Object.values(value as Record<string, unknown>)) deepFreeze(member);
     Object.freeze(value);

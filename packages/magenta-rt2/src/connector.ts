@@ -25,6 +25,7 @@ import {
   DEFAULT_MAGENTA_RT2_CONFIG,
   MAGENTA_RT2_CONFIG_SCHEMA,
   type MagentaRt2ConnectorConfig,
+  deepFreeze,
   validateAndResolveMagentaRt2Config,
   validateMagentaRt2Config
 } from './config.js';
@@ -69,14 +70,6 @@ const COMMAND_TIMEOUT_SECONDS = 20;
 
 const WARNING_MESSAGE = 'The Magenta RT2 connector reported an operational warning.';
 const FAILURE_MESSAGE = 'The Magenta RT2 connector stopped audio generation.';
-
-function deepFreeze<T>(value: T): T {
-  if (value !== null && typeof value === 'object') {
-    for (const member of Object.values(value as Record<string, unknown>)) deepFreeze(member);
-    Object.freeze(value);
-  }
-  return value;
-}
 
 /** Magenta RT2 support levels for each GAS intent. */
 export const MAGENTA_RT2_CAPABILITIES: CapabilitiesTable = deepFreeze({

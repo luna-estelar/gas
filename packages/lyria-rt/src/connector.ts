@@ -21,6 +21,7 @@ import {
   DEFAULT_LYRIA_RT_CONFIG,
   LYRIA_RT_CONFIG_SCHEMA,
   type LyriaRtConnectorConfig,
+  deepFreeze,
   validateAndResolveLyriaRtConfig,
   validateLyriaRtConfig
 } from './config.js';
@@ -106,14 +107,6 @@ type ModelContext = { readonly bpm: number; readonly scale?: LyriaRtScale };
 
 const LYRIA_RT_WARNING_MESSAGE = 'The Lyria RealTime connector reported an operational warning.';
 const LYRIA_RT_FAILURE_MESSAGE = 'The Lyria RealTime connector stopped audio generation.';
-
-function deepFreeze<T>(value: T): T {
-  if (value !== null && typeof value === 'object') {
-    for (const member of Object.values(value as Record<string, unknown>)) deepFreeze(member);
-    Object.freeze(value);
-  }
-  return value;
-}
 
 /** Lyria RealTime support levels for each GAS intent. */
 export const LYRIA_RT_CAPABILITIES: CapabilitiesTable = deepFreeze({
