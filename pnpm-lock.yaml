@@ -68,12 +68,6 @@ importers:
         specifier: workspace:^
         version: link:../gas
 
-  packages/magenta-rt2:
-    devDependencies:
-      '@luna-estelar/gas':
-        specifier: workspace:^
-        version: link:../gas
-
 packages:
 
   '@andrewbranch/untar.js@1.0.4':

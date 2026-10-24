@@ -135,9 +135,8 @@ called `gas`.
 ## Related packages
 
 [`@luna-estelar/gas-lyria-rt`](https://github.com/luna-estelar/gas/tree/main/packages/lyria-rt)
-plays GAS through Google's Lyria RealTime, and
-[`@luna-estelar/gas-magenta-rt2`](https://github.com/luna-estelar/gas/tree/main/packages/magenta-rt2)
-through Magenta RealTime 2. Each peers on this package, so a host and its connector share one copy.
+plays GAS through Google's Lyria RealTime. It peers on this package, so a host and its connector
+share one copy.
 
 ## License
 

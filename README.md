@@ -32,7 +32,6 @@ sound; the same document does not guarantee the same performance on every render
 
 [Package guide](./packages/gas/README.md) ·
 [Lyria RealTime connector](./packages/lyria-rt/README.md) ·
-[Magenta RT2 connector](./packages/magenta-rt2/README.md) ·
 [Examples](./examples/README.md)
 
 ## Try it
@@ -45,8 +44,7 @@ npx @luna-estelar/gas compile song.gas
 
 The CLI prints timeline JSON. Use `--out timeline.json` to write a file. Audio generation
 requires a model: Lyria RealTime needs a Gemini key (see its
-[manual guide](./packages/lyria-rt/manual/README.md)), and Magenta RT2 needs a
-[bridge](./packages/magenta-rt2/README.md#start-a-bridge) running on Apple Silicon.
+[manual guide](./packages/lyria-rt/manual/README.md)).
 
 ## Install
 
@@ -69,14 +67,13 @@ See the [package README](./packages/gas/README.md) for every entry point.
 
 ### Packages
 
-| Package                         | Purpose                                                                  |
-| ------------------------------- | ------------------------------------------------------------------------ |
-| `@luna-estelar/gas`             | The language, sessions, renderer, browser playback and the `gas` command |
-| `@luna-estelar/gas-lyria-rt`    | Plays GAS through Google's Lyria RealTime; a peer of `@luna-estelar/gas` |
-| `@luna-estelar/gas-magenta-rt2` | Plays GAS through Magenta RealTime 2 via a local or hosted bridge        |
+| Package                      | Purpose                                                                  |
+| ---------------------------- | ------------------------------------------------------------------------ |
+| `@luna-estelar/gas`          | The language, sessions, renderer, browser playback and the `gas` command |
+| `@luna-estelar/gas-lyria-rt` | Plays GAS through Google's Lyria RealTime; a peer of `@luna-estelar/gas` |
 
 Each has its own README and changelog. All are ESM-only and run on Node 22 or newer, or in a
-browser. The two connectors are not yet published to npm.
+browser. The connector is not yet published to npm.
 
 ## Architecture
 
@@ -88,8 +85,8 @@ Language compilation is independent of playback. Core derives session state, the
 schedules changes against a supplied clock, and the connector translates them into model
 controls. Each stage is a module under [`packages/gas/src`](./packages/gas/src): `language`,
 `protocol` (the timeline and every other shared contract), `core` and `api` (the session) and
-`renderer`; `browser` composes them for a web page, and the connectors live in
-[`packages/lyria-rt`](./packages/lyria-rt) and [`packages/magenta-rt2`](./packages/magenta-rt2).
+`renderer`; `browser` composes them for a web page, and the Lyria RealTime connector lives in
+[`packages/lyria-rt`](./packages/lyria-rt).
 `scripts/check-boundaries.mjs` enforces which module may import which.
 
 ## Status
@@ -101,16 +98,15 @@ npm release version.
 
 Each connector reports what its model can render:
 
-| Intent                             | Lyria RealTime | Magenta RT2  |
-| ---------------------------------- | -------------- | ------------ |
-| `flavor`, `timbre`                 | supported      | supported    |
-| `tempo`                            | supported      | approximated |
-| `key`, `level`                     | approximated   | approximated |
-| `time_signature`, `notes`, `motif` | unsupported    | unsupported  |
+| Intent                             | Lyria RealTime |
+| ---------------------------------- | -------------- |
+| `flavor`, `timbre`                 | supported      |
+| `tempo`                            | supported      |
+| `key`, `level`                     | approximated   |
+| `time_signature`, `notes`, `motif` | unsupported    |
 
 Unsupported intents compile and remain in session state, and GAS reports capability warnings. See
-[Lyria RealTime](./packages/lyria-rt/README.md#what-lyria-realtime-can-and-cannot-do) and
-[Magenta RT2](./packages/magenta-rt2/README.md#what-magenta-rt2-can-and-cannot-do) for details.
+[Lyria RealTime](./packages/lyria-rt/README.md#what-lyria-realtime-can-and-cannot-do) for details.
 The GAS website and its demos are maintained separately from this library.
 
 ## Repository and development

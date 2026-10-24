@@ -10,7 +10,6 @@ import {
   type SessionState
 } from '../packages/gas/src/api/index.js';
 import { createLyriaRtConnector, LYRIA_RT_CAPABILITIES } from '../packages/lyria-rt/src/index.js';
-import { createMagentaRt2Connector } from '../packages/magenta-rt2/src/index.js';
 import {
   applyCommand,
   createInputState,
@@ -168,7 +167,7 @@ describe('landed values match canonical protocol schemas', () => {
 
     // A description carries the capabilities, config schema and default config,
     // and its schema checks each of them.
-    for (const connector of [createLyriaRtConnector(), createMagentaRt2Connector()]) {
+    for (const connector of [createLyriaRtConnector()]) {
       const description = await connector.describe();
       expect(schema(`${base}/renderer.schema.json#/$defs/ConnectorDescription`)(description)).toBe(
         true

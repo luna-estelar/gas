@@ -49,7 +49,7 @@ const RUNTIME_WIRING = ['browser/session.ts', 'index.ts'];
 // The only package specifier a connector package may use: each peers on gas for
 // the protocol, and nothing else.
 const CONNECTOR_ALLOWED = ['@luna-estelar/gas/protocol'];
-const CONNECTOR_UNITS = ['lyria-rt', 'magenta-rt2'];
+const CONNECTOR_UNITS = ['lyria-rt'];
 
 const PACKAGE_UNITS = ['gas', ...CONNECTOR_UNITS];
 

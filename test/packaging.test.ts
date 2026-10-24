@@ -70,7 +70,7 @@ function exportTargets(node: unknown, out: string[] = []): string[] {
 
 // Every package, private or not, so a connector is ready to publish the moment
 // its private flag is removed.
-const CONNECTORS = ['lyria-rt', 'magenta-rt2'];
+const CONNECTORS = ['lyria-rt'];
 
 describe('packages', () => {
   test('there are exactly gas and the connectors', () => {
@@ -161,7 +161,7 @@ describe('packages', () => {
     expect(internal).toEqual([]);
   });
 
-  test.each(['@luna-estelar/gas-lyria-rt', '@luna-estelar/gas-magenta-rt2'])(
+  test.each(['@luna-estelar/gas-lyria-rt'])(
     '%s peers on gas and develops against the workspace copy',
     (name) => {
       // A peer, not a dependency: a host with two copies of gas would have two

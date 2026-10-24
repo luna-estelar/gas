@@ -20,11 +20,6 @@ import {
   type LyriaRtMusicSession,
   type LyriaRtSdkClient
 } from '../packages/lyria-rt/src/connector.js';
-import {
-  createMagentaRt2ConnectorWithDependencies,
-  MAGENTA_RT2_CAPABILITIES
-} from '../packages/magenta-rt2/src/index.js';
-import { FakeBridge } from '../packages/magenta-rt2/test/support/fake-bridge.js';
 import { flushAsync } from './support/deferred.js';
 import { testTimeline } from './support/timeline.js';
 import { VirtualClock } from './support/virtual-clock.js';
@@ -52,39 +47,6 @@ async function loadWithOverride(
 }
 
 describe('connectors return to the run defaults when an initial override is cleared', () => {
-  it('Magenta RT2 states the default tempo again', async () => {
-    const clock = new VirtualClock();
-    const bridge = new FakeBridge();
-    bridge.autoAnswer = true;
-    const connector: Connector = createMagentaRt2ConnectorWithDependencies({
-      clock,
-      createSocket: bridge.createSocket
-    });
-    const renderer = await createRenderer({
-      clock,
-      connector,
-      settings: { endpoint: 'ws://127.0.0.1:8765' },
-      runIdFactory: () => 'run-1'
-    });
-    const slow = await loadWithOverride(renderer, MAGENTA_RT2_CAPABILITIES);
-    await renderer.start();
-
-    // The global prompt, which states the tempo, leads the last prompts sent.
-    const globalPrompt = () => {
-      const prompts = bridge.last
-        .commands()
-        .map((command) => command.prompts as Array<{ text: string }> | undefined)
-        .filter((prompts) => prompts !== undefined);
-      return prompts.at(-1)?.[0]?.text;
-    };
-    expect(globalPrompt()).toContain('90 BPM');
-
-    await renderer.updateState(applyLive(slow, { kind: 'clearTempo' }, MAGENTA_RT2_CAPABILITIES));
-    await flushAsync();
-    expect(globalPrompt()).toContain('120 BPM');
-    await renderer.close();
-  });
-
   it('Lyria RealTime sends the default tempo again', async () => {
     const clock = new VirtualClock();
     const configs: LyriaRtMusicGenerationConfig[] = [];
