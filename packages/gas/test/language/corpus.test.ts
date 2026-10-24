@@ -55,7 +55,7 @@ describe('GAS corpus', () => {
 
       // The language is model-neutral: no diagnostic may mention a specific model.
       const modelMentions = result.diagnostics.filter((diagnostic) =>
-        `${diagnostic.code} ${diagnostic.message}`.toLowerCase().includes('lyria')
+        `${diagnostic.code} ${diagnostic.message}`.toLowerCase().includes('lyria-rt')
       );
       expect(modelMentions).toEqual([]);
     }

@@ -1,10 +1,10 @@
-import type { LyriaMusicSession, LyriaSdkClient } from '../src/connector.js';
-import { createLyriaConnectorWithDependencies } from '../src/connector.js';
-import { DEFAULT_LYRIA_CONFIG } from '../src/config.js';
+import type { LyriaRtMusicSession, LyriaRtSdkClient } from '../src/connector.js';
+import { createLyriaRtConnectorWithDependencies } from '../src/connector.js';
+import { DEFAULT_LYRIA_RT_CONFIG } from '../src/config.js';
 import { describeConnectorConformance } from '../../../test/support/connector-conformance.js';
 import { VirtualClock } from '../../../test/support/virtual-clock.js';
 
-type Callbacks = Parameters<LyriaSdkClient['connect']>[0]['callbacks'];
+type Callbacks = Parameters<LyriaRtSdkClient['connect']>[0]['callbacks'];
 
 interface Connection {
   readonly callbacks: Callbacks;
@@ -12,21 +12,21 @@ interface Connection {
   closed: boolean;
 }
 
-describeConnectorConformance('Lyria RT', () => {
+describeConnectorConformance('Lyria RealTime', () => {
   const clock = new VirtualClock();
   const connections: Connection[] = [];
-  const connector = createLyriaConnectorWithDependencies({
+  const connector = createLyriaRtConnectorWithDependencies({
     clock,
     setupTimeoutSeconds: 15,
     createClient: () => ({
       connect: ({ callbacks }) =>
-        new Promise<LyriaMusicSession>((resolve) => {
+        new Promise<LyriaRtMusicSession>((resolve) => {
           const connection: Connection = {
             callbacks,
             resolve: () => resolve(session),
             closed: false
           };
-          const session: LyriaMusicSession = {
+          const session: LyriaRtMusicSession = {
             setWeightedPrompts: async () => undefined,
             setMusicGenerationConfig: async () => undefined,
             play: () => undefined,
@@ -46,8 +46,8 @@ describeConnectorConformance('Lyria RT', () => {
     clock,
     settings: { apiKey: 'test-key' },
     config: {
-      prompt: { ...DEFAULT_LYRIA_CONFIG.prompt, transitionDurationMs: 0, transitionSteps: 1 },
-      generation: DEFAULT_LYRIA_CONFIG.generation
+      prompt: { ...DEFAULT_LYRIA_RT_CONFIG.prompt, transitionDurationMs: 0, transitionSteps: 1 },
+      generation: DEFAULT_LYRIA_RT_CONFIG.generation
     },
     state: {
       globals: { flavor: { kind: 'text', text: 'warm' }, tempo: 96 },

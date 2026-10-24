@@ -1,9 +1,9 @@
-// Translate effective state into weighted Lyria prompts. Authored phrases retain their wording
+// Translate effective state into weighted Lyria RealTime prompts. Authored phrases retain their wording
 // with whitespace normalized. Per-track prompts include global mood; global-plus-tracks
 // sends global mood separately alongside the track prompts.
 
 import type { EffectiveState, EffectiveTrack, IntentValue } from '@luna-estelar/gas/protocol';
-import type { LyriaPromptStrategy } from './config.js';
+import type { LyriaRtPromptStrategy } from './config.js';
 import { classifyKey } from './scale.js';
 
 export type WeightedPrompt = {
@@ -12,7 +12,7 @@ export type WeightedPrompt = {
 };
 
 export type PromptTranslationOptions = {
-  readonly strategy: LyriaPromptStrategy;
+  readonly strategy: LyriaRtPromptStrategy;
   readonly trackWeight: number;
   readonly globalWeight: number;
   readonly minimumPositiveWeight: number;

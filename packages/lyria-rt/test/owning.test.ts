@@ -9,12 +9,12 @@ import type {
   RendererFailure
 } from '@luna-estelar/gas/protocol';
 import {
-  createLyriaConnectorWithDependencies,
-  type LyriaConnectorDependencies,
-  type LyriaMusicSession,
-  type LyriaSdkClient
+  createLyriaRtConnectorWithDependencies,
+  type LyriaRtConnectorDependencies,
+  type LyriaRtMusicSession,
+  type LyriaRtSdkClient
 } from '../src/connector.js';
-import { DEFAULT_LYRIA_CONFIG } from '../src/config.js';
+import { DEFAULT_LYRIA_RT_CONFIG } from '../src/config.js';
 import { VirtualClock } from '../../../test/support/virtual-clock.js';
 
 const STATE: EffectiveState = {
@@ -29,13 +29,13 @@ const TIMING: ConnectorTiming = {
 };
 
 const CONFIG = {
-  prompt: { ...DEFAULT_LYRIA_CONFIG.prompt, transitionDurationMs: 0, transitionSteps: 1 },
-  generation: DEFAULT_LYRIA_CONFIG.generation
+  prompt: { ...DEFAULT_LYRIA_RT_CONFIG.prompt, transitionDurationMs: 0, transitionSteps: 1 },
+  generation: DEFAULT_LYRIA_RT_CONFIG.generation
 };
 
-type Callbacks = Parameters<LyriaSdkClient['connect']>[0]['callbacks'];
+type Callbacks = Parameters<LyriaRtSdkClient['connect']>[0]['callbacks'];
 
-class Session implements LyriaMusicSession {
+class Session implements LyriaRtMusicSession {
   readonly calls: string[] = [];
   async setWeightedPrompts(): Promise<void> {
     this.calls.push('prompts');
@@ -71,9 +71,9 @@ interface Connection {
 function harness() {
   const clock = new VirtualClock();
   const connections: Connection[] = [];
-  const createClient: LyriaConnectorDependencies['createClient'] = () => ({
+  const createClient: LyriaRtConnectorDependencies['createClient'] = () => ({
     connect: ({ callbacks }) =>
-      new Promise<LyriaMusicSession>((resolve, reject) => {
+      new Promise<LyriaRtMusicSession>((resolve, reject) => {
         const session = new Session();
         connections.push({
           session,
@@ -83,7 +83,7 @@ function harness() {
         });
       })
   });
-  const connector = createLyriaConnectorWithDependencies({
+  const connector = createLyriaRtConnectorWithDependencies({
     clock,
     setupTimeoutSeconds: 15,
     createClient
@@ -109,7 +109,7 @@ async function settle(promise: Promise<unknown>): Promise<unknown> {
   );
 }
 
-describe('Lyria attempt ownership', () => {
+describe('Lyria RealTime attempt ownership', () => {
   it('settles a start promptly when stopped while connecting, then closes the late session', async () => {
     const { clock, connections, connector, sink, failures } = harness();
     await connector.open({ apiKey: 'test-key' });
@@ -118,7 +118,7 @@ describe('Lyria attempt ownership', () => {
     await flushAsync();
 
     await connector.stop('run-1');
-    expect(await started).toMatchObject({ code: 'lyria-start-cancelled' });
+    expect(await started).toMatchObject({ code: 'lyria-rt-start-cancelled' });
     expect(clock.pendingDeadlines()).toEqual([]);
 
     connections[0].resolve();
@@ -135,13 +135,13 @@ describe('Lyria attempt ownership', () => {
     await flushAsync();
 
     await connector.close();
-    expect(await started).toMatchObject({ code: 'lyria-start-cancelled' });
+    expect(await started).toMatchObject({ code: 'lyria-rt-start-cancelled' });
     connections[0].resolve();
     await flushAsync();
 
     expect(connections[0].session.calls).toEqual(['close']);
     await expect(connector.prepare(STATE, CONFIG)).rejects.toMatchObject({
-      code: 'lyria-state-conflict'
+      code: 'lyria-rt-state-conflict'
     });
   });
 
@@ -153,7 +153,7 @@ describe('Lyria attempt ownership', () => {
     await flushAsync();
 
     clock.advanceBy(15);
-    expect(await started).toMatchObject({ code: 'lyria-setup-timeout' });
+    expect(await started).toMatchObject({ code: 'lyria-rt-setup-timeout' });
     connections[0].resolve();
     await flushAsync();
     expect(connections[0].session.calls).toEqual(['close']);
@@ -199,7 +199,7 @@ describe('Lyria attempt ownership', () => {
     connections[0].callbacks.onerror();
     connections[0].callbacks.onclose({ code: 1008 });
     expect(await started).toMatchObject({
-      code: 'lyria-auth-rejected',
+      code: 'lyria-rt-auth-rejected',
       reason: 'auth',
       closeCode: 1008
     });
@@ -219,6 +219,6 @@ describe('Lyria attempt ownership', () => {
     connections[0].callbacks.onerror();
     expect(failures).toEqual([]);
     clock.advanceBy(1);
-    expect(failures).toMatchObject([{ code: 'lyria-network-failure', reason: 'network' }]);
+    expect(failures).toMatchObject([{ code: 'lyria-rt-network-failure', reason: 'network' }]);
   });
 });

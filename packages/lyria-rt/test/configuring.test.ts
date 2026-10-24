@@ -1,49 +1,53 @@
 import { describe, expect, it } from 'vitest';
 import { ConnectorError } from '@luna-estelar/gas/protocol';
-import { DEFAULT_LYRIA_CONFIG, LYRIA_CONFIG_SCHEMA, resolveLyriaConfig } from '../src/index.js';
-import { validateAndResolveLyriaConfig, validateLyriaConfig } from '../src/config.js';
+import {
+  DEFAULT_LYRIA_RT_CONFIG,
+  LYRIA_RT_CONFIG_SCHEMA,
+  resolveLyriaRtConfig
+} from '../src/index.js';
+import { validateAndResolveLyriaRtConfig, validateLyriaRtConfig } from '../src/config.js';
 
-describe('Lyria connector configuration schema', () => {
+describe('Lyria RealTime connector configuration schema', () => {
   it('declares a Draft 2020-12 object schema with closed members', () => {
-    expect(LYRIA_CONFIG_SCHEMA.$schema).toBe('https://json-schema.org/draft/2020-12/schema');
-    expect(LYRIA_CONFIG_SCHEMA.type).toBe('object');
-    expect(LYRIA_CONFIG_SCHEMA.additionalProperties).toBe(false);
+    expect(LYRIA_RT_CONFIG_SCHEMA.$schema).toBe('https://json-schema.org/draft/2020-12/schema');
+    expect(LYRIA_RT_CONFIG_SCHEMA.type).toBe('object');
+    expect(LYRIA_RT_CONFIG_SCHEMA.additionalProperties).toBe(false);
 
-    const properties = LYRIA_CONFIG_SCHEMA.properties as Record<string, Record<string, unknown>>;
+    const properties = LYRIA_RT_CONFIG_SCHEMA.properties as Record<string, Record<string, unknown>>;
     expect(properties.prompt.additionalProperties).toBe(false);
     expect(properties.generation.additionalProperties).toBe(false);
   });
 
   it('keeps the advertised strategy default aligned with the runtime default', () => {
     const prompt = (
-      LYRIA_CONFIG_SCHEMA.properties as Record<
+      LYRIA_RT_CONFIG_SCHEMA.properties as Record<
         string,
         { properties: Record<string, { default?: unknown }> }
       >
     ).prompt;
-    expect(prompt.properties.strategy.default).toBe(DEFAULT_LYRIA_CONFIG.prompt.strategy);
+    expect(prompt.properties.strategy.default).toBe(DEFAULT_LYRIA_RT_CONFIG.prompt.strategy);
   });
 
   it('does not name bpm or scale (the transport derives them)', () => {
     const generation = (
-      LYRIA_CONFIG_SCHEMA.properties as Record<string, { properties: Record<string, unknown> }>
+      LYRIA_RT_CONFIG_SCHEMA.properties as Record<string, { properties: Record<string, unknown> }>
     ).generation.properties;
     expect(generation).not.toHaveProperty('bpm');
     expect(generation).not.toHaveProperty('scale');
   });
 
   it('deep-freezes the schema and the defaults', () => {
-    expect(Object.isFrozen(LYRIA_CONFIG_SCHEMA)).toBe(true);
-    expect(Object.isFrozen(LYRIA_CONFIG_SCHEMA.properties)).toBe(true);
-    expect(Object.isFrozen(DEFAULT_LYRIA_CONFIG)).toBe(true);
-    expect(Object.isFrozen(DEFAULT_LYRIA_CONFIG.prompt)).toBe(true);
-    expect(Object.isFrozen(DEFAULT_LYRIA_CONFIG.generation)).toBe(true);
+    expect(Object.isFrozen(LYRIA_RT_CONFIG_SCHEMA)).toBe(true);
+    expect(Object.isFrozen(LYRIA_RT_CONFIG_SCHEMA.properties)).toBe(true);
+    expect(Object.isFrozen(DEFAULT_LYRIA_RT_CONFIG)).toBe(true);
+    expect(Object.isFrozen(DEFAULT_LYRIA_RT_CONFIG.prompt)).toBe(true);
+    expect(Object.isFrozen(DEFAULT_LYRIA_RT_CONFIG.generation)).toBe(true);
   });
 });
 
-describe('Lyria connector defaults', () => {
+describe('Lyria RealTime connector defaults', () => {
   it('matches the settled prompt defaults', () => {
-    expect(DEFAULT_LYRIA_CONFIG.prompt).toEqual({
+    expect(DEFAULT_LYRIA_RT_CONFIG.prompt).toEqual({
       strategy: 'global-plus-tracks',
       trackWeight: 1,
       globalWeight: 0.8,
@@ -54,34 +58,34 @@ describe('Lyria connector defaults', () => {
   });
 
   it('matches the settled generation defaults and omits the optional controls', () => {
-    expect(DEFAULT_LYRIA_CONFIG.generation).toEqual({
+    expect(DEFAULT_LYRIA_RT_CONFIG.generation).toEqual({
       temperature: 1.1,
       guidance: 4,
       topK: 40,
       mode: 'quality'
     });
-    expect(DEFAULT_LYRIA_CONFIG.generation).not.toHaveProperty('seed');
-    expect(DEFAULT_LYRIA_CONFIG.generation).not.toHaveProperty('density');
-    expect(DEFAULT_LYRIA_CONFIG.generation).not.toHaveProperty('brightness');
-    expect(DEFAULT_LYRIA_CONFIG.generation).not.toHaveProperty('muteBass');
-    expect(DEFAULT_LYRIA_CONFIG.generation).not.toHaveProperty('muteDrums');
-    expect(DEFAULT_LYRIA_CONFIG.generation).not.toHaveProperty('onlyBassAndDrums');
+    expect(DEFAULT_LYRIA_RT_CONFIG.generation).not.toHaveProperty('seed');
+    expect(DEFAULT_LYRIA_RT_CONFIG.generation).not.toHaveProperty('density');
+    expect(DEFAULT_LYRIA_RT_CONFIG.generation).not.toHaveProperty('brightness');
+    expect(DEFAULT_LYRIA_RT_CONFIG.generation).not.toHaveProperty('muteBass');
+    expect(DEFAULT_LYRIA_RT_CONFIG.generation).not.toHaveProperty('muteDrums');
+    expect(DEFAULT_LYRIA_RT_CONFIG.generation).not.toHaveProperty('onlyBassAndDrums');
   });
 });
 
-describe('resolveLyriaConfig', () => {
+describe('resolveLyriaRtConfig', () => {
   it('returns the full defaults for an empty configuration', () => {
-    expect(resolveLyriaConfig({})).toEqual(DEFAULT_LYRIA_CONFIG);
+    expect(resolveLyriaRtConfig({})).toEqual(DEFAULT_LYRIA_RT_CONFIG);
   });
 
   it('preserves an explicit per-track strategy', () => {
-    expect(resolveLyriaConfig({ prompt: { strategy: 'per-track' } }).prompt.strategy).toBe(
+    expect(resolveLyriaRtConfig({ prompt: { strategy: 'per-track' } }).prompt.strategy).toBe(
       'per-track'
     );
   });
 
   it('fills gaps around partial configuration', () => {
-    const resolved = resolveLyriaConfig({
+    const resolved = resolveLyriaRtConfig({
       prompt: { strategy: 'global-plus-tracks', trackWeight: 2 },
       generation: { temperature: 0.5, seed: 7 }
     });
@@ -95,7 +99,7 @@ describe('resolveLyriaConfig', () => {
   });
 
   it('carries the optional generation controls only when present', () => {
-    const withControls = resolveLyriaConfig({
+    const withControls = resolveLyriaRtConfig({
       generation: { density: 0.3, brightness: 0.9, muteBass: true }
     });
     expect(withControls.generation.density).toBe(0.3);
@@ -103,16 +107,16 @@ describe('resolveLyriaConfig', () => {
     expect(withControls.generation.muteBass).toBe(true);
     expect(withControls.generation).not.toHaveProperty('seed');
 
-    const withoutControls = resolveLyriaConfig({ generation: {} });
+    const withoutControls = resolveLyriaRtConfig({ generation: {} });
     expect(withoutControls.generation).not.toHaveProperty('density');
     expect(withoutControls.generation).not.toHaveProperty('brightness');
     expect(withoutControls.generation).not.toHaveProperty('muteBass');
   });
 });
 
-describe('validateAndResolveLyriaConfig', () => {
+describe('validateAndResolveLyriaRtConfig', () => {
   it('validates partial direct-call input and freezes the resolved result', () => {
-    const result = validateAndResolveLyriaConfig({
+    const result = validateAndResolveLyriaRtConfig({
       prompt: { transitionDurationMs: 0, transitionSteps: 1 },
       generation: { seed: 47, density: 0.4 }
     });
@@ -128,25 +132,25 @@ describe('validateAndResolveLyriaConfig', () => {
     [{ prompt: { trackWeight: 0 } }, '/prompt/trackWeight', 'out-of-range'],
     [{ generation: { mode: 'vocalization' } }, '/generation/mode', 'not-allowed']
   ] as const)('rejects schema-invalid direct input: %j', (config, path, code) => {
-    expect(() => validateAndResolveLyriaConfig(config)).toThrow(ConnectorError);
-    expect(validateLyriaConfig(config)).toMatchObject({
+    expect(() => validateAndResolveLyriaRtConfig(config)).toThrow(ConnectorError);
+    expect(validateLyriaRtConfig(config)).toMatchObject({
       ok: false,
       problems: [{ path, code }]
     });
   });
 });
 
-describe('validateLyriaConfig', () => {
+describe('validateLyriaRtConfig', () => {
   it('reports the root itself when the configuration is not an object', () => {
     // A non-object root has no members to inspect, so one problem is the whole answer.
-    expect(validateLyriaConfig([] as unknown as Record<string, never>)).toMatchObject({
+    expect(validateLyriaRtConfig([] as unknown as Record<string, never>)).toMatchObject({
       ok: false,
       problems: [{ path: '', code: 'wrong-type' }]
     });
   });
 
   it('collects every problem rather than stopping at the first', () => {
-    const result = validateLyriaConfig({
+    const result = validateLyriaRtConfig({
       unknown: 1,
       prompt: { trackWeight: -1, transitionSteps: 0 },
       generation: { guidance: 9, muteBass: 'yes' }
@@ -168,7 +172,7 @@ describe('validateLyriaConfig', () => {
   });
 
   it('names every unknown member, not just the first', () => {
-    expect(validateLyriaConfig({ tempo: 1, key: 'C' })).toMatchObject({
+    expect(validateLyriaRtConfig({ tempo: 1, key: 'C' })).toMatchObject({
       ok: false,
       problems: [
         { path: '/tempo', code: 'unknown-member' },

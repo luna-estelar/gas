@@ -1,11 +1,11 @@
-// Native key classification. Lyria exposes twelve scale settings, each pairing a
+// Native key classification. Lyria RealTime exposes twelve scale settings, each pairing a
 // major key with its relative minor. This module maps an authored key string to
 // one of those twelve when it names a plain major or minor key (any enharmonic
 // spelling), and otherwise reports that the key is not native so it can travel
 // as prompt text instead. This is the only prompt-stage code that names the
 // vendor scale values; the transport stage consumes the classification.
 
-export const LYRIA_SCALES = [
+export const LYRIA_RT_SCALES = [
   'C_MAJOR_A_MINOR',
   'D_FLAT_MAJOR_B_FLAT_MINOR',
   'D_MAJOR_B_MINOR',
@@ -20,14 +20,14 @@ export const LYRIA_SCALES = [
   'B_MAJOR_A_FLAT_MINOR'
 ] as const;
 
-export type LyriaScale = (typeof LYRIA_SCALES)[number];
+export type LyriaRtScale = (typeof LYRIA_RT_SCALES)[number];
 
 export type KeyClassification =
-  | { readonly nativeScale: LyriaScale }
+  | { readonly nativeScale: LyriaRtScale }
   | { readonly nativeScale: 'none'; readonly promptText: string };
 
 // Scale indexed by the pitch class of its major tonic (0 = C .. 11 = B).
-const SCALE_BY_MAJOR_PITCH_CLASS: readonly LyriaScale[] = LYRIA_SCALES;
+const SCALE_BY_MAJOR_PITCH_CLASS: readonly LyriaRtScale[] = LYRIA_RT_SCALES;
 
 const TONIC_PITCH_CLASS: Readonly<Record<string, number>> = {
   c: 0,
@@ -42,7 +42,7 @@ const TONIC_PITCH_CLASS: Readonly<Record<string, number>> = {
 const KEY_PATTERN = /^([a-g])([#b]?) (major|minor)$/;
 
 /**
- * Classify an authored key string against Lyria's twelve native scales.
+ * Classify an authored key string against Lyria RealTime's twelve native scales.
  * Accepts a case-insensitive tonic with an optional ASCII `#`/`b`, followed by
  * `major` or `minor`. Every enharmonic spelling resolves through the tonic's
  * pitch class, so `C# major` and `Db major` land on the same scale, and a minor

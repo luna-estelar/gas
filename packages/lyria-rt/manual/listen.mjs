@@ -69,10 +69,10 @@ const {
 } = await import('../../gas/out/core/index.js');
 const { GoogleGenAI } = await import('@google/genai');
 const {
-  DEFAULT_LYRIA_CONFIG,
+  DEFAULT_LYRIA_RT_CONFIG,
   classifyKey,
   createPromptTransition,
-  resolveLyriaConfig,
+  resolveLyriaRtConfig,
   translatePrompts
 } = await import('../out/index.js');
 
@@ -108,7 +108,7 @@ const key = timeline.musicalContext?.key;
 const classification =
   key !== undefined ? classifyKey(key) : { nativeScale: 'none', promptText: '' };
 
-const config = resolveLyriaConfig(DEFAULT_LYRIA_CONFIG);
+const config = resolveLyriaRtConfig(DEFAULT_LYRIA_RT_CONFIG);
 const musicGenerationConfig = {
   temperature: config.generation.temperature,
   guidance: config.generation.guidance,
@@ -161,7 +161,7 @@ const setupReady = new Promise((resolve, reject) => {
 const setupTimeout = setTimeout(() => {
   if (setupSettled) return;
   setupSettled = true;
-  rejectSetup(new Error('Lyria setup did not complete in time.'));
+  rejectSetup(new Error('Lyria RealTime setup did not complete in time.'));
 }, 15_000);
 
 const session = await new GoogleGenAI({ apiKey, apiVersion: 'v1alpha' }).live.music.connect({
@@ -181,13 +181,13 @@ const session = await new GoogleGenAI({ apiKey, apiVersion: 'v1alpha' }).live.mu
       sessionError = event;
       if (!setupSettled) {
         setupSettled = true;
-        rejectSetup(new Error('The Lyria session failed during setup.'));
+        rejectSetup(new Error('The Lyria RealTime session failed during setup.'));
       }
     },
     onclose: () => {
       if (!setupSettled) {
         setupSettled = true;
-        rejectSetup(new Error('The Lyria session closed during setup.'));
+        rejectSetup(new Error('The Lyria RealTime session closed during setup.'));
       }
     }
   }
@@ -197,7 +197,7 @@ try {
   await setupReady;
 } catch {
   session.close();
-  console.error('The Lyria session did not complete setup; no capture was written.');
+  console.error('The Lyria RealTime session did not complete setup; no capture was written.');
   process.exit(1);
 } finally {
   clearTimeout(setupTimeout);
@@ -268,7 +268,9 @@ session.stop();
 session.close();
 
 if (sessionError !== undefined) {
-  console.error('The Lyria session reported an error during capture; the take may be incomplete.');
+  console.error(
+    'The Lyria RealTime session reported an error during capture; the take may be incomplete.'
+  );
 }
 
 const pcm = Buffer.concat(pcmChunks);

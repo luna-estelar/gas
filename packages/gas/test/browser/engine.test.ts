@@ -1,5 +1,5 @@
 // The buffer-source engine against a scripted device clock. Unless a case says
-// otherwise: 2 s chunks, a 2 s prebuffer and a 48 kHz context, which is Lyria's
+// otherwise: 2 s chunks, a 2 s prebuffer and a 48 kHz context, which is Lyria RealTime's
 // shape.
 import { describe, expect, it } from 'vitest';
 import type { AudioStatus, AudioWarning } from '../../src/browser/audio/engine.js';

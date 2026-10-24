@@ -12,10 +12,10 @@ import type {
 } from '@luna-estelar/gas/protocol';
 import { ConnectorError } from '@luna-estelar/gas/protocol';
 
-export type LyriaPromptStrategy = 'per-track' | 'global-plus-tracks';
+export type LyriaRtPromptStrategy = 'per-track' | 'global-plus-tracks';
 
-export type LyriaPromptConfig = {
-  readonly strategy: LyriaPromptStrategy;
+export type LyriaRtPromptConfig = {
+  readonly strategy: LyriaRtPromptStrategy;
   readonly trackWeight: number;
   readonly globalWeight: number;
   readonly minimumPositiveWeight: number;
@@ -23,13 +23,13 @@ export type LyriaPromptConfig = {
   readonly transitionSteps: number;
 };
 
-export type LyriaGenerationMode = 'quality' | 'diversity';
+export type LyriaRtGenerationMode = 'quality' | 'diversity';
 
-export type LyriaGenerationConfig = {
+export type LyriaRtGenerationConfig = {
   readonly temperature: number;
   readonly guidance: number;
   readonly topK: number;
-  readonly mode: LyriaGenerationMode;
+  readonly mode: LyriaRtGenerationMode;
   readonly muteBass?: boolean;
   readonly muteDrums?: boolean;
   readonly onlyBassAndDrums?: boolean;
@@ -38,9 +38,9 @@ export type LyriaGenerationConfig = {
   readonly brightness?: number;
 };
 
-export type LyriaConnectorConfig = {
-  readonly prompt: LyriaPromptConfig;
-  readonly generation: LyriaGenerationConfig;
+export type LyriaRtConnectorConfig = {
+  readonly prompt: LyriaRtPromptConfig;
+  readonly generation: LyriaRtGenerationConfig;
 };
 
 /** Recursively freeze a plain JSON structure and return the same reference. */
@@ -54,9 +54,9 @@ function deepFreeze<T>(value: T): T {
   return value;
 }
 
-export const LYRIA_CONFIG_SCHEMA: ConnectorConfigSchema = deepFreeze({
+export const LYRIA_RT_CONFIG_SCHEMA: ConnectorConfigSchema = deepFreeze({
   $schema: 'https://json-schema.org/draft/2020-12/schema',
-  title: 'Lyria connector configuration',
+  title: 'Lyria RealTime connector configuration',
   type: 'object',
   additionalProperties: false,
   properties: {
@@ -64,7 +64,7 @@ export const LYRIA_CONFIG_SCHEMA: ConnectorConfigSchema = deepFreeze({
       type: 'object',
       additionalProperties: false,
       description:
-        'How authored intent becomes weighted prompts. Lyria normalizes each weighted prompt ' +
+        'How authored intent becomes weighted prompts. Lyria RealTime normalizes each weighted prompt ' +
         'set, so these weights set the relative influence between prompts, not absolute ' +
         'loudness. A transition of one step or zero duration is sent in a single move.',
       properties: {
@@ -110,7 +110,7 @@ export const LYRIA_CONFIG_SCHEMA: ConnectorConfigSchema = deepFreeze({
     generation: {
       type: 'object',
       additionalProperties: false,
-      description: 'Model generation settings sent to Lyria.',
+      description: 'Model generation settings sent to Lyria RealTime.',
       properties: {
         temperature: {
           description: 'Higher values wander further from the prompt.',
@@ -173,7 +173,7 @@ export const LYRIA_CONFIG_SCHEMA: ConnectorConfigSchema = deepFreeze({
   }
 });
 
-export const DEFAULT_LYRIA_CONFIG = deepFreeze({
+export const DEFAULT_LYRIA_RT_CONFIG = deepFreeze({
   prompt: {
     strategy: 'global-plus-tracks',
     trackWeight: 1,
@@ -203,11 +203,11 @@ function optionalBoolean(value: JsonValue | undefined): boolean | undefined {
   return typeof value === 'boolean' ? value : undefined;
 }
 
-function asStrategy(value: JsonValue | undefined): LyriaPromptStrategy {
+function asStrategy(value: JsonValue | undefined): LyriaRtPromptStrategy {
   return value === 'per-track' ? 'per-track' : 'global-plus-tracks';
 }
 
-function asMode(value: JsonValue | undefined): LyriaGenerationMode {
+function asMode(value: JsonValue | undefined): LyriaRtGenerationMode {
   return value === 'diversity' ? 'diversity' : 'quality';
 }
 
@@ -216,10 +216,10 @@ function optionalNumber(value: JsonValue | undefined): number | undefined {
 }
 
 /** Read validated connector settings, applying defaults for missing fields. */
-export function resolveLyriaConfig(config: ConnectorConfig): LyriaConnectorConfig {
+export function resolveLyriaRtConfig(config: ConnectorConfig): LyriaRtConnectorConfig {
   const prompt = asObject(config.prompt);
   const generation = asObject(config.generation);
-  const defaults = DEFAULT_LYRIA_CONFIG;
+  const defaults = DEFAULT_LYRIA_RT_CONFIG;
 
   const seed = optionalNumber(generation.seed);
   const density = optionalNumber(generation.density);
@@ -343,7 +343,7 @@ function knownKeys(
       sink,
       `${path}/${key}`,
       'unknown-member',
-      'This member is not part of the Lyria configuration.'
+      'This member is not part of the Lyria RealTime configuration.'
     );
   }
 }
@@ -411,7 +411,7 @@ function choice(
 }
 
 /**
- * Check the same partial JSON surface advertised by `LYRIA_CONFIG_SCHEMA`, by
+ * Check the same partial JSON surface advertised by `LYRIA_RT_CONFIG_SCHEMA`, by
  * hand. The Renderer calls this through `Connector.validateConfig` rather than
  * compiling the schema, because compiling one generates code at runtime, which a
  * browser Content Security Policy without `'unsafe-eval'` blocks.
@@ -461,7 +461,7 @@ function collectProblems(config: ConnectorConfig): readonly ConnectorConfigProbl
 const CONFIG_OK: ConnectorConfigValidation = Object.freeze({ ok: true });
 
 /** The `Connector.validateConfig` implementation: reports problems without throwing. */
-export function validateLyriaConfig(config: ConnectorConfig): ConnectorConfigValidation {
+export function validateLyriaRtConfig(config: ConnectorConfig): ConnectorConfigValidation {
   const problems = collectProblems(config);
   if (problems.length === 0) return CONFIG_OK;
   return Object.freeze({ ok: false, problems: Object.freeze(problems) });
@@ -469,17 +469,17 @@ export function validateLyriaConfig(config: ConnectorConfig): ConnectorConfigVal
 
 /**
  * Validate, then resolve omitted members to the connector defaults. Renderer
- * callers arrive pre-validated through {@link validateLyriaConfig}; this protects
+ * callers arrive pre-validated through {@link validateLyriaRtConfig}; this protects
  * direct Connector users, and collects every problem before failing so the throw
  * is not decided by member order.
  */
-export function validateAndResolveLyriaConfig(config: ConnectorConfig): LyriaConnectorConfig {
+export function validateAndResolveLyriaRtConfig(config: ConnectorConfig): LyriaRtConnectorConfig {
   if (collectProblems(config).length > 0) {
     throw new ConnectorError({
-      code: 'lyria-invalid-configuration',
+      code: 'lyria-rt-invalid-configuration',
       reason: 'internal',
       retryable: false
     });
   }
-  return deepFreeze(resolveLyriaConfig(config));
+  return deepFreeze(resolveLyriaRtConfig(config));
 }

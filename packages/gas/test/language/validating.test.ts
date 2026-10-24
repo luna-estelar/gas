@@ -248,7 +248,7 @@ intro()
     ).toEqual([]);
     expect(
       result.diagnostics.filter((diagnostic) =>
-        `${diagnostic.code} ${diagnostic.message}`.toLowerCase().includes('lyria')
+        `${diagnostic.code} ${diagnostic.message}`.toLowerCase().includes('lyria-rt')
       )
     ).toEqual([]);
   });

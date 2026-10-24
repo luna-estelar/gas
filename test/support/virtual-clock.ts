@@ -1,5 +1,5 @@
 // A deterministic MonotonicClock for tests, shared by the renderer, the browser
-// and the Lyria connector. Protocol-only, like the other shared fixtures.
+// and the Lyria RealTime connector. Protocol-only, like the other shared fixtures.
 import type { ClockTimer, MonotonicClock } from '../../packages/gas/src/protocol/index.js';
 
 interface Scheduled {

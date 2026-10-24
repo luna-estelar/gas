@@ -118,7 +118,7 @@ describe('close codes', () => {
     // 4429 is in the application range: the connector cannot classify it, so the
     // number reaches the host unchanged.
     const error = new ConnectorError({
-      code: 'lyria-network-failure',
+      code: 'lyria-rt-network-failure',
       reason: 'network',
       retryable: true,
       closeCode: 4429
@@ -126,7 +126,7 @@ describe('close codes', () => {
     expect(error.closeCode).toBe(4429);
     expect(JSON.parse(JSON.stringify(error))).toEqual({
       name: 'ConnectorError',
-      code: 'lyria-network-failure',
+      code: 'lyria-rt-network-failure',
       reason: 'network',
       retryable: true,
       closeCode: 4429

@@ -1,6 +1,6 @@
 # Manual listening check
 
-`index.html` plays `examples/documents/drum-loop.gas` through the Lyria connector with the
+`index.html` plays `examples/documents/drum-loop.gas` through the Lyria RealTime connector with the
 browser session and logs every audio status, warning and lifecycle event. It makes provider
 calls with your key and is not part of CI. The key is typed into the page, held in memory, and
 never stored.

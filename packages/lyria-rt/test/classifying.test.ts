@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { classifyKey, type LyriaScale } from '../src/scale.js';
+import { classifyKey, type LyriaRtScale } from '../src/scale.js';
 
-function scaleOf(key: string): LyriaScale | 'none' {
+function scaleOf(key: string): LyriaRtScale | 'none' {
   return classifyKey(key).nativeScale;
 }
 
 describe('classifyKey — major keys', () => {
-  const majors: ReadonlyArray<readonly [string, LyriaScale]> = [
+  const majors: ReadonlyArray<readonly [string, LyriaRtScale]> = [
     ['C major', 'C_MAJOR_A_MINOR'],
     ['Db major', 'D_FLAT_MAJOR_B_FLAT_MINOR'],
     ['D major', 'D_MAJOR_B_MINOR'],
@@ -27,7 +27,7 @@ describe('classifyKey — major keys', () => {
 });
 
 describe('classifyKey — minor keys', () => {
-  const minors: ReadonlyArray<readonly [string, LyriaScale]> = [
+  const minors: ReadonlyArray<readonly [string, LyriaRtScale]> = [
     ['A minor', 'C_MAJOR_A_MINOR'],
     ['Bb minor', 'D_FLAT_MAJOR_B_FLAT_MINOR'],
     ['B minor', 'D_MAJOR_B_MINOR'],

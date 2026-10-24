@@ -1,9 +1,9 @@
-// Manual LE-89 check: play a looping document through Lyria and count chunk
+// Manual LE-89 check: play a looping document through Lyria RealTime and count chunk
 // boundaries and underruns. Served by Vite (see README.md), which resolves the
 // workspace packages and the `?raw` import. Makes provider calls; not in CI.
 import { sourceText } from '@luna-estelar/gas';
 import { createBrowserSession, openAudioContext } from '@luna-estelar/gas/browser';
-import { createLyriaConnector } from '../../out/index.js';
+import { createLyriaRtConnector } from '../../out/index.js';
 import drumLoop from '../../../../examples/documents/drum-loop.gas?raw';
 
 const $ = (id) => document.getElementById(id);
@@ -37,7 +37,7 @@ $('play').addEventListener('click', async () => {
       `context ${context.sampleRate} Hz, resumed ${resumed}, output latency ${context.outputLatency ?? 'n/a'}`
     );
     browser = await createBrowserSession({
-      connector: createLyriaConnector,
+      connector: createLyriaRtConnector,
       settings: { apiKey },
       context
     });

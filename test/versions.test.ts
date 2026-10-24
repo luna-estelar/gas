@@ -6,7 +6,7 @@ import { describe, expect, test } from 'vitest';
 import { execute, type CliIo } from '../packages/gas/src/cli/index.js';
 import { compileSource } from '../packages/gas/src/language/index.js';
 import { version as gasVersion } from '../packages/gas/src/version.js';
-import { version as lyriaVersion } from '../packages/lyria-rt/src/index.js';
+import { version as lyriaRtVersion } from '../packages/lyria-rt/src/index.js';
 import { version as magentaVersion } from '../packages/magenta-rt2/src/index.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -49,9 +49,9 @@ describe('gas version', () => {
   });
 });
 
-describe('lyria version', () => {
+describe('lyria-rt version', () => {
   test('src/index.ts matches the manifest', () => {
-    expect(lyriaVersion).toBe(manifestVersion('lyria-rt'));
+    expect(lyriaRtVersion).toBe(manifestVersion('lyria-rt'));
   });
 });
 

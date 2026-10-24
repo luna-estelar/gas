@@ -50,12 +50,12 @@ resume, stop, and close. It makes real provider calls and must be run only with 
 It accepts connection settings only through the environment and never records them.
 
 ```sh
-GAS_LYRIA_API_KEY=... \
-GAS_LYRIA_SMOKE_OUTPUT=/absolute/path/to/ignored-smoke.wav \
+GAS_LYRIA_RT_API_KEY=... \
+GAS_LYRIA_RT_SMOKE_OUTPUT=/absolute/path/to/ignored-smoke.wav \
 pnpm --filter @luna-estelar/gas-lyria-rt manual:smoke
 ```
 
-`GAS_LYRIA_ENDPOINT` is optional and sends the same request to another HTTPS origin that speaks the
-Lyria WebSocket protocol, for checking a deployment of your own. `GAS_LYRIA_SMOKE_OUTPUT` is also
-optional; without it the script retains chunks only in memory and reports their count and duration.
+`GAS_LYRIA_RT_ENDPOINT` is optional and sends the same request to another HTTPS origin that speaks
+the Lyria RealTime WebSocket protocol, for checking a deployment of your own.
+`GAS_LYRIA_RT_SMOKE_OUTPUT` is also optional; without it the script retains chunks only in memory and reports their count and duration.
 Do not run this command in CI or attach the resulting audio to a public issue without reviewing it.

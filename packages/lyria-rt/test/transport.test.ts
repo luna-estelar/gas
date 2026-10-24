@@ -11,13 +11,13 @@ import type {
 } from '@luna-estelar/gas/protocol';
 import { ConnectorError } from '@luna-estelar/gas/protocol';
 import {
-  createLyriaConnectorWithDependencies,
-  type LyriaConnectorDependencies,
-  type LyriaMusicSession,
-  type LyriaSdkClient
+  createLyriaRtConnectorWithDependencies,
+  type LyriaRtConnectorDependencies,
+  type LyriaRtMusicSession,
+  type LyriaRtSdkClient
 } from '../src/connector.js';
-import { DEFAULT_LYRIA_CONFIG } from '../src/config.js';
-import { LYRIA_MODEL_ID } from '../src/constants.js';
+import { DEFAULT_LYRIA_RT_CONFIG } from '../src/config.js';
+import { LYRIA_RT_MODEL_ID } from '../src/constants.js';
 import { VirtualClock } from '../../../test/support/virtual-clock.js';
 
 async function flushAsync(): Promise<void> {
@@ -52,27 +52,27 @@ const TIMING: ConnectorTiming = {
 
 const IMMEDIATE_CONFIG: ConnectorConfig = {
   prompt: {
-    ...DEFAULT_LYRIA_CONFIG.prompt,
+    ...DEFAULT_LYRIA_RT_CONFIG.prompt,
     transitionDurationMs: 0,
     transitionSteps: 1
   },
-  generation: DEFAULT_LYRIA_CONFIG.generation
+  generation: DEFAULT_LYRIA_RT_CONFIG.generation
 };
 
-class FakeSession implements LyriaMusicSession {
+class FakeSession implements LyriaRtMusicSession {
   readonly calls: Array<{ readonly kind: string; readonly value?: unknown }> = [];
   promptFailure: unknown;
   configFailure: unknown;
 
   async setWeightedPrompts(
-    params: Parameters<LyriaMusicSession['setWeightedPrompts']>[0]
+    params: Parameters<LyriaRtMusicSession['setWeightedPrompts']>[0]
   ): Promise<void> {
     this.calls.push({ kind: 'prompts', value: params.weightedPrompts });
     if (this.promptFailure !== undefined) throw this.promptFailure;
   }
 
   async setMusicGenerationConfig(
-    params: Parameters<LyriaMusicSession['setMusicGenerationConfig']>[0]
+    params: Parameters<LyriaRtMusicSession['setMusicGenerationConfig']>[0]
   ): Promise<void> {
     this.calls.push({ kind: 'config', value: params.musicGenerationConfig });
     if (this.configFailure !== undefined) throw this.configFailure;
@@ -99,8 +99,8 @@ class FakeSession implements LyriaMusicSession {
   }
 }
 
-type ClientOptions = Parameters<LyriaConnectorDependencies['createClient']>[0];
-type ConnectCallbacks = Parameters<LyriaSdkClient['connect']>[0]['callbacks'];
+type ClientOptions = Parameters<LyriaRtConnectorDependencies['createClient']>[0];
+type ConnectCallbacks = Parameters<LyriaRtSdkClient['connect']>[0]['callbacks'];
 
 class SdkHarness {
   readonly options: ClientOptions[] = [];
@@ -108,13 +108,13 @@ class SdkHarness {
   readonly callbacks: ConnectCallbacks[] = [];
   connectCount = 0;
 
-  readonly createClient: LyriaConnectorDependencies['createClient'] = (options) => {
+  readonly createClient: LyriaRtConnectorDependencies['createClient'] = (options) => {
     this.options.push(options);
     const session = new FakeSession();
     this.sessions.push(session);
     return {
       connect: async ({ model, callbacks }) => {
-        expect(model).toBe(LYRIA_MODEL_ID);
+        expect(model).toBe(LYRIA_RT_MODEL_ID);
         this.connectCount++;
         this.callbacks.push(callbacks);
         return session;
@@ -140,7 +140,7 @@ function recordingSink() {
 function setup() {
   const clock = new VirtualClock();
   const sdk = new SdkHarness();
-  const connector = createLyriaConnectorWithDependencies({
+  const connector = createLyriaRtConnectorWithDependencies({
     clock,
     setupTimeoutSeconds: 15,
     createClient: sdk.createClient
@@ -195,13 +195,13 @@ function timingIn(beatsPerBar: number, beatUnit: number, tempo: number): Connect
   };
 }
 
-describe('Lyria connector description and settings', () => {
+describe('Lyria RealTime connector description and settings', () => {
   it('describes immutable model facts without constructing a client', async () => {
     const { connector, sdk } = setup();
     const description = await connector.describe();
-    expect(description.id).toBe('lyria');
+    expect(description.id).toBe('lyria-rt');
     expect(description.model).toMatchObject({
-      modelId: LYRIA_MODEL_ID,
+      modelId: LYRIA_RT_MODEL_ID,
       codec: 'pcm',
       sampleFormat: 's16le',
       sampleRate: 48_000,
@@ -241,7 +241,7 @@ describe('Lyria connector description and settings', () => {
   ])('rejects invalid settings before connection: %j', async (settings) => {
     const { connector, sdk } = setup();
     await expect(connector.open(settings)).rejects.toMatchObject({
-      code: 'lyria-invalid-settings',
+      code: 'lyria-rt-invalid-settings',
       reason: 'internal',
       retryable: false
     });
@@ -275,7 +275,7 @@ describe('Lyria connector description and settings', () => {
 
   it('reports every configuration problem at once, by JSON Pointer', async () => {
     const { connector } = setup();
-    expect(connector.validateConfig?.(DEFAULT_LYRIA_CONFIG)).toEqual({ ok: true });
+    expect(connector.validateConfig?.(DEFAULT_LYRIA_RT_CONFIG)).toEqual({ ok: true });
     expect(connector.validateConfig?.({})).toEqual({ ok: true });
 
     expect(connector.validateConfig?.({ generation: { temperature: 5 } })).toEqual({
@@ -303,7 +303,7 @@ describe('Lyria connector description and settings', () => {
   });
 });
 
-describe('Lyria connector startup and model configuration', () => {
+describe('Lyria RealTime connector startup and model configuration', () => {
   it('waits for setup complete before config, prompts, and play', async () => {
     const { connector, sdk, sink } = setup();
     await prepare(connector);
@@ -329,7 +329,7 @@ describe('Lyria connector startup and model configuration', () => {
     const { started } = await beginStart(connector, sink, sdk);
     clock.advanceBy(15);
     await expect(started).rejects.toMatchObject({
-      code: 'lyria-setup-timeout',
+      code: 'lyria-rt-setup-timeout',
       reason: 'network',
       retryable: true
     });
@@ -368,7 +368,7 @@ describe('Lyria connector startup and model configuration', () => {
     });
   });
 
-  // A GAS tempo counts the meter's beat unit; Lyria's bpm counts quarter notes.
+  // A GAS tempo counts the meter's beat unit; Lyria RealTime's bpm counts quarter notes.
   // Without the conversion every non-quarter meter would be generated at the
   // wrong tempo, and clamping would be decided against the wrong number.
   it.each([
@@ -386,7 +386,7 @@ describe('Lyria connector startup and model configuration', () => {
 
       expect(sdk.sessions[0].calls[0].value).toMatchObject({ bpm });
       expect(warnings.map((warning) => warning.code)).toEqual(
-        clamped ? ['lyria-tempo-clamped'] : []
+        clamped ? ['lyria-rt-tempo-clamped'] : []
       );
     }
   );
@@ -415,7 +415,7 @@ describe('Lyria connector startup and model configuration', () => {
     await prepare(connector, { apiKey: 'test-key' }, state);
     await completeStart(connector, sink, sdk);
     expect(sdk.sessions[0].calls[0].value).toMatchObject({ bpm: 200 });
-    expect(warnings.map((warning) => warning.code)).toEqual(['lyria-tempo-clamped']);
+    expect(warnings.map((warning) => warning.code)).toEqual(['lyria-rt-tempo-clamped']);
 
     await connector.update({ state }, { bar: 2 });
     await connector.update(
@@ -423,8 +423,8 @@ describe('Lyria connector startup and model configuration', () => {
       { bar: 3 }
     );
     expect(warnings.map((warning) => warning.code)).toEqual([
-      'lyria-tempo-clamped',
-      'lyria-tempo-clamped'
+      'lyria-rt-tempo-clamped',
+      'lyria-rt-tempo-clamped'
     ]);
   });
 
@@ -433,12 +433,12 @@ describe('Lyria connector startup and model configuration', () => {
     await connector.open({ apiKey: 'test-key' });
     await expect(
       connector.prepare(INITIAL_STATE, { generation: { topK: 0, vendorSecret: 'hidden' } })
-    ).rejects.toMatchObject({ code: 'lyria-invalid-configuration' });
+    ).rejects.toMatchObject({ code: 'lyria-rt-invalid-configuration' });
     expect(sdk.connectCount).toBe(0);
   });
 });
 
-describe('Lyria connector prompts, flow control, and audio', () => {
+describe('Lyria RealTime connector prompts, flow control, and audio', () => {
   it('starts empty without play, resumes for prompts, and never sends an empty SDK prompt set', async () => {
     const { connector, sdk, sink } = setup();
     await prepare(connector, { apiKey: 'test-key' }, EMPTY_STATE);
@@ -508,12 +508,12 @@ describe('Lyria connector prompts, flow control, and audio', () => {
     });
 
     expect(warnings.map((warning) => warning.code)).toEqual([
-      'lyria-prompt-filtered',
-      'lyria-provider-warning'
+      'lyria-rt-prompt-filtered',
+      'lyria-rt-provider-warning'
     ]);
     expect(failures).toHaveLength(1);
     expect(failures[0]).toMatchObject({
-      code: 'lyria-malformed-audio',
+      code: 'lyria-rt-malformed-audio',
       reason: 'provider',
       retryable: true,
       runId: 'run-1'
@@ -524,18 +524,18 @@ describe('Lyria connector prompts, flow control, and audio', () => {
   });
 });
 
-describe('Lyria connector failure and lifecycle guards', () => {
+describe('Lyria RealTime connector failure and lifecycle guards', () => {
   it.each([
-    [1002, 'lyria-provider-failure', 'provider', true],
-    [1011, 'lyria-provider-failure', 'provider', true],
-    [1006, 'lyria-network-failure', 'network', true],
+    [1002, 'lyria-rt-provider-failure', 'provider', true],
+    [1011, 'lyria-rt-provider-failure', 'provider', true],
+    [1006, 'lyria-rt-network-failure', 'network', true],
     // After setup the policy codes are transport noise, not an auth verdict.
-    [1007, 'lyria-network-failure', 'network', true],
-    [1008, 'lyria-network-failure', 'network', true],
+    [1007, 'lyria-rt-network-failure', 'network', true],
+    [1008, 'lyria-rt-network-failure', 'network', true],
     // An application code belongs to whoever served the endpoint: classified as a
     // network failure, with the raw number left for the host to map.
-    [4429, 'lyria-network-failure', 'network', true],
-    [4500, 'lyria-network-failure', 'network', true]
+    [4429, 'lyria-rt-network-failure', 'network', true],
+    [4500, 'lyria-rt-network-failure', 'network', true]
   ] as const)('maps runtime close %i to %s', async (closeCode, code, reason, retryable) => {
     const { connector, sdk, sink, failures } = setup();
     await prepare(connector, { apiKey: 'test-key', endpoint: 'https://proxy.example' });
@@ -551,7 +551,7 @@ describe('Lyria connector failure and lifecycle guards', () => {
     await completeStart(connector, sink, sdk);
     sdk.callbacks[0].onclose({});
     expect(failures).toHaveLength(1);
-    expect(failures[0]).toMatchObject({ code: 'lyria-network-failure', reason: 'network' });
+    expect(failures[0]).toMatchObject({ code: 'lyria-rt-network-failure', reason: 'network' });
     expect(failures[0]).not.toHaveProperty('closeCode');
   });
 
@@ -564,7 +564,7 @@ describe('Lyria connector failure and lifecycle guards', () => {
       sdk.callbacks[0].onclose({ code: closeCode });
       const failure = await started.catch((error: unknown) => error);
       expect(failure).toMatchObject({
-        code: 'lyria-auth-rejected',
+        code: 'lyria-rt-auth-rejected',
         reason: 'auth',
         retryable: false,
         closeCode
@@ -609,14 +609,14 @@ describe('Lyria connector failure and lifecycle guards', () => {
   it('reports a scheduled transition failure only once', async () => {
     const clock = new VirtualClock();
     const sdk = new SdkHarness();
-    const connector = createLyriaConnectorWithDependencies({
+    const connector = createLyriaRtConnectorWithDependencies({
       clock,
       setupTimeoutSeconds: 15,
       createClient: sdk.createClient
     });
     const { sink, failures } = recordingSink();
     await connector.open({ apiKey: 'test-key' });
-    await connector.prepare(INITIAL_STATE, DEFAULT_LYRIA_CONFIG);
+    await connector.prepare(INITIAL_STATE, DEFAULT_LYRIA_RT_CONFIG);
     await completeStart(connector, sink, sdk);
     sdk.sessions[0].promptFailure = new Error('vendor detail');
     clock.advanceBy(0.75);

@@ -31,7 +31,7 @@ GAS controls arrangement, timing and intent. The model chooses the notes, phrasi
 sound; the same document does not guarantee the same performance on every render.
 
 [Package guide](./packages/gas/README.md) ·
-[Lyria connector](./packages/lyria-rt/README.md) ·
+[Lyria RealTime connector](./packages/lyria-rt/README.md) ·
 [Magenta RT2 connector](./packages/magenta-rt2/README.md) ·
 [Examples](./examples/README.md)
 
@@ -44,8 +44,8 @@ npx @luna-estelar/gas compile song.gas
 ```
 
 The CLI prints timeline JSON. Use `--out timeline.json` to write a file. Audio generation
-requires a model: a Gemini key for Lyria (see the [Lyria manual guide](./packages/lyria-rt/manual/README.md)),
-or a Magenta RT2 bridge running on your own Apple Silicon Mac (see the
+requires a model: a Gemini key for Lyria RealTime (see the
+[Lyria RealTime manual guide](./packages/lyria-rt/manual/README.md)), or a Magenta RT2 bridge running on your own Apple Silicon Mac (see the
 [Magenta RT2 connector](./packages/magenta-rt2/README.md)).
 
 ## Install
@@ -55,13 +55,13 @@ npm install @luna-estelar/gas @luna-estelar/gas-lyria-rt
 ```
 
 `@luna-estelar/gas` installs the language, the session runtime, the renderer, browser playback and
-the `gas` command. `@luna-estelar/gas-lyria-rt` is the Lyria connector, a separate install so the
-Google GenAI SDK is never part of GAS itself:
+the `gas` command. `@luna-estelar/gas-lyria-rt` is the Lyria RealTime connector, a separate install
+so the Google GenAI SDK is never part of GAS itself:
 
 ```ts
 import { createRenderer, createSession, sourceText } from '@luna-estelar/gas';
 import { compileSource } from '@luna-estelar/gas/language';
-import { createLyriaConnector } from '@luna-estelar/gas-lyria-rt';
+import { createLyriaRtConnector } from '@luna-estelar/gas-lyria-rt';
 ```
 
 Run the command as `npx @luna-estelar/gas`; a bare `npx gas` fetches an unrelated npm package.
@@ -109,7 +109,7 @@ Each connector reports what its model can render:
 | `time_signature`, `notes`, `motif` | unsupported    | unsupported  |
 
 Unsupported intents compile and remain in session state, and GAS reports capability warnings. See
-[Lyria](./packages/lyria-rt/README.md#what-lyria-can-and-cannot-do) and
+[Lyria RealTime](./packages/lyria-rt/README.md#what-lyria-realtime-can-and-cannot-do) and
 [Magenta RT2](./packages/magenta-rt2/README.md#what-magenta-rt2-can-and-cannot-do) for details. The GAS website and its demos are maintained separately from this library.
 
 ## Repository and development
@@ -147,7 +147,7 @@ pnpm test
 | `pnpm clean`                    | Remove TypeScript build outputs                                                      |
 
 The automated gate does not make model calls. Manual transport and listening checks are
-kept in the Lyria connector's manual guide.
+kept in the Lyria RealTime connector's manual guide.
 
 ## Contributing and license
 

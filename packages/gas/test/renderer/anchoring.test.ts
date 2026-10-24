@@ -1,5 +1,5 @@
 // Musical time starts with the first audible sample, not when the connector says
-// it is ready. A connector whose start resolves at session setup — Lyria's does —
+// it is ready. A connector whose start resolves at session setup — Lyria RealTime's does —
 // would otherwise begin the musical clock before any audio exists, leaving every
 // chunk that much closer to being late.
 

@@ -1,12 +1,12 @@
-// The Lyria connector's hand-written config validator must agree with its JSON Schema.
+// The Lyria RealTime connector's hand-written config validator must agree with its JSON Schema.
 
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import addFormatsImport, { type FormatsPlugin } from 'ajv-formats';
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_LYRIA_CONFIG,
-  LYRIA_CONFIG_SCHEMA,
-  validateLyriaConfig
+  DEFAULT_LYRIA_RT_CONFIG,
+  LYRIA_RT_CONFIG_SCHEMA,
+  validateLyriaRtConfig
 } from '../packages/lyria-rt/src/index.js';
 import { applyMergePatch } from '../packages/gas/src/renderer/connector-config.js';
 import type { ConnectorConfig, JsonValue } from '../packages/gas/src/protocol/index.js';
@@ -16,7 +16,7 @@ const addFormats = addFormatsImport as unknown as FormatsPlugin;
 function schemaValidator(): (config: ConnectorConfig) => boolean {
   const ajv = new Ajv2020({ allErrors: true, strict: false });
   addFormats(ajv);
-  const validate = ajv.compile(structuredClone(LYRIA_CONFIG_SCHEMA));
+  const validate = ajv.compile(structuredClone(LYRIA_RT_CONFIG_SCHEMA));
   return (config) => validate(config) === true;
 }
 
@@ -28,7 +28,7 @@ interface NumericMember {
   readonly integer?: boolean;
 }
 
-// Mirrors LYRIA_CONFIG_SCHEMA. A member added to the schema without a row here is
+// Mirrors LYRIA_RT_CONFIG_SCHEMA. A member added to the schema without a row here is
 // caught by the coverage check below, not silently left untested.
 const NUMERIC_MEMBERS: readonly NumericMember[] = [
   { path: ['prompt', 'trackWeight'], exclusiveMinimum: 0 },
@@ -86,7 +86,7 @@ function edgeCases(member: NumericMember): { label: string; config: ConnectorCon
 }
 
 const CASES: { label: string; config: ConnectorConfig }[] = [
-  { label: 'the advertised defaults', config: DEFAULT_LYRIA_CONFIG },
+  { label: 'the advertised defaults', config: DEFAULT_LYRIA_RT_CONFIG },
   { label: 'an empty patch', config: {} },
   { label: 'an unknown root member', config: { tempo: 120 } },
   { label: 'an unknown prompt member', config: { prompt: { trackWeight: 1, nope: 1 } } },
@@ -115,12 +115,12 @@ const CASES: { label: string; config: ConnectorConfig }[] = [
   )
 ];
 
-describe('Lyria configuration against its own advertised schema', () => {
+describe('Lyria RealTime configuration against its own advertised schema', () => {
   const schema = schemaValidator();
 
   it('covers every member the schema declares', () => {
     const declared = new Set<string>();
-    const properties = LYRIA_CONFIG_SCHEMA.properties as Record<
+    const properties = LYRIA_RT_CONFIG_SCHEMA.properties as Record<
       string,
       { properties?: Record<string, unknown> }
     >;
@@ -138,7 +138,7 @@ describe('Lyria configuration against its own advertised schema', () => {
   });
 
   it.each(CASES)('agrees with the schema on $label', ({ config }) => {
-    expect(validateLyriaConfig(config).ok).toBe(schema(config));
+    expect(validateLyriaRtConfig(config).ok).toBe(schema(config));
   });
 
   it('rejects every non-finite number, including the ones the schema lets through', () => {
@@ -149,7 +149,7 @@ describe('Lyria configuration against its own advertised schema', () => {
     for (const value of [Number.NaN, Infinity, -Infinity]) {
       const bounded = { generation: { temperature: value } } as unknown as ConnectorConfig;
       expect(schema(bounded)).toBe(false);
-      expect(validateLyriaConfig(bounded)).toMatchObject({
+      expect(validateLyriaRtConfig(bounded)).toMatchObject({
         ok: false,
         problems: [{ path: '/generation/temperature', code: 'wrong-type' }]
       });
@@ -157,7 +157,7 @@ describe('Lyria configuration against its own advertised schema', () => {
 
     const unbounded = { prompt: { trackWeight: Infinity } } as unknown as ConnectorConfig;
     expect(schema(unbounded)).toBe(true);
-    expect(validateLyriaConfig(unbounded)).toMatchObject({
+    expect(validateLyriaRtConfig(unbounded)).toMatchObject({
       ok: false,
       problems: [{ path: '/prompt/trackWeight', code: 'wrong-type' }]
     });
@@ -171,20 +171,20 @@ describe('Lyria configuration against its own advertised schema', () => {
     }
     const config = new Configuration() as unknown as ConnectorConfig;
     expect(schema(config)).toBe(true);
-    expect(validateLyriaConfig(config)).toMatchObject({
+    expect(validateLyriaRtConfig(config)).toMatchObject({
       ok: false,
       problems: [{ path: '', code: 'wrong-type' }]
     });
   });
 
   it('accepts a merge patch that removes an optional control with null', () => {
-    const withSeed = applyMergePatch(DEFAULT_LYRIA_CONFIG, { generation: { seed: 7 } });
-    expect(validateLyriaConfig(withSeed).ok).toBe(true);
+    const withSeed = applyMergePatch(DEFAULT_LYRIA_RT_CONFIG, { generation: { seed: 7 } });
+    expect(validateLyriaRtConfig(withSeed).ok).toBe(true);
     expect(schema(withSeed)).toBe(true);
 
     const withoutSeed = applyMergePatch(withSeed, { generation: { seed: null } });
     expect((withoutSeed.generation as { seed?: number }).seed).toBeUndefined();
-    expect(validateLyriaConfig(withoutSeed).ok).toBe(true);
+    expect(validateLyriaRtConfig(withoutSeed).ok).toBe(true);
     expect(schema(withoutSeed)).toBe(true);
   });
 });

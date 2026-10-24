@@ -94,7 +94,7 @@ describe('a session playing a finite document through the real renderer', () => 
     await session.play();
 
     connector.sink!.failure({
-      code: 'lyria-network-failure',
+      code: 'lyria-rt-network-failure',
       message: 'ignored; the renderer owns the text',
       reason: 'network',
       runId: 'run-1',
@@ -105,7 +105,7 @@ describe('a session playing a finite document through the real renderer', () => 
 
     expect(errors.at(-1)).toMatchObject({
       kind: 'renderer',
-      code: 'lyria-network-failure',
+      code: 'lyria-rt-network-failure',
       reason: 'network',
       retryable: true,
       closeCode: 4429

@@ -12,17 +12,17 @@ if (!existsSync(outIndex)) {
   process.exit(1);
 }
 
-const apiKey = process.env.GAS_LYRIA_API_KEY;
+const apiKey = process.env.GAS_LYRIA_RT_API_KEY;
 if (apiKey === undefined || apiKey.trim() === '') {
-  console.error('Set GAS_LYRIA_API_KEY for an authorized smoke.');
+  console.error('Set GAS_LYRIA_RT_API_KEY for an authorized smoke.');
   process.exit(1);
 }
-const endpoint = process.env.GAS_LYRIA_ENDPOINT;
+const endpoint = process.env.GAS_LYRIA_RT_ENDPOINT;
 const settings =
   endpoint === undefined || endpoint.trim() === '' ? { apiKey } : { apiKey, endpoint };
 
-const { createLyriaConnector, DEFAULT_LYRIA_CONFIG } = await import(outIndex);
-const connector = createLyriaConnector();
+const { createLyriaRtConnector, DEFAULT_LYRIA_RT_CONFIG } = await import(outIndex);
+const connector = createLyriaRtConnector();
 const chunks = [];
 let generatedSeconds = 0;
 let failure;
@@ -77,7 +77,7 @@ const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, mil
 try {
   await connector.describe();
   await connector.open(settings);
-  await connector.prepare(initialState, DEFAULT_LYRIA_CONFIG);
+  await connector.prepare(initialState, DEFAULT_LYRIA_RT_CONFIG);
   await connector.start(sink, timing, runId);
   await delay(6000);
   await connector.update({ state: updatedState }, { bar: 2 });
@@ -90,16 +90,16 @@ try {
   await connector.close();
 } catch {
   await connector.close();
-  console.error('The authorized Lyria smoke did not complete.');
+  console.error('The authorized Lyria RealTime smoke did not complete.');
   process.exit(1);
 }
 
 if (failure !== undefined || chunks.length === 0) {
-  console.error('The Lyria smoke ended without usable audio.');
+  console.error('The Lyria RealTime smoke ended without usable audio.');
   process.exit(1);
 }
 
-const outputPath = process.env.GAS_LYRIA_SMOKE_OUTPUT;
+const outputPath = process.env.GAS_LYRIA_RT_SMOKE_OUTPUT;
 if (outputPath !== undefined && outputPath.trim() !== '') {
   const pcmBytes = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)));
   const header = Buffer.alloc(44);
@@ -120,5 +120,5 @@ if (outputPath !== undefined && outputPath.trim() !== '') {
 }
 
 console.log(
-  `Lyria smoke completed with ${chunks.length} chunks and ${generatedSeconds.toFixed(2)} generated seconds.`
+  `Lyria RealTime smoke completed with ${chunks.length} chunks and ${generatedSeconds.toFixed(2)} generated seconds.`
 );

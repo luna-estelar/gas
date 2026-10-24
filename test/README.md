@@ -21,4 +21,4 @@ and that README examples compile. Corpus collectors fail when their input direct
 cannot pass with zero cases.
 
 The automated tests use deterministic clocks and fake transports. Live listening and
-transport checks are documented separately in the Lyria connector's manual guide.
+transport checks are documented separately in the Lyria RealTime connector's manual guide.

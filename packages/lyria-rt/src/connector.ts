@@ -18,55 +18,55 @@ import type {
 } from '@luna-estelar/gas/protocol';
 import { ConnectorError } from '@luna-estelar/gas/protocol';
 import {
-  DEFAULT_LYRIA_CONFIG,
-  LYRIA_CONFIG_SCHEMA,
-  type LyriaConnectorConfig,
-  validateAndResolveLyriaConfig,
-  validateLyriaConfig
+  DEFAULT_LYRIA_RT_CONFIG,
+  LYRIA_RT_CONFIG_SCHEMA,
+  type LyriaRtConnectorConfig,
+  validateAndResolveLyriaRtConfig,
+  validateLyriaRtConfig
 } from './config.js';
 import {
-  LYRIA_API_VERSION,
-  LYRIA_MODEL_ID,
+  LYRIA_RT_API_VERSION,
+  LYRIA_RT_MODEL_ID,
   PCM_BYTES_PER_FRAME,
   PCM_BYTES_PER_SECOND,
   PCM_CHANNELS,
   PCM_SAMPLE_RATE
 } from './constants.js';
 import { translatePrompts, type WeightedPrompt } from './prompts.js';
-import { classifyKey, type LyriaScale } from './scale.js';
-import { type LyriaConnectorSettings, validateLyriaSettings } from './settings.js';
+import { classifyKey, type LyriaRtScale } from './scale.js';
+import { type LyriaRtConnectorSettings, validateLyriaRtSettings } from './settings.js';
 import { createPromptTransition, type PromptTransition } from './transition.js';
 
 type ConnectorState = 'new' | 'opened' | 'prepared' | 'starting' | 'running' | 'stopped' | 'closed';
 
-type LyriaClientOptions = {
+type LyriaRtClientOptions = {
   readonly apiKey: string;
-  readonly apiVersion: typeof LYRIA_API_VERSION;
+  readonly apiVersion: typeof LYRIA_RT_API_VERSION;
   readonly httpOptions?: { readonly baseUrl: string };
 };
 
-type LyriaAudioChunk = { readonly data?: string };
+type LyriaRtAudioChunk = { readonly data?: string };
 
-type LyriaServerMessage = {
+type LyriaRtServerMessage = {
   readonly setupComplete?: unknown;
-  readonly serverContent?: { readonly audioChunks?: readonly LyriaAudioChunk[] };
+  readonly serverContent?: { readonly audioChunks?: readonly LyriaRtAudioChunk[] };
   readonly filteredPrompt?: unknown;
   readonly warning?: unknown;
 };
 
-type LyriaCallbacks = {
-  readonly onmessage: (message: LyriaServerMessage) => void;
+type LyriaRtCallbacks = {
+  readonly onmessage: (message: LyriaRtServerMessage) => void;
   readonly onerror: () => void;
   readonly onclose: (event: { readonly code?: number }) => void;
 };
 
-type LyriaMusicGenerationConfig = {
+type LyriaRtMusicGenerationConfig = {
   readonly temperature: number;
   readonly guidance: number;
   readonly topK: number;
   readonly musicGenerationMode: 'QUALITY' | 'DIVERSITY';
   readonly bpm: number;
-  readonly scale?: LyriaScale;
+  readonly scale?: LyriaRtScale;
   readonly muteBass?: boolean;
   readonly muteDrums?: boolean;
   readonly onlyBassAndDrums?: boolean;
@@ -75,12 +75,12 @@ type LyriaMusicGenerationConfig = {
   readonly brightness?: number;
 };
 
-export interface LyriaMusicSession {
+export interface LyriaRtMusicSession {
   setWeightedPrompts(params: {
     readonly weightedPrompts: Array<{ readonly text: string; readonly weight: number }>;
   }): Promise<void>;
   setMusicGenerationConfig(params: {
-    readonly musicGenerationConfig: LyriaMusicGenerationConfig;
+    readonly musicGenerationConfig: LyriaRtMusicGenerationConfig;
   }): Promise<void>;
   play(): void;
   pause(): void;
@@ -89,23 +89,23 @@ export interface LyriaMusicSession {
   close(): void;
 }
 
-export interface LyriaSdkClient {
+export interface LyriaRtSdkClient {
   connect(params: {
     readonly model: string;
-    readonly callbacks: LyriaCallbacks;
-  }): Promise<LyriaMusicSession>;
+    readonly callbacks: LyriaRtCallbacks;
+  }): Promise<LyriaRtMusicSession>;
 }
 
-export interface LyriaConnectorDependencies {
+export interface LyriaRtConnectorDependencies {
   readonly clock: MonotonicClock;
   readonly setupTimeoutSeconds: number;
-  readonly createClient: (options: LyriaClientOptions) => LyriaSdkClient;
+  readonly createClient: (options: LyriaRtClientOptions) => LyriaRtSdkClient;
 }
 
-type ModelContext = { readonly bpm: number; readonly scale?: LyriaScale };
+type ModelContext = { readonly bpm: number; readonly scale?: LyriaRtScale };
 
-const LYRIA_WARNING_MESSAGE = 'The Lyria connector reported an operational warning.';
-const LYRIA_FAILURE_MESSAGE = 'The Lyria connector stopped audio generation.';
+const LYRIA_RT_WARNING_MESSAGE = 'The Lyria RealTime connector reported an operational warning.';
+const LYRIA_RT_FAILURE_MESSAGE = 'The Lyria RealTime connector stopped audio generation.';
 
 function deepFreeze<T>(value: T): T {
   if (value !== null && typeof value === 'object') {
@@ -115,8 +115,8 @@ function deepFreeze<T>(value: T): T {
   return value;
 }
 
-/** Lyria support levels for each GAS intent. */
-export const LYRIA_CAPABILITIES: CapabilitiesTable = deepFreeze({
+/** Lyria RealTime support levels for each GAS intent. */
+export const LYRIA_RT_CAPABILITIES: CapabilitiesTable = deepFreeze({
   intents: {
     flavor: 'supported',
     key: 'approximated',
@@ -129,13 +129,13 @@ export const LYRIA_CAPABILITIES: CapabilitiesTable = deepFreeze({
   }
 });
 
-const LYRIA_DESCRIPTION: ConnectorDescription = deepFreeze({
-  id: 'lyria',
+const LYRIA_RT_DESCRIPTION: ConnectorDescription = deepFreeze({
+  id: 'lyria-rt',
   displayName: 'Lyria RealTime',
-  capabilities: LYRIA_CAPABILITIES,
+  capabilities: LYRIA_RT_CAPABILITIES,
   model: {
-    connectorId: 'lyria',
-    modelId: LYRIA_MODEL_ID,
+    connectorId: 'lyria-rt',
+    modelId: LYRIA_RT_MODEL_ID,
     displayName: 'Lyria RealTime',
     codec: 'pcm',
     sampleFormat: 's16le',
@@ -143,8 +143,8 @@ const LYRIA_DESCRIPTION: ConnectorDescription = deepFreeze({
     channels: PCM_CHANNELS,
     chunkDurationSeconds: 2
   },
-  configSchema: LYRIA_CONFIG_SCHEMA,
-  defaultConfig: DEFAULT_LYRIA_CONFIG,
+  configSchema: LYRIA_RT_CONFIG_SCHEMA,
+  defaultConfig: DEFAULT_LYRIA_RT_CONFIG,
   supportsFlowControl: true
 });
 
@@ -165,7 +165,7 @@ function connectorError(
 }
 
 function stateConflict(): ConnectorError {
-  return connectorError('lyria-state-conflict', 'internal', false);
+  return connectorError('lyria-rt-state-conflict', 'internal', false);
 }
 
 function safeError(error: unknown, fallback: ConnectorError): ConnectorError {
@@ -216,7 +216,7 @@ class SystemClock implements MonotonicClock {
   }
 }
 
-const DEFAULT_DEPENDENCIES: LyriaConnectorDependencies = {
+const DEFAULT_DEPENDENCIES: LyriaRtConnectorDependencies = {
   clock: new SystemClock(),
   setupTimeoutSeconds: 15,
   createClient: (options) => {
@@ -255,20 +255,20 @@ function decodeBase64Pcm(data: unknown): Uint8Array {
     data.length % 4 !== 0 ||
     !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(data)
   ) {
-    throw connectorError('lyria-malformed-audio', 'provider', true);
+    throw connectorError('lyria-rt-malformed-audio', 'provider', true);
   }
   const atobFunction = (globalThis as { atob?: (input: string) => string }).atob;
   if (atobFunction === undefined) {
-    throw connectorError('lyria-audio-decoder-unavailable', 'internal', false);
+    throw connectorError('lyria-rt-audio-decoder-unavailable', 'internal', false);
   }
   let binary: string;
   try {
     binary = atobFunction(data);
   } catch {
-    throw connectorError('lyria-malformed-audio', 'provider', true);
+    throw connectorError('lyria-rt-malformed-audio', 'provider', true);
   }
   if (binary.length === 0 || binary.length % PCM_BYTES_PER_FRAME !== 0) {
-    throw connectorError('lyria-malformed-audio', 'provider', true);
+    throw connectorError('lyria-rt-malformed-audio', 'provider', true);
   }
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
@@ -298,7 +298,7 @@ interface Attempt {
   readonly startup: Deferred<never>;
   readonly timers: Set<ClockTimer>;
   transition: PromptTransition | undefined;
-  session: LyriaMusicSession | undefined;
+  session: LyriaRtMusicSession | undefined;
   active: boolean;
   /** Ended by Stop or Close rather than by a failure. */
   cancelled: boolean;
@@ -315,7 +315,7 @@ interface Attempt {
 }
 
 function cancelledStart(): ConnectorError {
-  return connectorError('lyria-start-cancelled', 'internal', false);
+  return connectorError('lyria-rt-start-cancelled', 'internal', false);
 }
 
 /** Calls into the host's sink. Its exceptions are its own, never the provider's. */
@@ -327,7 +327,7 @@ function hostCall(call: () => void): void {
   }
 }
 
-function closeQuietly(session: LyriaMusicSession): void {
+function closeQuietly(session: LyriaRtMusicSession): void {
   try {
     session.close();
   } catch {
@@ -335,28 +335,28 @@ function closeQuietly(session: LyriaMusicSession): void {
   }
 }
 
-export class LyriaConnector implements Connector {
+export class LyriaRtConnector implements Connector {
   private state: ConnectorState = 'new';
-  private settings: LyriaConnectorSettings | undefined;
+  private settings: LyriaRtConnectorSettings | undefined;
   private preparedState: EffectiveState | undefined;
-  private config: LyriaConnectorConfig | undefined;
+  private config: LyriaRtConnectorConfig | undefined;
   private attempt: Attempt | undefined;
   private readonly warnedTempos = new Set<number>();
 
-  constructor(private readonly dependencies: LyriaConnectorDependencies = DEFAULT_DEPENDENCIES) {}
+  constructor(private readonly dependencies: LyriaRtConnectorDependencies = DEFAULT_DEPENDENCIES) {}
 
   async describe(): Promise<ConnectorDescription> {
-    return LYRIA_DESCRIPTION;
+    return LYRIA_RT_DESCRIPTION;
   }
 
   async open(settings: ConnectorSettings): Promise<void> {
     if (this.state !== 'new') throw stateConflict();
-    this.settings = validateLyriaSettings(settings);
+    this.settings = validateLyriaRtSettings(settings);
     this.state = 'opened';
   }
 
   validateConfig(config: ConnectorConfig): ConnectorConfigValidation {
-    return validateLyriaConfig(config);
+    return validateLyriaRtConfig(config);
   }
 
   async prepare(initialState: EffectiveState, config: ConnectorConfig): Promise<void> {
@@ -365,7 +365,7 @@ export class LyriaConnector implements Connector {
     if (this.state !== 'opened' && this.state !== 'stopped' && this.state !== 'prepared') {
       throw stateConflict();
     }
-    this.config = validateAndResolveLyriaConfig(config);
+    this.config = validateAndResolveLyriaRtConfig(config);
     this.preparedState = initialState;
     this.warnedTempos.clear();
     this.state = 'prepared';
@@ -420,7 +420,7 @@ export class LyriaConnector implements Connector {
     transition.beginRun(runId);
 
     const setupTimeout = this.schedule(attempt, this.dependencies.setupTimeoutSeconds, () =>
-      this.failStartup(attempt, connectorError('lyria-setup-timeout', 'network', true))
+      this.failStartup(attempt, connectorError('lyria-rt-setup-timeout', 'network', true))
     );
 
     try {
@@ -430,7 +430,7 @@ export class LyriaConnector implements Connector {
       // to cancel a connect in flight, so this is the earliest it can be.
       const connected = client
         .connect({
-          model: LYRIA_MODEL_ID,
+          model: LYRIA_RT_MODEL_ID,
           callbacks: {
             onmessage: (message) => this.handleMessage(attempt, message),
             onerror: () => this.handleError(attempt),
@@ -443,7 +443,7 @@ export class LyriaConnector implements Connector {
             else closeQuietly(session);
           },
           () => {
-            throw connectorError('lyria-network-failure', 'network', true);
+            throw connectorError('lyria-rt-network-failure', 'network', true);
           }
         );
       connected.catch(() => undefined);
@@ -462,7 +462,7 @@ export class LyriaConnector implements Connector {
     } catch (error) {
       const failure = attempt.cancelled
         ? cancelledStart()
-        : safeError(error, connectorError('lyria-startup-failure', 'internal', false));
+        : safeError(error, connectorError('lyria-rt-startup-failure', 'internal', false));
       // Only the current attempt may move the connector; a stale one has
       // already been replaced or closed by whoever ended it.
       if (this.attempt === attempt) {
@@ -533,18 +533,18 @@ export class LyriaConnector implements Connector {
     this.state = 'closed';
   }
 
-  private clientOptions(): LyriaClientOptions {
+  private clientOptions(): LyriaRtClientOptions {
     const settings = this.settings;
     if (settings === undefined) throw stateConflict();
     return {
       apiKey: settings.apiKey,
-      apiVersion: LYRIA_API_VERSION,
+      apiVersion: LYRIA_RT_API_VERSION,
       ...(settings.endpoint !== undefined ? { httpOptions: { baseUrl: settings.endpoint } } : {})
     };
   }
 
   // A GAS tempo is beats per minute where a beat is the meter's `beatUnit`, so
-  // 120 in 6/8 is 120 eighth notes a minute. Lyria's `bpm` is an integer count of
+  // 120 in 6/8 is 120 eighth notes a minute. Lyria RealTime's `bpm` is an integer count of
   // quarter notes, 60-200, so the meter has to come out of the number before it
   // is sent: without the conversion a 6/8 document would be generated at twice
   // the tempo the renderer's clock assumes, and the two would drift apart.
@@ -556,7 +556,7 @@ export class LyriaConnector implements Connector {
     // wrote, so the warning fires once for the tempo they can see and change.
     if ((quarterTempo < 60 || quarterTempo > 200) && !this.warnedTempos.has(requestedTempo)) {
       this.warnedTempos.add(requestedTempo);
-      this.emitWarning('lyria-tempo-clamped');
+      this.emitWarning('lyria-rt-tempo-clamped');
     }
     const key = state.globals.key ?? timing.key;
     if (key === undefined) return { bpm };
@@ -566,7 +566,7 @@ export class LyriaConnector implements Connector {
       : { bpm, scale: classification.nativeScale };
   }
 
-  private generationConfig(context: ModelContext): LyriaMusicGenerationConfig {
+  private generationConfig(context: ModelContext): LyriaRtMusicGenerationConfig {
     const generation = this.config?.generation;
     if (generation === undefined) throw stateConflict();
     return {
@@ -593,7 +593,7 @@ export class LyriaConnector implements Connector {
         musicGenerationConfig: this.generationConfig(context)
       });
     } catch (error) {
-      throw safeError(error, connectorError('lyria-network-failure', 'network', true));
+      throw safeError(error, connectorError('lyria-rt-network-failure', 'network', true));
     }
   }
 
@@ -608,7 +608,7 @@ export class LyriaConnector implements Connector {
       });
       attempt.promptsNonEmpty = true;
     } catch (error) {
-      throw safeError(error, connectorError('lyria-network-failure', 'network', true));
+      throw safeError(error, connectorError('lyria-rt-network-failure', 'network', true));
     }
   }
 
@@ -622,25 +622,25 @@ export class LyriaConnector implements Connector {
       else session.pause();
       attempt.playbackState = nextState;
     } catch (error) {
-      throw safeError(error, connectorError('lyria-network-failure', 'network', true));
+      throw safeError(error, connectorError('lyria-rt-network-failure', 'network', true));
     }
     if (shouldPlay) hostCall(() => attempt.sink.status('streaming', attempt.runId));
     else if (attempt.flowPaused) hostCall(() => attempt.sink.status('throttled', attempt.runId));
   }
 
-  private handleMessage(attempt: Attempt, message: LyriaServerMessage): void {
+  private handleMessage(attempt: Attempt, message: LyriaRtServerMessage): void {
     if (!this.isCurrent(attempt)) return;
     if (message.setupComplete !== undefined) {
       attempt.setupReceived = true;
       attempt.setup.resolve(undefined);
     }
     if (message.filteredPrompt !== undefined) {
-      this.emitWarning('lyria-prompt-filtered');
+      this.emitWarning('lyria-rt-prompt-filtered');
       if (attempt.starting) {
-        this.failStartup(attempt, connectorError('lyria-filtered-startup', 'provider', true));
+        this.failStartup(attempt, connectorError('lyria-rt-filtered-startup', 'provider', true));
       }
     }
-    if (message.warning !== undefined) this.emitWarning('lyria-provider-warning');
+    if (message.warning !== undefined) this.emitWarning('lyria-rt-provider-warning');
 
     try {
       for (const chunk of message.serverContent?.audioChunks ?? []) {
@@ -660,7 +660,7 @@ export class LyriaConnector implements Connector {
     } catch (error) {
       this.handleCallbackFailure(
         attempt,
-        safeError(error, connectorError('lyria-internal-failure', 'internal', false))
+        safeError(error, connectorError('lyria-rt-internal-failure', 'internal', false))
       );
     }
   }
@@ -672,7 +672,10 @@ export class LyriaConnector implements Connector {
     if (!this.isCurrent(attempt) || attempt.errorGrace !== undefined) return;
     attempt.errorGrace = this.schedule(attempt, ERROR_CLOSE_GRACE_SECONDS, () => {
       attempt.errorGrace = undefined;
-      this.handleCallbackFailure(attempt, connectorError('lyria-network-failure', 'network', true));
+      this.handleCallbackFailure(
+        attempt,
+        connectorError('lyria-rt-network-failure', 'network', true)
+      );
     });
   }
 
@@ -708,21 +711,21 @@ export class LyriaConnector implements Connector {
     // both before setup completes. After setup the same codes are transport
     // noise, not an authentication verdict.
     if (beforeSetup && (code === 1007 || code === 1008)) {
-      return connectorError('lyria-auth-rejected', 'auth', false, code);
+      return connectorError('lyria-rt-auth-rejected', 'auth', false, code);
     }
     if (code === 1002 || code === 1011) {
-      return connectorError('lyria-provider-failure', 'provider', true, code);
+      return connectorError('lyria-rt-provider-failure', 'provider', true, code);
     }
-    return connectorError('lyria-network-failure', 'network', true, code);
+    return connectorError('lyria-rt-network-failure', 'network', true, code);
   }
 
   private emitWarning(
-    code: 'lyria-tempo-clamped' | 'lyria-prompt-filtered' | 'lyria-provider-warning'
+    code: 'lyria-rt-tempo-clamped' | 'lyria-rt-prompt-filtered' | 'lyria-rt-provider-warning'
   ): void {
     const attempt = this.attempt;
     if (attempt === undefined || !attempt.active) return;
     hostCall(() =>
-      attempt.sink.warning({ code, message: LYRIA_WARNING_MESSAGE, runId: attempt.runId })
+      attempt.sink.warning({ code, message: LYRIA_RT_WARNING_MESSAGE, runId: attempt.runId })
     );
   }
 
@@ -731,7 +734,7 @@ export class LyriaConnector implements Connector {
     attempt.terminalFailureReported = true;
     const event: RendererFailure = {
       code: failure.code,
-      message: LYRIA_FAILURE_MESSAGE,
+      message: LYRIA_RT_FAILURE_MESSAGE,
       reason: failure.reason,
       runId: attempt.runId,
       retryable: failure.retryable,
@@ -751,7 +754,7 @@ export class LyriaConnector implements Connector {
     throw attempt.cancelled ? cancelledStart() : stateConflict();
   }
 
-  private requireSession(attempt: Attempt): LyriaMusicSession {
+  private requireSession(attempt: Attempt): LyriaRtMusicSession {
     if (!this.isCurrent(attempt) || attempt.session === undefined) throw stateConflict();
     return attempt.session;
   }
@@ -801,12 +804,12 @@ export class LyriaConnector implements Connector {
   }
 }
 
-export function createLyriaConnector(): Connector {
-  return new LyriaConnector();
+export function createLyriaRtConnector(): Connector {
+  return new LyriaRtConnector();
 }
 
-export function createLyriaConnectorWithDependencies(
-  dependencies: LyriaConnectorDependencies
+export function createLyriaRtConnectorWithDependencies(
+  dependencies: LyriaRtConnectorDependencies
 ): Connector {
-  return new LyriaConnector(dependencies);
+  return new LyriaRtConnector(dependencies);
 }

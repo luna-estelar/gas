@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest';
 const run = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const gasRoot = path.join(root, 'packages', 'gas');
-const lyriaRoot = path.join(root, 'packages', 'lyria-rt');
+const lyriaRtRoot = path.join(root, 'packages', 'lyria-rt');
 const GAS = '@luna-estelar/gas';
 
 type ExportTarget = string | { readonly types: string; readonly default: string };
@@ -151,9 +151,9 @@ describe('the Google GenAI SDK', () => {
 
   // Without this the hook could be broken and every case above would still pass.
   it('is loaded by @luna-estelar/gas-lyria-rt, which the hook catches', async () => {
-    await expect(importUnderHook('@luna-estelar/gas-lyria-rt', DENIED, lyriaRoot)).rejects.toThrow(
-      '@google/genai was loaded'
-    );
+    await expect(
+      importUnderHook('@luna-estelar/gas-lyria-rt', DENIED, lyriaRtRoot)
+    ).rejects.toThrow('@google/genai was loaded');
   });
 });
 

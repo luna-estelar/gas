@@ -1,7 +1,7 @@
 // Prompt transition state machine. A prompt change crossfades over a few sends
 // so generation eases between mixtures instead of jumping. The machine is pure
 // and transport-neutral: it drives a host-supplied clock and a `PromptSender`,
-// and the SDK transport stage wires that sender to a live Lyria session. Timing
+// and the SDK transport stage wires that sender to a live Lyria RealTime session. Timing
 // is expressed in musical/wall-clock milliseconds by configuration but scheduled
 // against the clock's absolute-seconds contract.
 
@@ -87,7 +87,7 @@ function promptsEqual(a: readonly WeightedPrompt[], b: readonly WeightedPrompt[]
 function toConnectorError(error: unknown): ConnectorError {
   if (ConnectorError.isConnectorError(error)) return error;
   return new ConnectorError({
-    code: 'lyria-prompt-send-failed',
+    code: 'lyria-rt-prompt-send-failed',
     reason: 'internal',
     retryable: false
   });
@@ -132,7 +132,7 @@ export function createPromptTransition(options: PromptTransitionOptions): Prompt
     beginRun(nextRunId: string): void {
       if (runId !== undefined) {
         throw new ConnectorError({
-          code: 'lyria-transition-run-active',
+          code: 'lyria-rt-transition-run-active',
           reason: 'internal',
           retryable: false
         });
@@ -156,7 +156,7 @@ export function createPromptTransition(options: PromptTransitionOptions): Prompt
     async update(target: readonly WeightedPrompt[]): Promise<void> {
       if (runId === undefined) {
         throw new ConnectorError({
-          code: 'lyria-transition-no-run',
+          code: 'lyria-rt-transition-no-run',
           reason: 'internal',
           retryable: false
         });

@@ -292,7 +292,7 @@ describe('prompt transition — failures', () => {
 
     const error = onFailure.mock.calls[0][0] as ConnectorError;
     expect(error).toBeInstanceOf(ConnectorError);
-    expect(error.code).toBe('lyria-prompt-send-failed');
+    expect(error.code).toBe('lyria-rt-prompt-send-failed');
     expect(error.reason).toBe('internal');
     expect(JSON.stringify(error)).not.toContain('secret-vendor-text');
     expect(error.message).not.toContain('secret-vendor-text');

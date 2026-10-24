@@ -10,10 +10,10 @@ import {
   type SessionState
 } from '../packages/gas/src/api/index.js';
 import {
-  createLyriaConnector,
-  LYRIA_CAPABILITIES,
-  LYRIA_CONFIG_SCHEMA,
-  DEFAULT_LYRIA_CONFIG
+  createLyriaRtConnector,
+  LYRIA_RT_CAPABILITIES,
+  LYRIA_RT_CONFIG_SCHEMA,
+  DEFAULT_LYRIA_RT_CONFIG
 } from '../packages/lyria-rt/src/index.js';
 import {
   applyCommand,
@@ -130,7 +130,7 @@ describe('landed values match canonical protocol schemas', () => {
     const warned = applyCommand(
       loaded,
       { kind: 'setTrackMotif', trackId, alda: 'c d e' },
-      { phase: 'active', capabilities: LYRIA_CAPABILITIES }
+      { phase: 'active', capabilities: LYRIA_RT_CAPABILITIES }
     );
     expect(warned.ok).toBe(true);
     if (!warned.ok) return;
@@ -141,7 +141,7 @@ describe('landed values match canonical protocol schemas', () => {
     const failed = applyCommand(
       loaded,
       { kind: 'playTrack', trackId: 'ghost' },
-      { phase: 'active', capabilities: LYRIA_CAPABILITIES }
+      { phase: 'active', capabilities: LYRIA_RT_CAPABILITIES }
     );
     expect(failed.ok).toBe(false);
     if (failed.ok) return;
@@ -169,15 +169,15 @@ describe('landed values match canonical protocol schemas', () => {
 
     expect(schema(`${base}/state.schema.json#/$defs/InputState`)(input)).toBe(true);
     expect(schema(`${base}/state.schema.json#/$defs/EffectiveState`)(effective)).toBe(true);
-    expect(schema(`${base}/capabilities.schema.json`)(LYRIA_CAPABILITIES)).toBe(true);
+    expect(schema(`${base}/capabilities.schema.json`)(LYRIA_RT_CAPABILITIES)).toBe(true);
     expect(
-      schema(`${base}/config.schema.json#/$defs/ConnectorConfigSchema`)(LYRIA_CONFIG_SCHEMA)
+      schema(`${base}/config.schema.json#/$defs/ConnectorConfigSchema`)(LYRIA_RT_CONFIG_SCHEMA)
     ).toBe(true);
-    expect(schema(`${base}/config.schema.json#/$defs/ConnectorConfig`)(DEFAULT_LYRIA_CONFIG)).toBe(
-      true
-    );
+    expect(
+      schema(`${base}/config.schema.json#/$defs/ConnectorConfig`)(DEFAULT_LYRIA_RT_CONFIG)
+    ).toBe(true);
 
-    const description = await createLyriaConnector().describe();
+    const description = await createLyriaRtConnector().describe();
     expect(schema(`${base}/renderer.schema.json#/$defs/ConnectorDescription`)(description)).toBe(
       true
     );
@@ -255,7 +255,7 @@ describe('landed values match canonical protocol schemas', () => {
     // An application close code the connector classified only as a network
     // failure; the raw number rides along for the host to map.
     const failure: RendererFailure = {
-      code: 'lyria-network-failure',
+      code: 'lyria-rt-network-failure',
       message: 'The connector lost its connection to the model.',
       reason: 'network',
       runId: 'run.1',

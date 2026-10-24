@@ -71,14 +71,14 @@ You need a Gemini API key, and you supply the clock the session schedules agains
 ```ts
 import { createRenderer, createSession, sourceText } from '@luna-estelar/gas';
 import type { MonotonicClock } from '@luna-estelar/gas/protocol';
-import { createLyriaConnector } from '@luna-estelar/gas-lyria-rt';
+import { createLyriaRtConnector } from '@luna-estelar/gas-lyria-rt';
 
 declare const clock: MonotonicClock;
 declare const apiKey: string;
 
 const session = await createSession({
   createRenderer: () =>
-    createRenderer({ clock, connector: createLyriaConnector(), settings: { apiKey } })
+    createRenderer({ clock, connector: createLyriaRtConnector(), settings: { apiKey } })
 });
 
 await session.loadSource(

@@ -231,7 +231,7 @@ describe('playback lifecycle', () => {
     const thrown = new Error('raw provider text with a credential');
     Object.assign(thrown, {
       failure: {
-        code: 'lyria-auth',
+        code: 'lyria-rt-auth',
         message: 'renderer-safe message',
         reason: 'auth',
         retryable: false
@@ -241,7 +241,7 @@ describe('playback lifecycle', () => {
 
     await expect(session.play()).rejects.toMatchObject({
       message: 'The Renderer failed to start.',
-      code: 'lyria-auth',
+      code: 'lyria-rt-auth',
       reason: 'auth',
       retryable: false
     });
@@ -324,14 +324,14 @@ describe('playback lifecycle', () => {
     await session.play();
 
     wiring.current().emitFailure({
-      code: 'lyria-network-failure',
+      code: 'lyria-rt-network-failure',
       message: 'The connector lost its connection.',
       reason: 'network',
       runId: 'run-1',
       retryable: true,
       closeCode: 4429
     });
-    expect(errors.at(-1)).toMatchObject({ code: 'lyria-network-failure', closeCode: 4429 });
+    expect(errors.at(-1)).toMatchObject({ code: 'lyria-rt-network-failure', closeCode: 4429 });
   });
 
   it('carries a transport close code out of a failed start', async () => {
@@ -341,7 +341,7 @@ describe('playback lifecycle', () => {
       createFakeWiring((renderer) => {
         renderer.startError = Object.assign(new Error('start rejected'), {
           failure: {
-            code: 'lyria-auth-rejected',
+            code: 'lyria-rt-auth-rejected',
             message: 'ignored',
             reason: 'auth',
             retryable: false,
@@ -352,7 +352,7 @@ describe('playback lifecycle', () => {
     );
     await session.loadSource(SOURCE);
     const caught = await session.play().catch((error: unknown) => error);
-    expect(caught).toMatchObject({ code: 'lyria-auth-rejected', closeCode: 1008 });
+    expect(caught).toMatchObject({ code: 'lyria-rt-auth-rejected', closeCode: 1008 });
   });
 
   it('drops a close code no transport could have produced', async () => {
@@ -362,7 +362,7 @@ describe('playback lifecycle', () => {
     await session.play();
 
     wiring.current().emitFailure({
-      code: 'lyria-network-failure',
+      code: 'lyria-rt-network-failure',
       message: 'The connector lost its connection.',
       reason: 'network',
       runId: 'run-1',
@@ -464,7 +464,7 @@ describe('retryRenderer', () => {
     session.on('error', (error) => errors.push(error));
 
     wiring.current().emitFailure({
-      code: 'lyria-auth',
+      code: 'lyria-rt-auth',
       message: 'The connector reported an authentication failure.',
       reason: 'auth',
       retryable: false
@@ -473,7 +473,7 @@ describe('retryRenderer', () => {
     expect(errors).toHaveLength(1);
     expect(errors[0]).toMatchObject({
       kind: 'renderer',
-      code: 'lyria-auth',
+      code: 'lyria-rt-auth',
       reason: 'auth',
       retryable: false
     });

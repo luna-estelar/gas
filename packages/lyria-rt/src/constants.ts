@@ -1,8 +1,8 @@
-export const LYRIA_MODEL_ID = 'models/lyria-realtime-exp';
-export const LYRIA_API_VERSION = 'v1alpha';
-export const LYRIA_PATH =
+export const LYRIA_RT_MODEL_ID = 'models/lyria-realtime-exp';
+export const LYRIA_RT_API_VERSION = 'v1alpha';
+export const LYRIA_RT_PATH =
   '/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateMusic';
-export const LYRIA_SDK_PATH = `/${LYRIA_PATH}`;
+export const LYRIA_RT_SDK_PATH = `/${LYRIA_RT_PATH}`;
 
 export const PCM_SAMPLE_RATE = 48_000;
 export const PCM_CHANNELS = 2;
