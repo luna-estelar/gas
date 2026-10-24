@@ -13,7 +13,7 @@ import type {
   RendererWarning,
   Timeline
 } from '../../src/protocol/index.js';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createRenderer, RendererError } from '../../src/renderer/index.js';
 import { CONNECTOR_CLEANUP_TIMEOUT_SECONDS } from '../../src/renderer/constants.js';
 import {
@@ -65,14 +65,35 @@ describe('renderer run ownership', () => {
 
   it('publishes Stop after a bounded wait for a connector stop that hangs', async () => {
     const harness = await running({ stopGate: new Promise(() => undefined) });
-    const stopped = harness.renderer.stop();
-    await flushAsync();
-    expect(harness.statuses.at(-1)).toMatchObject({ playback: 'stopping' });
+    vi.useFakeTimers();
+    try {
+      const stopped = harness.renderer.stop();
+      await flushAsync();
+      expect(harness.statuses.at(-1)).toMatchObject({ playback: 'stopping' });
 
-    harness.clock.advanceBy(CONNECTOR_CLEANUP_TIMEOUT_SECONDS);
-    await stopped;
+      // The cleanup deadline is wall time: the musical clock is left where it is,
+      // as a suspended AudioContext would leave it, and the wait still ends.
+      await vi.advanceTimersByTimeAsync(CONNECTOR_CLEANUP_TIMEOUT_SECONDS * 1000);
+      await stopped;
+    } finally {
+      vi.useRealTimers();
+    }
     expect(harness.statuses.at(-1)).toMatchObject({ lifecycle: 'ready', playback: 'stopped' });
     expect(harness.warnings.map((warning) => warning.code)).toContain('connector-stop-timeout');
+  });
+
+  it('publishes Close after a bounded wait for a connector close that hangs', async () => {
+    const harness = await running({ closeGate: new Promise(() => undefined) });
+    vi.useFakeTimers();
+    try {
+      const closed = harness.renderer.close();
+      await vi.advanceTimersByTimeAsync(CONNECTOR_CLEANUP_TIMEOUT_SECONDS * 1000);
+      await closed;
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(harness.statuses.at(-1)).toMatchObject({ lifecycle: 'closed' });
+    expect(harness.warnings.map((warning) => warning.code)).toContain('connector-close-timeout');
   });
 
   it('never starts the connector for a run stopped during prepare', async () => {

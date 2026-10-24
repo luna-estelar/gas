@@ -10,8 +10,8 @@ export const MIN_FIRST_AUDIO_TIMEOUT_SECONDS = 2;
 export const MAX_FIRST_AUDIO_TIMEOUT_SECONDS = 15;
 
 /**
- * How long Stop and Close wait for the connector to release a run before the
- * renderer publishes the local outcome anyway. The connector call continues;
- * only the host stops waiting for it.
+ * How long, in wall time, Stop and Close wait for the connector to release a
+ * run before the renderer publishes the local outcome anyway. The connector
+ * call continues; only the host stops waiting for it.
  */
 export const CONNECTOR_CLEANUP_TIMEOUT_SECONDS = 5;

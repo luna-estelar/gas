@@ -1173,17 +1173,21 @@ class RendererSession implements Renderer {
     return run.connectorStop;
   }
 
-  /** Resolves true once `work` settles, or false if the cleanup timeout passes first. */
+  /**
+   * Resolves true once `work` settles, or false if the cleanup timeout passes
+   * first. Timed in wall time, not on the renderer's clock: in a browser that is
+   * the audio device, which stops while its context is suspended, and cleanup
+   * must not wait on audio that is not playing.
+   */
   private async withinCleanupTimeout(work: Promise<void>): Promise<boolean> {
-    const clock = this.options.clock;
-    let timer: ClockTimer | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<false>((resolve) => {
-      timer = clock.schedule(clock.now() + CONNECTOR_CLEANUP_TIMEOUT_SECONDS, () => resolve(false));
+      timer = setTimeout(() => resolve(false), CONNECTOR_CLEANUP_TIMEOUT_SECONDS * 1000);
     });
     try {
       return await Promise.race([work.then(() => true as const), timeout]);
     } finally {
-      if (timer !== undefined) clock.cancel(timer);
+      clearTimeout(timer);
     }
   }
 
