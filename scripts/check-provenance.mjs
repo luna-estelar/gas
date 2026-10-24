@@ -13,10 +13,13 @@ for (const entry of await readdir(packagesRoot, { withFileTypes: true })) {
 }
 if (packages.length === 0) throw new Error('No public packages found; nothing was verified.');
 
+// New versions took about four minutes to appear in the 0.3.0 release, so poll for up to ten.
+const attempts = 40;
+
 async function verify({ name, version }) {
   const url = `https://registry.npmjs.org/${encodeURIComponent(name)}/${encodeURIComponent(version)}`;
   let reason;
-  for (let attempt = 0; attempt < 6; attempt++) {
+  for (let attempt = 0; attempt < attempts; attempt++) {
     let terminal = false;
     try {
       const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
@@ -39,7 +42,7 @@ async function verify({ name, version }) {
       reason = error.message;
     }
     if (terminal) break;
-    if (attempt < 5) await new Promise((resolve) => setTimeout(resolve, 5000));
+    if (attempt < attempts - 1) await new Promise((resolve) => setTimeout(resolve, 15000));
   }
   throw new Error(`${name}@${version}: ${reason}`);
 }
