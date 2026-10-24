@@ -1144,7 +1144,7 @@ class RendererSession implements Renderer {
   }
 
   private emitPosition(position: MusicalPosition, run: ActiveRun): void {
-    if (run.ended || this.run !== run) return;
+    if (run.ended) return;
     this.emit(
       'position',
       Object.freeze({
@@ -1217,7 +1217,7 @@ class RendererSession implements Renderer {
     return {
       push: (chunk) => this.receiveAudio(run, chunk),
       status: (status, runId) => {
-        if (run.ended || runId !== run.id || this.run !== run) return;
+        if (run.ended || runId !== run.id) return;
         run.stream = status;
         this.emitStatus();
       },
@@ -1265,7 +1265,7 @@ class RendererSession implements Renderer {
       });
       return;
     }
-    if (run.ended || run.audioClosed || chunk.runId !== run.id || this.run !== run) {
+    if (run.ended || run.audioClosed || chunk.runId !== run.id) {
       run.ledger.reject(chunk.durationSeconds);
       this.emit(
         'warning',
