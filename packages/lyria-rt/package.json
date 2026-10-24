@@ -1,7 +1,6 @@
 {
   "name": "@luna-estelar/gas-lyria-rt",
-  "version": "0.2.1",
-  "private": true,
+  "version": "0.3.0",
   "description": "Plays GAS documents through Lyria RealTime, Google's real-time music model.",
   "keywords": [
     "gas",

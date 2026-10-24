@@ -1,6 +1,6 @@
 {
   "name": "@luna-estelar/gas",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "An open, model-independent language and runtime for directing generative audio models.",
   "keywords": [
     "gas",

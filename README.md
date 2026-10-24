@@ -49,8 +49,11 @@ npx @luna-estelar/gas compile song.gas
 
 Use the scoped name. `npx gas` fetches an unrelated package.
 
-To hear it, you need a connector for a music model. The Lyria RealTime connector,
-`@luna-estelar/gas-lyria-rt`, is not on npm yet.
+To hear it, you need a connector for a music model, such as the Lyria RealTime connector:
+
+```bash
+npm install @luna-estelar/gas-lyria-rt
+```
 
 ```ts
 import { createRenderer, createSession, sourceText } from '@luna-estelar/gas';
