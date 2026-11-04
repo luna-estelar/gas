@@ -64,7 +64,7 @@ import { createLyriaRtConnector } from '@luna-estelar/gas-lyria-rt';
 | Package                                                       | What it is                                                 |
 | ------------------------------------------------------------- | ---------------------------------------------------------- |
 | [`@luna-estelar/gas`](./packages/gas/README.md)               | The language, sessions, renderer, browser playback and CLI |
-| [`@luna-estelar/gas-lyria-rt`](./packages/lyria-rt/README.md) | The Lyria RealTime connector                               |
+| [`@luna-estelar/gas-lyria-rt`](./packages/lyria-rt/README.md) | The Google Lyria RealTime connector                        |
 
 ## How it works
 
