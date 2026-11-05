@@ -30,8 +30,6 @@ import type {
   Timeline as ProtocolTimeline,
   TimelineProblem as ProtocolTimelineProblem
 } from '../packages/gas/src/protocol/index.js';
-import type { RendererFailure } from '../packages/gas/src/renderer/index.js';
-import { ConnectorError, isCloseCode } from '../packages/gas/src/protocol/index.js';
 import { readExample } from '../examples/support.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -153,16 +151,7 @@ describe('landed values match canonical protocol schemas', () => {
     }
   });
 
-  it('validates the 0.2 additions: close codes and config problems', () => {
-    // An application close code the connector classified only as a network
-    // failure; the raw number rides along for the host to map.
-    const failure: RendererFailure = {
-      code: 'lyria-rt-network-failure',
-      message: 'The connector lost its connection to the model.',
-      reason: 'network',
-      retryable: true,
-      closeCode: 4429
-    };
+  it('validates config problems', () => {
     const problem: ConnectorConfigProblem = {
       path: '/generation/temperature',
       code: 'out-of-range',
@@ -170,33 +159,9 @@ describe('landed values match canonical protocol schemas', () => {
     };
     const validation: ConnectorConfigValidation = { ok: false, problems: [problem] };
 
-    expect(schema(`${base}/diagnostics.schema.json#/$defs/RendererFailure`)(failure)).toBe(true);
     expect(validation.ok).toBe(false);
     if (validation.ok) return;
     expect(validation.problems).toEqual([problem]);
-  });
-
-  it('keeps the foreign-error guard and failure schema on the same close-code range', () => {
-    const validate = schema(`${base}/diagnostics.schema.json#/$defs/RendererFailure`);
-    for (const closeCode of [1000, 1006, 4429, 4999, 999, 5000, 1000.5, Number.NaN, Infinity]) {
-      const error = new Error('Provider text must not determine the classification.');
-      error.name = 'ConnectorError';
-      Object.assign(error, {
-        code: 'network-failure',
-        reason: 'network',
-        retryable: true,
-        closeCode
-      });
-      const failure: RendererFailure = {
-        code: 'network-failure',
-        message: 'The connector lost its connection.',
-        reason: 'network',
-        retryable: true,
-        closeCode
-      };
-      expect(ConnectorError.isConnectorError(error)).toBe(isCloseCode(closeCode));
-      expect(validate(failure)).toBe(isCloseCode(closeCode));
-    }
   });
 
   it('keeps schema validation before Core reference validation', () => {

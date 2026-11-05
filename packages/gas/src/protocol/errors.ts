@@ -20,8 +20,8 @@ const CONNECTOR_FAILURE_MESSAGES: Readonly<Record<ConnectorFailureReason, string
  * The one range a close code may fall in: the WebSocket close-code space, from
  * the protocol codes at 1000 through the application codes ending at 4999. This
  * is the single definition every close-code gate uses — the `ConnectorError`
- * constructor, the structural guard, the JSON Schema range, and the API's
- * failure fields — so no gate can end up looser than another.
+ * constructor, the structural guard and the session's failure fields — so no
+ * gate can end up looser than another.
  */
 export function isCloseCode(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 1000 && value <= 4999;

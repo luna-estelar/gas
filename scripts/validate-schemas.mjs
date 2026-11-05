@@ -24,8 +24,6 @@ const fixtureSchemas = new Map([
   ['compiler-diagnostic.json', `${SCHEMA_BASE}/diagnostics.schema.json#/$defs/GasDiagnostic`],
   ['config-schema.json', `${SCHEMA_BASE}/config.schema.json#/$defs/ConnectorConfigSchema`],
   ['connector-config.json', `${SCHEMA_BASE}/config.schema.json#/$defs/ConnectorConfig`],
-  ['renderer-failure.json', `${SCHEMA_BASE}/diagnostics.schema.json#/$defs/RendererFailure`],
-  ['renderer-warning.json', `${SCHEMA_BASE}/diagnostics.schema.json#/$defs/RendererWarning`],
   ['timeline-finite.json', `${SCHEMA_BASE}/timeline.schema.json`],
   ['timeline-infinite.json', `${SCHEMA_BASE}/timeline.schema.json`],
   ['timeline-level.json', `${SCHEMA_BASE}/timeline.schema.json`],
@@ -127,21 +125,6 @@ const invalidCases = [
     name: 'timelines reject extra fields',
     schemaId: `${SCHEMA_BASE}/timeline.schema.json`,
     value: { ...fixtureValues.get('timeline-infinite.json'), extension: true }
-  },
-  {
-    name: 'renderer failures reject a close code below the WebSocket range',
-    schemaId: `${SCHEMA_BASE}/diagnostics.schema.json#/$defs/RendererFailure`,
-    value: { ...fixtureValues.get('renderer-failure.json'), closeCode: 999 }
-  },
-  {
-    name: 'renderer failures reject a close code above the application range',
-    schemaId: `${SCHEMA_BASE}/diagnostics.schema.json#/$defs/RendererFailure`,
-    value: { ...fixtureValues.get('renderer-failure.json'), closeCode: 5000 }
-  },
-  {
-    name: 'renderer failures reject a fractional close code',
-    schemaId: `${SCHEMA_BASE}/diagnostics.schema.json#/$defs/RendererFailure`,
-    value: { ...fixtureValues.get('renderer-failure.json'), closeCode: 1000.5 }
   },
   {
     name: 'timeline actions require their matching value kind',

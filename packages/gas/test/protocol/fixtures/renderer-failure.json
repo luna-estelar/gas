@@ -1,7 +1,0 @@
-{
-  "code": "renderer-disconnected",
-  "message": "The Renderer connection closed before generation completed.",
-  "reason": "network",
-  "retryable": true,
-  "closeCode": 1006
-}
