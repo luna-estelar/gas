@@ -1,20 +1,20 @@
 // A session on a virtual clock and a fake connector, with every event recorded.
 // Documents are 120 BPM 4/4, so a bar lasts 2 s and bar n starts (n - 1) * 2 s
 // after bar 1.
-import { createSession, type GasOperationError } from '../../../src/api/index.js';
+import { createSession, type GasOperationError } from '../../../../src/api/index.js';
 import type {
   AudioChunk,
   DocumentDefaults,
   GenerationPositionEvent,
   SessionState,
   WarningEvent
-} from '../../../src/protocol/index.js';
+} from '../../../../src/protocol/index.js';
 import {
   FakeConnector,
   type FakeConnectorOptions
-} from '../../../../../test/support/fake-connection.js';
-import { flushAsync } from '../../../../../test/support/deferred.js';
-import { VirtualClock } from '../../../../../test/support/virtual-clock.js';
+} from '../../../../../../test/support/fake-connection.js';
+import { flushAsync } from '../../../../../../test/support/deferred.js';
+import { VirtualClock } from '../../../../../../test/support/virtual-clock.js';
 
 export const SECONDS_PER_BAR = 2;
 

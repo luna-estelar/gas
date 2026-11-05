@@ -5,6 +5,7 @@ import type {
   CapabilitiesTable,
   ConnectOptions,
   Connection,
+  ConnectorAudioChunk,
   Connector,
   ConnectorConfig,
   ConnectorConfigValidation,
@@ -70,7 +71,10 @@ export class FakeConnection implements Connection {
   closeGate: Promise<void> | undefined;
   closed = false;
 
-  constructor(readonly options: ConnectOptions) {}
+  constructor(
+    readonly options: ConnectOptions,
+    private readonly chunkSeconds: number
+  ) {}
 
   async update(update: ConnectorUpdate, requested: MusicalPosition): Promise<MusicalPosition> {
     this.record('update');
@@ -95,24 +99,18 @@ export class FakeConnection implements Connection {
   }
 
   /**
-   * Sends `seconds` of s16le audio in the model's format. Every sample is
+   * Sends `seconds` of s16le audio in the model's format, in chunks of the
+   * model's `chunkDurationSeconds` with a shorter last one, as a provider does.
+   * One big chunk would go out at once and never count as held. Every sample is
    * `sample`, so a test can tell the connection's audio from GAS silence (0).
    */
   pushAudio(seconds: number, sample = 1000): void {
-    const frames = Math.round(seconds * FAKE_SAMPLE_RATE);
-    const bytes = new Uint8Array(frames * FAKE_CHANNELS * 2);
-    const view = new DataView(bytes.buffer);
-    for (let offset = 0; offset < bytes.byteLength; offset += 2) {
-      view.setInt16(offset, sample, true);
+    let left = seconds;
+    while (left > 1e-9) {
+      const duration = Math.min(this.chunkSeconds, left);
+      this.options.onAudio(s16leChunk(duration, sample));
+      left -= duration;
     }
-    this.options.onAudio({
-      bytes,
-      codec: 'pcm',
-      sampleFormat: 's16le',
-      sampleRate: FAKE_SAMPLE_RATE,
-      channels: FAKE_CHANNELS,
-      durationSeconds: seconds
-    });
   }
 
   fail(error: ConnectorError): void {
@@ -205,7 +203,7 @@ export class FakeConnector implements Connector {
   }
 
   private open(options: ConnectOptions): FakeConnection {
-    const connection = new FakeConnection(options);
+    const connection = new FakeConnection(options, this.description.model.chunkDurationSeconds);
     if (this.fakeOptions.closeHangs === true) connection.closeGate = new Promise(() => undefined);
     this.connections.push(connection);
     return connection;
@@ -217,6 +215,23 @@ export class FakeConnector implements Connector {
     this.pending = undefined;
     return pending;
   }
+}
+
+function s16leChunk(seconds: number, sample: number): ConnectorAudioChunk {
+  const frames = Math.round(seconds * FAKE_SAMPLE_RATE);
+  const bytes = new Uint8Array(frames * FAKE_CHANNELS * 2);
+  const view = new DataView(bytes.buffer);
+  for (let offset = 0; offset < bytes.byteLength; offset += 2) {
+    view.setInt16(offset, sample, true);
+  }
+  return {
+    bytes,
+    codec: 'pcm',
+    sampleFormat: 's16le',
+    sampleRate: FAKE_SAMPLE_RATE,
+    channels: FAKE_CHANNELS,
+    durationSeconds: seconds
+  };
 }
 
 function abortError(): Error {

@@ -2,8 +2,8 @@
 // closes one that arrives after Play was cancelled.
 // Skipped until GAS 0.4 step 4 implements the session these describe.
 import { describe, expect, it } from 'vitest';
-import { ConnectorError } from '../../src/protocol/index.js';
-import { flushAsync } from '../../../../test/support/deferred.js';
+import { ConnectorError } from '../../../src/protocol/index.js';
+import { flushAsync } from '../../../../../test/support/deferred.js';
 import { harness, playing, rejectionOf } from './support/harness.js';
 
 describe.skip('connecting', () => {

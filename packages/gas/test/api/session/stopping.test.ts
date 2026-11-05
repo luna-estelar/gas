@@ -3,9 +3,9 @@
 // next Play.
 // Skipped until GAS 0.4 step 4 implements the session these describe.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CONNECTOR_CLEANUP_TIMEOUT_SECONDS } from '../../src/renderer/constants.js';
-import { flushAsync } from '../../../../test/support/deferred.js';
-import { playing } from './support/harness.js';
+import { CONNECTOR_CLEANUP_TIMEOUT_SECONDS } from '../../../src/renderer/constants.js';
+import { flushAsync } from '../../../../../test/support/deferred.js';
+import { playing, totalSeconds } from './support/harness.js';
 
 // The time limit is wall time, because the audio clock stops while a browser
 // context is suspended. Only the timers are faked; the virtual clock drives music.
@@ -37,9 +37,10 @@ describe.skip('stopping', () => {
 
   it('delivers no queued audio after Stop', async () => {
     const h = await playing();
-    // Twenty seconds held ahead of the listener.
     h.connector.latest().pushAudio(20);
     await flushAsync();
+    // Of the 22 s pushed, at least 10 s is still held, waiting for its time.
+    expect(totalSeconds(h.audio)).toBeLessThan(12);
     await h.session.stop();
     const delivered = h.audio.length;
 

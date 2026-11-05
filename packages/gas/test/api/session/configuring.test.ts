@@ -2,9 +2,9 @@
 // read when a connection opens, so it changes only while stopped.
 // Skipped until GAS 0.4 step 4 implements the session these describe.
 import { describe, expect, it } from 'vitest';
-import type { Command } from '../../src/protocol/index.js';
-import { flushAsync } from '../../../../test/support/deferred.js';
-import { FakeConnector } from '../../../../test/support/fake-connection.js';
+import type { Command } from '../../../src/protocol/index.js';
+import { flushAsync } from '../../../../../test/support/deferred.js';
+import { FakeConnector } from '../../../../../test/support/fake-connection.js';
 import { NO_TIMING, PAD, harness, playing, rejectionOf } from './support/harness.js';
 
 const LEVEL: Command = { kind: 'setTrackLevel', trackId: PAD, value: 0.3 };

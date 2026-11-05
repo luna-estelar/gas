@@ -2,10 +2,10 @@
 // session stopped with `ended: 'failed'`, and Play works again.
 // Skipped until GAS 0.4 step 4 implements the session these describe.
 import { describe, expect, it } from 'vitest';
-import { ConnectorError } from '../../src/protocol/index.js';
-import { MAX_FIRST_AUDIO_TIMEOUT_SECONDS } from '../../src/renderer/constants.js';
-import { flushAsync } from '../../../../test/support/deferred.js';
-import { harness, playing } from './support/harness.js';
+import { ConnectorError } from '../../../src/protocol/index.js';
+import { MAX_FIRST_AUDIO_TIMEOUT_SECONDS } from '../../../src/renderer/constants.js';
+import { flushAsync } from '../../../../../test/support/deferred.js';
+import { harness, playing, totalSeconds } from './support/harness.js';
 
 const dropped = () =>
   new ConnectorError({
@@ -64,6 +64,8 @@ describe.skip('failing', () => {
     const h = await playing();
     h.connector.latest().pushAudio(20);
     await flushAsync();
+    // Of the 22 s pushed, at least 10 s is still held, waiting for its time.
+    expect(totalSeconds(h.audio)).toBeLessThan(12);
     h.connector.latest().fail(dropped());
     await flushAsync();
     const delivered = h.audio.length;

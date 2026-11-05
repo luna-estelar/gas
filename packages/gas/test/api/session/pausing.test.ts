@@ -6,9 +6,17 @@ import {
   BUFFER_HARD_LIMIT_SECONDS,
   BUFFER_WARNING_SECONDS,
   RESUME_LEAD_SECONDS
-} from '../../src/renderer/constants.js';
-import { flushAsync } from '../../../../test/support/deferred.js';
+} from '../../../src/renderer/constants.js';
+import { flushAsync } from '../../../../../test/support/deferred.js';
+import { fakeDescription } from '../../../../../test/support/fake-connection.js';
 import { MIDDLE_REST, barTime, harness } from './support/harness.js';
+
+// The fake sends audio in chunks of this length. A chunk is released one chunk
+// before it is due, so right after bar 1 the first two go out at once and the
+// rest is held: held = pushed - 2 * CHUNK.
+const CHUNK = fakeDescription().model.chunkDurationSeconds;
+const HARD = BUFFER_HARD_LIMIT_SECONDS;
+const WARNING = BUFFER_WARNING_SECONDS;
 
 /** A rest from bar 3 to bar 30, longer than any backlog takes to drain. */
 const LONG_REST = MIDDLE_REST.replace(/14/g, '34').replace('bar 11:', 'bar 31:');
@@ -30,19 +38,23 @@ describe.skip('pausing', () => {
     const h = await harness();
     await h.session.play();
     const connection = h.connector.latest();
-    connection.pushAudio(BUFFER_HARD_LIMIT_SECONDS - 2);
+    // HARD + CHUNK pushed holds HARD - CHUNK: not yet a backlog.
+    connection.pushAudio(HARD + CHUNK);
     await flushAsync();
     expect(connection.flow).toEqual([]);
 
-    connection.pushAudio(4);
+    // Two chunks more hold HARD + CHUNK.
+    connection.pushAudio(2 * CHUNK);
     await flushAsync();
     expect(connection.flow).toEqual(['pause']);
 
-    // Delivery drains the backlog as the clock moves. Below the warning level, it resumes.
-    const drained = BUFFER_HARD_LIMIT_SECONDS + 2 - BUFFER_WARNING_SECONDS;
-    await h.advanceTo(drained - 2);
+    // At time t, audio due before t + 2 * CHUNK has gone out, so held drops
+    // below WARNING once t passes `drain`.
+    const total = HARD + 3 * CHUNK;
+    const drain = total - WARNING - 2 * CHUNK;
+    await h.advanceTo(drain - CHUNK);
     expect(connection.flow).toEqual(['pause']);
-    await h.advanceTo(drained + 2);
+    await h.advanceTo(drain + CHUNK);
     expect(connection.flow).toEqual(['pause', 'resume']);
   });
 
@@ -50,7 +62,8 @@ describe.skip('pausing', () => {
     const h = await harness({ source: LONG_REST });
     await h.session.play();
     const connection = h.connector.latest();
-    connection.pushAudio(BUFFER_HARD_LIMIT_SECONDS + 2);
+    // Holds HARD + CHUNK: a backlog.
+    connection.pushAudio(HARD + 3 * CHUNK);
     await flushAsync();
     expect(connection.flow).toEqual(['pause']);
 
@@ -70,11 +83,14 @@ describe.skip('pausing', () => {
     await h.advanceTo(barTime(11) - RESUME_LEAD_SECONDS);
     expect(connection.flow).toEqual(['pause', 'resume']);
 
-    // Generation runs far ahead of the track that's about to start.
-    connection.pushAudio(BUFFER_HARD_LIMIT_SECONDS + 2);
+    // Generation runs far ahead of the track that's about to start. The audio
+    // is placed from the entry, and within one chunk of it only the first chunk
+    // goes out at once, so HARD + CHUNK is held.
+    connection.pushAudio(HARD + 2 * CHUNK);
     await flushAsync();
     expect(connection.flow).toEqual(['pause', 'resume', 'pause']);
-    await h.advanceTo(barTime(11) + 4);
+    // At the entry plus two chunks, HARD - 2 * CHUNK is still held, above WARNING.
+    await h.advanceTo(barTime(11) + 2 * CHUNK);
     expect(connection.flow).toEqual(['pause', 'resume', 'pause']);
   });
 });
