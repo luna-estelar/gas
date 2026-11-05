@@ -45,6 +45,12 @@ export interface ModelInfo extends AudioFormat {
    * the track starts on its bar (rule 4). Leave it out for GAS's default.
    */
   readonly startupDelaySeconds?: number;
+  /**
+   * Seconds from the first play on a fresh connection to its first audio.
+   * Defaults to `startupDelaySeconds`. An opening rest too short for this
+   * budget is prepared before the musical clock starts.
+   */
+  readonly initialStartupDelaySeconds?: number;
 }
 
 export type ConnectorConfig = JsonObject;

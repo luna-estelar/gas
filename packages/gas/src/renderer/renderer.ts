@@ -152,10 +152,15 @@ interface Run {
   /** The model was resumed for the entry, so its audio is for the track coming in. */
   resumedForEntry: boolean;
   /**
-   * The clock time of an authored entry whose update went out with the resume,
-   * so its boundary doesn't send it again.
+   * An authored entry already sent to the provider. Until the playhead
+   * reaches it, edits preserve its tracks and earlier boundaries don't
+   * replace it with the preceding rest's state.
    */
-  entryUpdateSent: number | undefined;
+  entryUpdateSent: MusicalPosition | undefined;
+  /** Any audio has arrived, including audio dropped during a rest. */
+  receivedAudio: boolean;
+  /** Preparing a short opening rest before its musical clock starts. */
+  primingEntry: MusicalPosition | undefined;
   readonly pauseReasons: Set<PauseReason>;
   paused: boolean;
   /** Set once, by Stop, Close, a failure or the end of the piece. Everything checks it. */
@@ -268,6 +273,32 @@ class RendererImpl implements Renderer {
       } else {
         run.tempo = state.globals.tempo ?? loaded.timing.tempo;
       }
+      const pendingEntry = run.entryUpdateSent;
+      if (
+        pendingEntry !== undefined &&
+        (!anchored || this.options.clock.now() < positionToTime(loaded.tempoMap, pendingEntry))
+      ) {
+        const entryState = this.deriveAt(loaded, pendingEntry, run.loopIteration);
+        if (tracksPlay(entryState)) {
+          // The provider is already preparing a future entry. A change to its
+          // timbre, level or flavor must preserve those active tracks, even
+          // while the playhead is still in the preceding rest.
+          const appliedPosition = await this.requireConnection(run).update(
+            this.buildConnectorUpdate(entryState),
+            pendingEntry
+          );
+          return { requestedPosition: pendingEntry, appliedPosition };
+        }
+        const wasPriming = run.primingEntry !== undefined;
+        run.entryUpdateSent = undefined;
+        run.primingEntry = undefined;
+        for (const timer of run.restTimers) this.options.clock.cancel(timer);
+        run.restTimers.clear();
+        run.entryTime = undefined;
+        run.resumedForEntry = false;
+        run.resting = false;
+        if (wasPriming && !run.anchored) this.commitAnchor(loaded, run);
+      }
       let requestedPosition =
         !anchored || run.holding
           ? currentPosition
@@ -316,6 +347,8 @@ class RendererImpl implements Renderer {
       entryTime: undefined,
       resumedForEntry: false,
       entryUpdateSent: undefined,
+      receivedAudio: false,
+      primingEntry: undefined,
       pauseReasons: new Set(),
       paused: false,
       ended: false,
@@ -373,8 +406,28 @@ class RendererImpl implements Renderer {
       this.armFirstAudioTimeout(run);
       this.maybeAnchor(loaded, run);
     } else {
-      // Nothing to wait for: bar 1 starts now, in silence.
-      this.commitAnchor(loaded, run);
+      const entry = this.nextEntry(loaded, run, run.startTime);
+      if (entry !== undefined && entry.time - run.startTime < this.resumeLeadSeconds(run)) {
+        // A fresh provider may need longer than the opening rest itself.
+        // Prepare its first entry before starting the clock, retaining the
+        // first audio for that entry rather than shortening the written rest.
+        run.primingEntry = entry.position;
+        run.entryUpdateSent = entry.position;
+        this.armFirstAudioTimeout(run);
+        try {
+          await raceAbort(
+            run.abort.signal,
+            connection.update(
+              this.buildConnectorUpdate(this.deriveAt(loaded, entry.position, run.loopIteration)),
+              entry.position
+            )
+          );
+        } catch (error) {
+          throw this.startupFailed(run, error);
+        }
+      } else {
+        this.commitAnchor(loaded, run);
+      }
     }
   }
 
@@ -722,20 +775,37 @@ class RendererImpl implements Renderer {
             this.emitPosition(position, run)
           );
         }
+        // An earlier boundary during a prepared entry's lead must not
+        // replace its prompts with the preceding rest's inactive tracks.
+        if (
+          run.entryUpdateSent !== undefined &&
+          boundaryTime <= positionToTime(loaded.tempoMap, run.entryUpdateSent) + EPSILON
+        ) {
+          return;
+        }
         this.reconcileRest(loaded, run, state, positionToTime(loaded.tempoMap, position));
         if (
           run.entryUpdateSent !== undefined &&
-          Math.abs(run.entryUpdateSent - boundaryTime) < EPSILON
-        ) {
-          run.entryUpdateSent = undefined;
+          boundaryTime <= positionToTime(loaded.tempoMap, run.entryUpdateSent) + EPSILON
+        )
           return;
-        }
         const update = this.buildConnectorUpdate(state);
         this.enqueue(run, async () => {
           await this.requireConnection(run).update(update, position);
         });
       });
-      this.schedule(run, boundaryTime, () => this.emitPosition(position, run));
+      this.schedule(run, boundaryTime, () => {
+        if (
+          run.entryUpdateSent !== undefined &&
+          Math.abs(
+            positionToTime(loaded.tempoMap, run.entryUpdateSent) -
+              positionToTime(loaded.tempoMap, position)
+          ) < EPSILON
+        ) {
+          run.entryUpdateSent = undefined;
+        }
+        this.emitPosition(position, run);
+      });
     }
 
     if (loaded.timeline.playback.mode === 'finite') {
@@ -888,7 +958,9 @@ class RendererImpl implements Renderer {
     );
     this.cancelBoundaryTimers(run);
     this.reconcileRest(loaded, run, state, this.options.clock.now());
-    await this.requireConnection(run).update(this.buildConnectorUpdate(state), position);
+    if (run.entryUpdateSent === undefined) {
+      await this.requireConnection(run).update(this.buildConnectorUpdate(state), position);
+    }
     this.emitPosition(position, run);
     this.scheduleRun(loaded, run);
   }
@@ -1104,7 +1176,7 @@ class RendererImpl implements Renderer {
     }
     if (!plays || run.entryTime !== undefined) return undefined;
     const earliest = Math.max(
-      this.options.clock.now() + this.resumeLeadSeconds(),
+      this.options.clock.now() + this.resumeLeadSeconds(run),
       run.deliveredEnd
     );
     let bar = Math.max(1, Math.floor(timeToBarFraction(loaded.tempoMap, earliest)));
@@ -1123,7 +1195,8 @@ class RendererImpl implements Renderer {
     run.silentFrom = time;
     run.entryTime = undefined;
     run.resumedForEntry = false;
-    run.entryUpdateSent = undefined;
+    const primingEntry = run.primingEntry;
+    if (primingEntry === undefined) run.entryUpdateSent = undefined;
     this.dropHeldFrom(run, time, (held) => !held.silent);
     run.audioCursor = Math.min(run.audioCursor, time);
     const entry = this.nextEntry(loaded, run, time);
@@ -1131,11 +1204,20 @@ class RendererImpl implements Renderer {
     // almost at once, which saves nothing and risks a late entry. Its audio is
     // dropped until the resume time all the same.
     const minimumPause =
-      this.resumeLeadSeconds() + this.connector.description.model.chunkDurationSeconds;
-    if (entry === undefined || entry.time - time > minimumPause) {
+      this.resumeLeadSeconds(run) + this.connector.description.model.chunkDurationSeconds;
+    const keepGenerating = entry !== undefined && entry.time - time <= minimumPause;
+    if (primingEntry === undefined && !keepGenerating) {
       this.schedule(run, time, () => this.setPauseReason(run, 'rest', true), run.restTimers);
     }
-    if (entry !== undefined) this.planEntry(run, entry.time, { loaded, position: entry.position });
+    if (entry !== undefined) {
+      // Sending the rest's empty state would make connectors such as Lyria
+      // pause themselves. For a short rest, prepare the next track instead;
+      // its audio is still discarded until the entry's resume time.
+      if (primingEntry === undefined && keepGenerating) {
+        this.sendEntryUpdate(loaded, run, entry.position);
+      }
+      this.planEntry(run, entry.time, { loaded, position: entry.position });
+    }
     this.fillSilence(run);
     this.releaseBacklog(run);
   }
@@ -1174,19 +1256,13 @@ class RendererImpl implements Renderer {
     run.audioCursor = Math.min(run.audioCursor, entry);
     this.schedule(
       run,
-      Math.max(run.silentFrom ?? entry, entry - this.resumeLeadSeconds()),
+      Math.max(run.silentFrom ?? entry, entry - this.resumeLeadSeconds(run)),
       () => {
         run.resumedForEntry = true;
         const boundaryPending =
           entry - this.lookaheadSeconds() > this.options.clock.now() + EPSILON;
-        if (authored !== undefined && boundaryPending) {
-          const update = this.buildConnectorUpdate(
-            this.deriveAt(authored.loaded, authored.position, run.loopIteration)
-          );
-          run.entryUpdateSent = entry;
-          this.enqueue(run, async () => {
-            await this.requireConnection(run).update(update, authored.position);
-          });
+        if (authored !== undefined && boundaryPending && run.entryUpdateSent === undefined) {
+          this.sendEntryUpdate(authored.loaded, run, authored.position);
         }
         this.setPauseReason(run, 'rest', false);
       },
@@ -1201,6 +1277,16 @@ class RendererImpl implements Renderer {
       run.restTimers
     );
     this.fillSilence(run);
+  }
+
+  private sendEntryUpdate(loaded: LoadedDocument, run: Run, position: MusicalPosition): void {
+    run.entryUpdateSent = position;
+    this.enqueue(run, async () => {
+      // Derive on the provider chain, so edits made while another call was
+      // pending are included in the entry that actually reaches the model.
+      const update = this.buildConnectorUpdate(this.deriveAt(loaded, position, run.loopIteration));
+      await this.requireConnection(run).update(update, position);
+    });
   }
 
   /** The model's audio arrived for the entry: the rest is over. */
@@ -1421,6 +1507,14 @@ class RendererImpl implements Renderer {
       });
       return;
     }
+    run.receivedAudio = true;
+    if (run.primingEntry !== undefined && !run.anchored && this.loaded !== undefined) {
+      const entry = run.primingEntry;
+      this.commitAnchor(this.loaded, run);
+      run.primingEntry = undefined;
+      run.entryUpdateSent = entry;
+      run.resumedForEntry = true;
+    }
     if (run.resting) {
       // Until the resume, audio is what the model generated past the rest.
       if (!run.resumedForEntry || run.entryTime === undefined) {
@@ -1530,8 +1624,11 @@ class RendererImpl implements Renderer {
    * entry's audio is handed to the player that early, plus the model's
    * start-up delay (rule 4).
    */
-  private resumeLeadSeconds(): number {
-    const reported = this.connector.description.model.startupDelaySeconds;
+  private resumeLeadSeconds(run: Run): number {
+    const model = this.connector.description.model;
+    const reported = run.receivedAudio
+      ? model.startupDelaySeconds
+      : (model.initialStartupDelaySeconds ?? model.startupDelaySeconds);
     const delay =
       typeof reported === 'number' && Number.isFinite(reported)
         ? Math.min(Math.max(reported, 0), MAX_STARTUP_DELAY_SECONDS)

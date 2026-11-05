@@ -365,3 +365,69 @@ describe('resting', () => {
     });
   });
 });
+
+describe('changes while an entry is being prepared', () => {
+  it.each([false, true])(
+    'preserves entry tracks across an app edit (audio arrived: %s)',
+    async (audioArrived) => {
+      const h = await harness({ source: OPENING_REST });
+      await h.session.play();
+      await h.advanceTo(barTime(9) - RESUME_LEAD_SECONDS);
+      const connection = h.connector.latest();
+      if (audioArrived) connection.pushAudio(2);
+      await h.advanceTo(barTime(9) - 1);
+      const result = await h.session.setTrackTimbre(PAD, 'glass');
+      expect(result.requestedPosition).toEqual({ bar: 9 });
+      const entry = connection.updates.at(-1)!;
+      expect(entry.update.state.tracks[0]).toMatchObject({
+        active: true,
+        timbre: { text: 'glass' }
+      });
+      if (!audioArrived) connection.pushAudio(2);
+      await h.advanceTo(barTime(9));
+      expect(h.errors).toEqual([]);
+      expect(secondsBeforeModelAudio(h.audio)).toBeCloseTo(barTime(9), 6);
+      await h.session.close();
+    }
+  );
+
+  it('does not replace an entry with an intervening authored rest state', async () => {
+    const source = OPENING_REST.replace(
+      '    bar 9:',
+      '    bar 8:\n        pad.timbre "glass"\n    bar 9:'
+    );
+    const model = { ...fakeDescription().model, startupDelaySeconds: 3 };
+    const h = await harness({ source, connector: { description: { model } } });
+    await h.session.play();
+    await h.advanceTo(barTime(9) - resumeLead(2, 3));
+    const connection = h.connector.latest();
+    expect(connection.updates.at(-1)!.update.state.tracks[0]).toMatchObject({
+      active: true,
+      timbre: { text: 'glass' }
+    });
+    await h.advanceTo(barTime(9) - 2);
+    expect(connection.updates).toHaveLength(1);
+    connection.pushAudio(2);
+    await h.advanceTo(barTime(9));
+    expect(h.errors).toEqual([]);
+    await h.session.close();
+  });
+});
+
+it('still sends a boundary after the prepared entry when lookahead spans several bars', async () => {
+  const source = OPENING_REST.replace('tempo 120', 'tempo 240').replace(
+    '        pad.play',
+    '        pad.play\n    bar 10:\n        pad.timbre "glass"'
+  );
+  const h = await harness({ source });
+  await h.session.play();
+  await h.advanceTo(4); // Entry at 8s, with a 4s lead.
+  const connection = h.connector.latest();
+  connection.pushAudio(2);
+  await h.advanceTo(7); // Bar 10 update, two seconds before its 9s boundary.
+  expect(connection.updates.at(-1)).toMatchObject({
+    requested: { bar: 10 },
+    update: { state: { tracks: [{ active: true, timbre: { text: 'glass' } }] } }
+  });
+  await h.session.close();
+});
