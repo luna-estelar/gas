@@ -63,16 +63,9 @@ $('play').addEventListener('click', async () => {
     await browser.session.loadSource(sourceText(drumLoop, 'drum-loop.gas'));
     await browser.session.play();
     $('stop').disabled = false;
-    const tick = () => {
-      if (browser === undefined) return;
-      const audible = browser.audiblePosition();
-      if (audible !== undefined) {
-        const { bar, beat } = audible.position;
-        $('summary').dataset.playhead = `bar ${bar} beat ${beat?.index ?? 1}`;
-      }
-      requestAnimationFrame(tick);
-    };
-    tick();
+    browser.session.on('audiblePosition', ({ position: { bar, beat } }) => {
+      $('summary').dataset.playhead = `bar ${bar} beat ${beat?.index ?? 1}`;
+    });
   } catch (error) {
     log(`failed: ${error.message}`);
     $('play').disabled = false;

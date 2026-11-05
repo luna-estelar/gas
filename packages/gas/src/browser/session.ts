@@ -1,7 +1,8 @@
 // Compose a GAS session and a playback engine for a browser page. It never
 // imports a connector: the app builds one and passes it in.
 import { createSession, type GasSession } from '../api/index.js';
-import type { Connector, ConnectorConfig, MusicalPosition } from '../protocol/index.js';
+import type { Connector, ConnectorConfig, DocumentDefaults } from '../protocol/index.js';
+import { AudiblePositions } from './audible.js';
 import { ChainedSourceEngine } from './audio/chained-source-engine.js';
 import { AudioClock } from './audio/clock.js';
 import { openAudioContext } from './audio/context.js';
@@ -12,6 +13,8 @@ export interface BrowserSessionOptions {
   readonly connector: Connector;
   /** A patch over the connector's `defaultConfig`. */
   readonly connectorConfig?: ConnectorConfig;
+  /** The tempo, time signature and key for a document that doesn't set them. */
+  readonly documentDefaults?: DocumentDefaults;
   /** Adopted as is and never closed by the session. Omitted, the session opens one and owns it. */
   readonly context?: AudioContext;
   /** Defaults to one chunk duration of the connector's model. Clamped to 0.25-4 s. */
@@ -34,8 +37,6 @@ export interface BrowserSession {
    * owner's business — `close()` closes only a context this session opened.
    */
   readonly context: AudioContext;
-  /** The musical position the listener is hearing now, or undefined before first audio. */
-  audiblePosition(): { position: MusicalPosition; seconds: number } | undefined;
   close(): Promise<void>;
 }
 
@@ -71,24 +72,21 @@ export async function createBrowserSession(
       ...(options.connectorConfig !== undefined
         ? { connectorConfig: options.connectorConfig }
         : {}),
+      ...(options.documentDefaults !== undefined
+        ? { documentDefaults: options.documentDefaults }
+        : {}),
       ...(options.firstAudioTimeoutSeconds !== undefined
         ? { firstAudioTimeoutSeconds: options.firstAudioTimeoutSeconds }
         : {})
     });
 
     const activeEngine = engine;
-    const unsubscribe = wireEngine(session, activeEngine);
+    const unsubscribe = wireEngine(session, activeEngine, audioClock);
     return {
       session,
       audio: activeEngine,
       capture,
       context: audioContext,
-      audiblePosition() {
-        const seconds = activeEngine.playheadSeconds();
-        if (seconds === undefined) return undefined;
-        const position = session.positionAtSeconds(seconds);
-        return position === undefined ? undefined : { position, seconds };
-      },
       async close() {
         // Silence first, so the listener hears nothing more.
         activeEngine.flush();
@@ -116,17 +114,34 @@ export async function createBrowserSession(
 /**
  * Drive the engine from the session. Audio alone is not enough: Stop and a
  * failure must silence what is already scheduled, while a finished piece plays
- * out the tail the listener has not heard yet.
+ * out the tail the listener has not heard yet. Audible positions follow the
+ * same rule.
  */
-function wireEngine(session: GasSession, engine: PlaybackEngine): () => void {
+function wireEngine(session: GasSession, engine: PlaybackEngine, clock: AudioClock): () => void {
+  const audible = new AudiblePositions(
+    engine,
+    clock,
+    (seconds) => session.positionAtSeconds(seconds),
+    (event) => session.emitAudiblePosition(event)
+  );
   const unsubscribers = [
     session.on('audio', (chunk) => engine.push(chunk)),
+    session.on('generationPosition', (event) => audible.push(event)),
     session.on('state', (state) => {
+      if (state.status === 'starting') {
+        audible.reset();
+        return;
+      }
       if (state.status !== 'stopped' && state.status !== 'closed') return;
-      if (state.ended === 'stopped' || state.ended === 'failed') engine.flush();
+      if (state.ended === 'stopped' || state.ended === 'failed') {
+        // Before the flush, so nothing unheard is reported as it stops.
+        audible.reset();
+        engine.flush();
+      }
     })
   ];
   return () => {
     for (const unsubscribe of unsubscribers) unsubscribe();
+    audible.dispose();
   };
 }

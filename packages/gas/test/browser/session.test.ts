@@ -3,7 +3,14 @@
 // because the session and the engine both run on an AudioClock.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBrowserSession, type BrowserSession } from '../../src/browser/session.js';
-import { ConnectorError, type ConnectorConfigValidation } from '../../src/protocol/index.js';
+import { AudioClock } from '../../src/browser/audio/clock.js';
+import {
+  ConnectorError,
+  type AudiblePositionEvent,
+  type ConnectorConfigValidation,
+  type GenerationPositionEvent
+} from '../../src/protocol/index.js';
+import { OPENING_REST } from '../api/session/support/harness.js';
 import { FakeAudioContext } from './support/fake-audio-context.js';
 import {
   FakeConnector,
@@ -33,10 +40,18 @@ async function advanceTo(context: FakeAudioContext, time: number): Promise<void>
   }
 }
 
+interface Recorded<T> {
+  /** Device time when the event was emitted. */
+  readonly at: number;
+  readonly event: T;
+}
+
 interface Harness {
   readonly context: FakeAudioContext;
   readonly connector: FakeConnector;
   readonly browser: BrowserSession;
+  readonly generated: Recorded<GenerationPositionEvent>[];
+  readonly heard: Recorded<AudiblePositionEvent>[];
   /** The connection of the current Play. */
   connection(): FakeConnection;
   /** Deliver `seconds` of audio on the current connection. */
@@ -58,31 +73,47 @@ async function harness(
   options: {
     readonly connector?: FakeConnectorOptions;
     readonly declaredBars?: number;
+    /** GAS source to load instead of the default timeline. */
+    readonly source?: string;
+    readonly outputLatency?: number;
   } = {}
 ): Promise<Harness> {
   const context = new FakeAudioContext();
+  if (options.outputLatency !== undefined) context.outputLatency = options.outputLatency;
   const connector = new FakeConnector(options.connector);
   const browser = await createBrowserSession({ connector, context: context.asContext() });
-  const bars = options.declaredBars ?? 4;
-  await browser.session.loadTimeline(
-    testTimeline({
-      playback: { mode: 'finite', declaredBars: bars },
-      arrangedBars: bars,
-      arrangement: [
-        {
-          sectionInstanceId: 'section.main.0',
-          sectionName: 'main',
-          callIndex: 0,
-          start: { bar: 1 },
-          end: { bar: bars + 1 }
-        }
-      ]
-    })
+  const generated: Recorded<GenerationPositionEvent>[] = [];
+  const heard: Recorded<AudiblePositionEvent>[] = [];
+  browser.session.on('generationPosition', (event) =>
+    generated.push({ at: context.currentTime, event })
   );
+  browser.session.on('audiblePosition', (event) => heard.push({ at: context.currentTime, event }));
+  if (options.source !== undefined) {
+    await browser.session.loadSource(options.source);
+  } else {
+    const bars = options.declaredBars ?? 4;
+    await browser.session.loadTimeline(
+      testTimeline({
+        playback: { mode: 'finite', declaredBars: bars },
+        arrangedBars: bars,
+        arrangement: [
+          {
+            sectionInstanceId: 'section.main.0',
+            sectionName: 'main',
+            callIndex: 0,
+            start: { bar: 1 },
+            end: { bar: bars + 1 }
+          }
+        ]
+      })
+    );
+  }
   return {
     context,
     connector,
     browser,
+    generated,
+    heard,
     connection: () => connector.latest(),
     deliver(seconds = 2) {
       connector.latest().pushAudio(seconds);
@@ -92,9 +123,9 @@ async function harness(
 
 describe('composition', () => {
   it('plays session audio through the engine and places the audible playhead musically', async () => {
-    const { context, browser, deliver } = await harness();
+    const { context, browser, deliver, heard } = await harness();
     await browser.session.play();
-    expect(browser.audiblePosition()).toBeUndefined();
+    expect(heard).toEqual([]);
 
     deliver();
     await advanceTo(context, 2);
@@ -103,14 +134,14 @@ describe('composition', () => {
 
     // One second into the audio: beat 3 of bar 1 at 120 BPM in 4/4.
     await advanceTo(context, 3.05);
-    const audible = browser.audiblePosition();
+    const audible = heard.at(-1)?.event;
     expect(audible?.seconds).toBeCloseTo(1, 6);
     expect(audible?.position).toEqual({ bar: 1, beat: { index: 3 } });
     await browser.close();
   });
 
   it('places the playhead from the next Play after a failure', async () => {
-    const { context, browser, connector, connection, deliver } = await harness();
+    const { context, browser, connector, connection, deliver, heard } = await harness();
     await browser.session.play();
     deliver();
     connection().fail(FAILURE);
@@ -123,7 +154,7 @@ describe('composition', () => {
     deliver();
     deliver();
     await advanceTo(context, runStart + 0.05 + 2.5);
-    expect(browser.audiblePosition()?.position).toEqual({ bar: 2, beat: { index: 2 } });
+    expect(heard.at(-1)?.event.position).toEqual({ bar: 2, beat: { index: 2 } });
     await browser.close();
   });
 
@@ -270,7 +301,7 @@ describe('stopping and ending', () => {
   // Real-time delivery: the renderer completes at 4 s, but the listener is two
   // seconds of prebuffer behind and hears the piece until 6.05 s.
   it('keeps placing the playhead while a finished piece plays out', async () => {
-    const { context, browser, deliver } = await harness({ declaredBars: 2 });
+    const { context, browser, deliver, heard } = await harness({ declaredBars: 2 });
     await browser.session.play();
     deliver();
     await advanceTo(context, 2);
@@ -279,18 +310,24 @@ describe('stopping and ending', () => {
     expect(browser.session.getState()).toMatchObject({ status: 'stopped', ended: 'finished' });
 
     await advanceTo(context, 5.05);
-    expect(browser.audiblePosition()).toEqual({
+    expect(heard.at(-1)?.event).toEqual({
       position: { bar: 2, beat: { index: 3 } },
-      seconds: expect.closeTo(3, 6)
+      seconds: expect.closeTo(3, 6),
+      loopIteration: 1
     });
     await advanceTo(context, 6.1);
     expect(browser.audio.status().state).toBe('stopped');
-    expect(browser.audiblePosition()?.position).toEqual({ bar: 3 });
+    const last = heard.at(-1)!;
+    expect(last.event.position).toEqual({ bar: 3 });
+    expect(last.at).toBeCloseTo(6.05, 2);
+    const count = heard.length;
+    await advanceTo(context, 8);
+    expect(heard).toHaveLength(count);
     await browser.close();
   });
 
   it('silences the tail of a finished piece when the app stops', async () => {
-    const { context, browser, deliver } = await harness({ declaredBars: 2 });
+    const { context, browser, deliver, heard } = await harness({ declaredBars: 2 });
     await browser.session.play();
     deliver();
     await advanceTo(context, 2);
@@ -299,7 +336,9 @@ describe('stopping and ending', () => {
     await browser.session.stop();
     // Chunk 0 finished at 4.05; chunk 1 was still playing.
     expect(context.started[1]!.stoppedAt).toBeCloseTo(5.02, 9);
-    expect(browser.audiblePosition()).toBeUndefined();
+    const count = heard.length;
+    await advanceTo(context, 7);
+    expect(heard).toHaveLength(count);
     await browser.close();
   });
 
@@ -315,5 +354,135 @@ describe('stopping and ending', () => {
     await advanceTo(context, 1.1);
     expect(context.started.every((source) => source.ended)).toBe(true);
     await browser.close();
+  });
+});
+
+describe('audible position', () => {
+  /** Deliver a 2 s chunk every 2 s, as a real-time model would, until `until`. */
+  async function realTime(h: Harness, until: number): Promise<void> {
+    for (let at = h.context.currentTime; at < until; at += 2) {
+      h.deliver();
+      await advanceTo(h.context, Math.min(at + 2, until));
+    }
+  }
+
+  // The advance steps are 10 ms, so an event lands at most one step late.
+  function expectTrailing(h: Harness, gap: number): void {
+    expect(h.heard.length).toBeGreaterThan(0);
+    for (const { at, event } of h.heard) {
+      expect(at - event.seconds).toBeGreaterThanOrEqual(gap - 0.001);
+      expect(at - event.seconds).toBeLessThanOrEqual(gap + 0.011);
+    }
+  }
+
+  it('reports each beat as it is heard, the prebuffer and start lead behind', async () => {
+    const h = await harness();
+    await h.browser.session.play();
+    await realTime(h, 6.1);
+    expectTrailing(h, 2.05);
+    // Every beat of the first two bars, in order, at 120 BPM.
+    expect(h.heard.slice(0, 8).map(({ event }) => event.seconds)).toEqual(
+      [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5].map((seconds) => expect.closeTo(seconds, 6))
+    );
+    expect(h.heard[4]!.event.position).toEqual({ bar: 2 });
+    // The session's own generation events come through unchanged.
+    for (const { event } of h.generated) {
+      if (event.seconds < 4) expect(h.heard.map((r) => r.event)).toContainEqual(event);
+    }
+    await h.browser.close();
+  });
+
+  it('trails by the output latency too', async () => {
+    const h = await harness({ outputLatency: 0.1 });
+    await h.browser.session.play();
+    await realTime(h, 6.1);
+    expectTrailing(h, 2.15);
+    await h.browser.close();
+  });
+
+  it('reports nothing before the first audio is heard', async () => {
+    const h = await harness();
+    await h.browser.session.play();
+    await advanceTo(h.context, 3);
+    expect(h.heard).toEqual([]);
+    await h.browser.close();
+  });
+
+  it('drops what was generated but not heard when the app stops', async () => {
+    const h = await harness();
+    await h.browser.session.play();
+    await realTime(h, 3);
+    await h.browser.session.stop();
+    const heardBeforeStop = h.heard.length;
+    await advanceTo(h.context, 6);
+    expect(h.heard).toHaveLength(heardBeforeStop);
+
+    await h.browser.session.play();
+    const runStart = h.context.currentTime;
+    await realTime(h, runStart + 2.1);
+    const next = h.heard.slice(heardBeforeStop);
+    expect(next[0]!.event).toEqual({ position: { bar: 1 }, seconds: 0, loopIteration: 1 });
+    expect(next[0]!.at - runStart).toBeCloseTo(2.05, 1);
+    await h.browser.close();
+  });
+
+  it('reports nothing after a failure', async () => {
+    const h = await harness();
+    await h.browser.session.play();
+    await realTime(h, 3);
+    h.connection().fail(FAILURE);
+    await vi.advanceTimersByTimeAsync(0);
+    const count = h.heard.length;
+    await advanceTo(h.context, 8);
+    expect(h.heard).toHaveLength(count);
+    await h.browser.close();
+  });
+
+  it('holds through an underrun and goes on once the next chunk is heard', async () => {
+    const h = await harness();
+    await h.browser.session.play();
+    h.deliver();
+    // The chunk plays from 2.05 to 4.05, then the chain runs dry.
+    await advanceTo(h.context, 6);
+    const held = h.heard.at(-1)!;
+    expect(held.event.seconds).toBeCloseTo(2, 6);
+    expect(held.event.position).toEqual({ bar: 2 });
+    expect(held.at).toBeCloseTo(4.05, 1);
+
+    h.deliver();
+    await advanceTo(h.context, 7.9);
+    expect(h.heard.at(-1)).toBe(held);
+    // Rebuffered for 2 s, then heard 50 ms after that.
+    await advanceTo(h.context, 8.7);
+    const resumed = h.heard.slice(h.heard.indexOf(held) + 1);
+    expect(resumed[0]!.event.seconds).toBeCloseTo(2.5, 6);
+    expect(resumed[0]!.at).toBeCloseTo(8.55, 1);
+    await h.browser.close();
+  });
+
+  it('reports the beats of an opening rest as its silence plays', async () => {
+    const h = await harness({ source: OPENING_REST });
+    await h.browser.session.play();
+    await advanceTo(h.context, 3.6);
+    expect(h.heard.slice(0, 4).map(({ event }) => event.position)).toEqual([
+      { bar: 1 },
+      { bar: 1, beat: { index: 2 } },
+      { bar: 1, beat: { index: 3 } },
+      { bar: 1, beat: { index: 4 } }
+    ]);
+    // GAS hands out its silence ahead, so the prebuffer fills at once and only
+    // the start lead is left.
+    expectTrailing(h, 0.05);
+    await h.browser.close();
+  });
+
+  it('reports nothing after close', async () => {
+    const h = await harness();
+    await h.browser.session.play();
+    await realTime(h, 3);
+    await h.browser.close();
+    const count = h.heard.length;
+    await advanceTo(h.context, 8);
+    expect(h.heard).toHaveLength(count);
   });
 });

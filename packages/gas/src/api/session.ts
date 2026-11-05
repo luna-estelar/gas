@@ -22,6 +22,7 @@ function language(): Promise<LanguageModule> {
   return (languageModule ??= import('../language/index.js'));
 }
 import type {
+  AudiblePositionEvent,
   CapabilitiesTable,
   Command,
   CommandWarning,
@@ -494,10 +495,15 @@ export class GasSession {
 
   /**
    * The musical position `seconds` after bar 1 of the current Play.
-   * @internal For the browser session's playhead.
+   * @internal For the browser session's beats between generation events.
    */
   positionAtSeconds(seconds: number): MusicalPosition | undefined {
     return this.renderer.positionAtSeconds(seconds);
+  }
+
+  /** @internal For the browser session, which knows when a position is heard. */
+  emitAudiblePosition(event: AudiblePositionEvent): void {
+    this.events.emit('audiblePosition', event);
   }
 
   // A Play the renderer ended itself: the piece finished, or the connection

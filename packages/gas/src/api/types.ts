@@ -12,6 +12,7 @@ import type {
 
 export type {
   AppliedPosition,
+  AudiblePositionEvent,
   CommandResult,
   LoadResult,
   PlayWarning,

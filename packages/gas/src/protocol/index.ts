@@ -84,6 +84,7 @@ export type { EffectiveGlobals, EffectiveState, EffectiveTrack } from './effecti
 
 export type {
   AppliedPosition,
+  AudiblePositionEvent,
   CommandResult,
   CompileResult,
   DocumentDefaults,

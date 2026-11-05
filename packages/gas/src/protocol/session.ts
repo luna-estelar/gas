@@ -78,3 +78,13 @@ export interface GenerationPositionEvent {
   readonly seconds: number;
   readonly loopIteration: number;
 }
+
+/**
+ * Where the listener is. The same values as a `generationPosition` event,
+ * emitted when the player reaches its `seconds`.
+ */
+export interface AudiblePositionEvent {
+  readonly position: MusicalPosition;
+  readonly seconds: number;
+  readonly loopIteration: number;
+}

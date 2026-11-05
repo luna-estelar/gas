@@ -3,6 +3,7 @@
 
 import type {
   AppValueDroppedWarning,
+  AudiblePositionEvent,
   AudioChunk,
   CommandWarning,
   GenerationPositionEvent,
@@ -18,6 +19,11 @@ export interface SessionEventMap {
   readonly state: SessionState;
   /** Where the model has generated up to. */
   readonly generationPosition: GenerationPositionEvent;
+  /**
+   * Where the listener is: each `generationPosition` again, as it is heard.
+   * Only a session with a player emits it, such as `createBrowserSession`'s.
+   */
+  readonly audiblePosition: AudiblePositionEvent;
   readonly audio: AudioChunk;
   readonly warning: WarningEvent;
   /** A provider failure after Play resolved. Every other failure is a rejection. */
@@ -31,6 +37,7 @@ export class EventHub {
   private readonly channels: { [K in SessionEvent]: Set<Listener<SessionEventMap[K]>> } = {
     state: new Set(),
     generationPosition: new Set(),
+    audiblePosition: new Set(),
     audio: new Set(),
     warning: new Set(),
     error: new Set()

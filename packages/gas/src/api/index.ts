@@ -24,6 +24,7 @@ export type { SessionEvent, SessionEventMap } from './events.js';
 export { GasOperationError } from './types.js';
 export type {
   AppliedPosition,
+  AudiblePositionEvent,
   CommandResult,
   LoadResult,
   OperationErrorInit,
