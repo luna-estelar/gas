@@ -120,7 +120,7 @@ describe('renderer scheduling and derivation', () => {
     expect(clock.pendingDeadlines()).toEqual([]);
   });
 
-  // A host that buffers audio is still playing the piece after the renderer is
+  // An app that buffers audio is still playing the piece after the renderer is
   // done with it, so the mapping has to outlive the Play.
   it('keeps placing a finished Play until the next one or a stop', async () => {
     const { clock, connector, renderer } = await playing(timelineWithBarThreeStop());
@@ -171,7 +171,7 @@ describe('renderer scheduling and derivation', () => {
 
   it('cancels future work on stop and rejects a second play', async () => {
     const { clock, connection, renderer } = await playing(timelineWithBarThreeStop());
-    await expect(renderer.play()).rejects.toMatchObject({ code: 'renderer-state-conflict' });
+    await expect(renderer.play()).rejects.toMatchObject({ code: 'wrong-state' });
     renderer.stop();
     expect(clock.pendingDeadlines()).toEqual([]);
     clock.advanceTo(20);
@@ -183,7 +183,7 @@ describe('renderer scheduling and derivation', () => {
   it('isolates listeners while starting playback', async () => {
     const r = rig(testTimeline());
     r.renderer.on('generationPosition', () => {
-      throw new Error('host listener failure');
+      throw new Error('app listener failure');
     });
     const bars: number[] = [];
     r.renderer.on('generationPosition', (event) => bars.push(event.position.bar));
@@ -214,7 +214,7 @@ describe('renderer scheduling and derivation', () => {
     };
 
     await expect(play).rejects.toMatchObject({
-      code: 'connector-unavailable',
+      code: 'connection-failed',
       failure: { code: 'connector-unavailable' }
     });
     expect(connection.calls).toEqual(['close']);

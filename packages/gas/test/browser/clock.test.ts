@@ -140,7 +140,7 @@ describe('opening a context', () => {
   });
 
   // A browser that refuses to start audio may leave `resume()` pending forever.
-  // The host still needs the context back, to offer the gesture that fixes it.
+  // The app still needs the context back, to offer the gesture that fixes it.
   it('yields a context whose resume never settles instead of hanging', async () => {
     vi.stubGlobal(
       'AudioContext',

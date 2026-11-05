@@ -224,9 +224,9 @@ describe('validateTimeline rejects broken timelines', () => {
   });
 
   test('checks the beat offset but not the beat index when no meter is declared', () => {
-    // A document with no time signature is played at the host's renderer
-    // default, which this gate cannot see, so guessing 4/4 here would reject a
-    // timeline a host would legitimately play in 9/8.
+    // A document with no time signature is played at the app's default, which
+    // this check can't see, so guessing 4/4 here would reject a timeline an app
+    // could play in 9/8.
     const spacious = validTimeline() as any;
     delete spacious.musicalContext;
     spacious.events[2].position = { bar: 9, beat: { index: 9 } };

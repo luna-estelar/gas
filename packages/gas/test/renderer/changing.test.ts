@@ -164,7 +164,7 @@ describe('changes while playing', () => {
 
     const caught = await rejection(renderer.update(state));
     expect(caught).toMatchObject({
-      code: 'connector-unavailable',
+      code: 'connection-failed',
       failure: { code: 'generation-failed' }
     });
     expect(String(caught)).not.toContain(secret);

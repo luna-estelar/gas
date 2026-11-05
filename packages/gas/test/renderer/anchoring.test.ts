@@ -118,7 +118,7 @@ describe('renderer anchoring', () => {
   });
 
   it('accepts a state change made before the first chunk arrives', async () => {
-    // play() resolves before audio exists, so a host that reaches for a fader in
+    // play() resolves before audio exists, so an app that reaches for a fader in
     // that moment must be answered rather than told the renderer is busy.
     const timeline = infinite();
     const { clock, connection, renderer, positions } = await playing(timeline, { firstAudio: 0 });
@@ -175,8 +175,8 @@ describe('renderer anchoring', () => {
     expect(ends).toEqual([{ reason: 'finished' }]);
   });
 
-  it('reverts to the document tempo when a pre-anchor override is cleared', async () => {
-    // Clearing an override means "no override", not "keep the last value". The
+  it('reverts to the document tempo when a pre-anchor app value is cleared', async () => {
+    // Clearing an app value means "no app value", not "keep the last value". The
     // document declares no tempo here, so the renderer default is what is left.
     const timeline = testTimeline({ playback: { mode: 'infinite' }, musicalContext: undefined });
     const { clock, connection, renderer } = await playing(timeline, { firstAudio: 0 });
@@ -192,7 +192,7 @@ describe('renderer anchoring', () => {
   });
 
   it('places no playhead in an iteration the live tempo map no longer describes', async () => {
-    // A loop boundary rebuilds the map from bar one at that instant. A host whose
+    // A loop boundary rebuilds the map from bar one at that instant. An app whose
     // audio lags asks about the iteration before it, which the map cannot place,
     // and reporting bar one would walk a buffered playhead backwards.
     const { clock, renderer } = await playing(

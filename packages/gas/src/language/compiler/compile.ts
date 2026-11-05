@@ -1,5 +1,5 @@
 // Compile semantic documents into deterministic timelines in absolute musical time.
-// The renderer converts musical positions to elapsed time.
+// The session converts musical positions to elapsed time.
 
 import {
   effectiveLengthBars,

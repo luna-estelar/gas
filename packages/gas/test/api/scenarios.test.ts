@@ -48,7 +48,7 @@ describe('live commands', () => {
   it('applies a fragment against authored tracks', async () => {
     const h = await playingLoaded();
     const result = await h.session.submitLiveCommands('drums.flavor "punchy"\ntempo 132');
-    expect(result).toMatchObject({ ok: true, applied: 2 });
+    expect(result).toMatchObject({ applied: 2 });
     expect(h.session.getState().appValues).toEqual([
       { kind: 'setTrackFlavor', trackId: 'track.drums', value: 'punchy' },
       { kind: 'setTempo', bpm: 132 }
@@ -73,11 +73,11 @@ describe('live commands', () => {
   it('declares a track live and keeps it addressable afterwards', async () => {
     const { session } = await loaded();
     const first = await session.submitLiveCommands('track echo "spacey delay"\necho.play');
-    expect(first.ok).toBe(true);
+    expect(first.applied).toBe(2);
     expect(session.getTracks().some((t) => t.id === 'track.echo')).toBe(true);
     // A later, separate submission still resolves the live-declared track.
     const second = await session.submitLiveCommands('echo.flavor "wet"');
-    expect(second.ok).toBe(true);
+    expect(second.applied).toBe(1);
   });
 
   it('resolves references made after a live declaration within the same batch', async () => {
@@ -128,7 +128,7 @@ describe('session validation scenarios', () => {
     expect(h.session.getState()).toMatchObject({ status: 'stopped', ended: 'stopped' });
   });
 
-  it('programmatic track lifecycle', async () => {
+  it('defines, uses and removes an app track', async () => {
     const h = await playingLoaded();
     await h.session.defineTrack({ id: 'track.bass', name: 'bass', description: 'deep bass' });
     expect(h.session.getTracks().some((t) => t.id === 'track.bass' && t.source === 'app')).toBe(
@@ -149,7 +149,7 @@ describe('session validation scenarios', () => {
     const { session } = await loaded();
     await session.submitLiveCommands('track pluck "muted pluck"\npluck.play');
     const again = await session.submitLiveCommands('pluck.level 0.7');
-    expect(again.ok).toBe(true);
+    expect(again.applied).toBe(1);
   });
 
   it('tempo change during playback surfaces requested/applied positions', async () => {

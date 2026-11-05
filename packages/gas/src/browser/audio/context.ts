@@ -32,7 +32,7 @@ export async function openAudioContext(
   try {
     await Promise.race([
       // A rejection is one of the answers, not a failure: it is reported through
-      // `resumed`, and the host can retry on the next gesture.
+      // `resumed`, and the app can retry on the next gesture.
       resuming.catch(() => undefined),
       new Promise<void>((resolve) => {
         timer = setTimeout(resolve, RESUME_TIMEOUT_MS);

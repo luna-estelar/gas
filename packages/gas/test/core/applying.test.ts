@@ -8,7 +8,7 @@ import {
   type Command,
   type CommandFailureCode,
   type InputState,
-  type OverrideCommand
+  type AppValueCommand
 } from '../../src/core/index.js';
 import { validTimeline } from './support/timelines.js';
 
@@ -52,11 +52,11 @@ function mustApply(
   return result.state;
 }
 
-// One valid fixture per override kind, against the fixture timeline's
+// One valid fixture per app value kind, against the fixture timeline's
 // 'track.pad' / 'track.lead', with the intent keyword each command expresses
 // (undefined for the structural play/stop commands and global level).
 const OVERRIDES: ReadonlyArray<
-  readonly [name: string, command: OverrideCommand, intent: IntentKeyword | undefined]
+  readonly [name: string, command: AppValueCommand, intent: IntentKeyword | undefined]
 > = [
   ['playTrack', { kind: 'playTrack', trackId: 'track.pad' }, undefined],
   ['stopTrack', { kind: 'stopTrack', trackId: 'track.pad' }, undefined],
@@ -84,7 +84,7 @@ const OVERRIDES: ReadonlyArray<
 ];
 
 const INTENT_COMMANDS = OVERRIDES.filter(([, , intent]) => intent !== undefined) as ReadonlyArray<
-  readonly [name: string, command: OverrideCommand, intent: IntentKeyword]
+  readonly [name: string, command: AppValueCommand, intent: IntentKeyword]
 >;
 
 const SETS = OVERRIDES.filter(([name]) => !name.startsWith('clear'));
@@ -431,7 +431,7 @@ describe('applyCommand warns from the capabilities table', () => {
     }
   );
 
-  it('treats global level as Renderer-owned while track level still follows capabilities', () => {
+  it('treats global level as GAS gain while track level still follows capabilities', () => {
     const global = applyCommand(
       baseState(),
       { kind: 'setGlobalLevel', value: 0.5 },
@@ -486,7 +486,7 @@ describe('applyCommand warns from the capabilities table', () => {
     expect(silent.warnings).toEqual([]);
   });
 
-  it('keeps earlier overrides intact when a later command warns', () => {
+  it('keeps earlier app values intact when a later command warns', () => {
     const capabilities: CapabilitiesTable = {
       intents: { ...ALL_SUPPORTED.intents, tempo: 'unsupported' }
     };

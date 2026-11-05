@@ -109,7 +109,7 @@ describe('session state', () => {
     ]);
   });
 
-  it('reports where the model has generated to, with no run id', async () => {
+  it('reports where the model has generated to, with no Play id', async () => {
     const h = await playing();
     h.connector.latest().pushAudio(barTime(5));
     // LOOPS has no boundary inside its four bars, so the next position is the loop.

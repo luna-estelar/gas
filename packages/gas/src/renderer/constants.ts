@@ -1,4 +1,4 @@
-// Playback latency and buffer limits shared by renderer scheduling and delivery.
+// Latency and buffer limits for scheduling and delivering audio.
 export const LOOKAHEAD_CHUNKS = 1;
 export const MAX_LOOKAHEAD_SECONDS = 4;
 export const BUFFER_WARNING_SECONDS = 12;
@@ -15,12 +15,12 @@ export const MAX_FIRST_AUDIO_TIMEOUT_SECONDS = 15;
  * wait either (rule 2). Wall time, because the audio clock stops while a
  * browser context is suspended.
  */
-export const CONNECTOR_CLEANUP_TIMEOUT_SECONDS = 5;
+export const CONNECTION_CLOSE_TIMEOUT_SECONDS = 5;
 
 /**
  * How long before a track comes in after a rest GAS resumes the model, so its
- * start-up delay doesn't make the track late. A placeholder until 0.4 step 6
- * measures it. It is at least one lookahead, because silence already handed to
+ * start-up delay doesn't make the track late. A placeholder until the start-up
+ * delay is measured. It is at least one lookahead, because silence already handed to
  * the player can't be taken back, so an entry can't be closer than that.
  */
 export const RESUME_LEAD_SECONDS = 2;

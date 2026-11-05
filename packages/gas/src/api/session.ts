@@ -14,7 +14,7 @@ import {
   type CommandFailure,
   type InputState
 } from '../core/index.js';
-// Loaded on demand: the compiler pulls in Langium and Chevrotain, which a host
+// Loaded on demand: the compiler pulls in Langium and Chevrotain, which an app
 // that only drives a session never needs. Every method that compiles is async.
 type LanguageModule = typeof import('../language/index.js');
 let languageModule: Promise<LanguageModule> | undefined;
@@ -54,7 +54,7 @@ import {
   GasOperationError,
   type AppliedPosition,
   type CommandResult,
-  type LiveCommandResult,
+  type SubmitLiveCommandsResult,
   type SessionEnded,
   type SessionState,
   type SessionStatus,
@@ -107,7 +107,7 @@ export async function createSession(options: CreateSessionOptions): Promise<GasS
         : {})
     });
   } catch (error) {
-    throw fromRendererError(error, 'The session could not be created.');
+    throw fromDefaultsError(error, 'The session could not be created.');
   }
   return new GasSession(renderer);
 }
@@ -131,7 +131,7 @@ export class GasSession {
     renderer.on('generationPosition', (position) =>
       this.events.emit('generationPosition', position)
     );
-    renderer.on('warning', (warning) => this.events.warnRenderer(warning));
+    renderer.on('warning', (warning) => this.events.warnPlay(warning));
     renderer.on('ended', (end) => this.onEnded(end));
   }
 
@@ -216,7 +216,7 @@ export class GasSession {
     try {
       this.renderer.load(timeline, next);
     } catch (error) {
-      throw fromRendererError(error, 'The document could not be loaded.', 'document');
+      throw fromRendererError(error, 'The document could not be loaded.');
     }
     this.input = next;
     this.emitState();
@@ -326,7 +326,7 @@ export class GasSession {
   // then apply the statements in order on a working copy. Any failure rejects
   // and nothing applies. Statements are converted one at a time because a name
   // may refer to a track declared earlier in the same submission.
-  async submitLiveCommands(input: SourceInput): Promise<LiveCommandResult> {
+  async submitLiveCommands(input: SourceInput): Promise<SubmitLiveCommandsResult> {
     // Checked up front so an unloaded or closed session fails before any work,
     // and so those errors keep precedence over a parse error.
     this.ensureOpen();
@@ -366,10 +366,10 @@ export class GasSession {
 
     const applied = parsed.statements.length;
     if (applied === 0) {
-      return { ok: true, applied, warnings: [] };
+      return { applied, warnings: [] };
     }
     const { warnings, ...positions } = await this.commit(state, coreWarnings);
-    return { ok: true, applied, warnings, ...positions };
+    return { applied, warnings, ...positions };
   }
 
   /**
@@ -475,7 +475,7 @@ export class GasSession {
     try {
       return this.renderer.updateDefaults(patch);
     } catch (error) {
-      throw fromRendererError(error, 'The document defaults are not valid.', 'command');
+      throw fromDefaultsError(error, 'The document defaults are not valid.');
     }
   }
 
@@ -494,7 +494,7 @@ export class GasSession {
 
   /**
    * The musical position `seconds` after bar 1 of the current Play.
-   * @internal For the browser session's playhead. 0.4 step 7 replaces it.
+   * @internal For the browser session's playhead.
    */
   positionAtSeconds(seconds: number): MusicalPosition | undefined {
     return this.renderer.positionAtSeconds(seconds);
@@ -535,7 +535,7 @@ export class GasSession {
     this.input = state;
     const warnings = coreWarnings.map((warning) => this.events.warn(warning));
     const playing = this.status === 'playing';
-    const positions = await this.forwardState();
+    const positions = await this.forwardState(state);
     this.emitState();
     return playing ? { warnings, ...positions } : { warnings };
   }
@@ -544,10 +544,9 @@ export class GasSession {
     return { capabilities: this.renderer.getCapabilities() };
   }
 
-  private async forwardState(): Promise<AppliedPosition> {
-    if (this.input === undefined) return {};
+  private async forwardState(state: InputState): Promise<AppliedPosition> {
     try {
-      const result = await this.renderer.update(this.input);
+      const result = await this.renderer.update(state);
       return {
         ...(result.requestedPosition !== undefined
           ? { requestedPosition: result.requestedPosition }
@@ -560,7 +559,7 @@ export class GasSession {
       // app value is kept (rule 5) and the event is the only report (rule 3).
       if (
         error instanceof RendererError &&
-        (error.code === 'renderer-state-conflict' || error.code === 'connector-unavailable')
+        (error.code === 'wrong-state' || error.code === 'connection-failed')
       ) {
         return {};
       }
@@ -667,22 +666,24 @@ function providerError(failure: RendererFailure): GasOperationError {
   });
 }
 
+// resolveTiming throws a RangeError for a bad tempo or time signature.
+function fromDefaultsError(error: unknown, message: string): GasOperationError {
+  if (error instanceof RangeError) {
+    return new GasOperationError(message, { kind: 'command', cause: error });
+  }
+  return fromRendererError(error, message);
+}
+
 // Maps a renderer error to the session's kinds. A provider failure keeps only
 // its safe classification, never provider text.
-function fromRendererError(
-  error: unknown,
-  message: string,
-  invalidKind: 'command' | 'document' = 'command'
-): GasOperationError {
+function fromRendererError(error: unknown, message: string): GasOperationError {
   if (!(error instanceof RendererError)) {
     return new GasOperationError(message, { kind: 'provider', reason: 'internal', cause: error });
   }
   if (error.failure !== undefined) return providerError(error.failure);
   switch (error.code) {
-    case 'cancelled':
-      return cancelled(error);
     case 'invalid-configuration':
-      return new GasOperationError(message, { kind: invalidKind, cause: error.problems });
+      return new GasOperationError(message, { kind: 'command', cause: error.problems });
     case 'invalid-timeline':
       return new GasOperationError(message, { kind: 'document', cause: error.problems });
     default:

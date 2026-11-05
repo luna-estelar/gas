@@ -141,6 +141,13 @@ describe('configuring', () => {
         timeSignature: { beatsPerBar: 4, beatUnit: 4 }
       });
     });
+
+    it('rejects a bad default with command', async () => {
+      const h = await harness();
+      expect((await rejectionOf(h.session.updateDocumentDefaults({ tempo: -1 }))).kind).toBe(
+        'command'
+      );
+    });
   });
 
   describe('apply() while starting', () => {

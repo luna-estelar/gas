@@ -1,6 +1,5 @@
-// Lifecycle transitions. Stop, completion and retry leave the input state alone:
-// app values last until the app clears them. Loop boundaries come from the
-// Renderer; a new document goes through `applyNewTimeline`.
+// Loading a new document. Stop, completion, a failure and a loop leave the input
+// state alone, because app values last until the app clears them.
 
 import type {
   AppValueDroppedWarning,
@@ -24,11 +23,6 @@ export type NewTimelineResult =
       readonly warnings: readonly (CommandWarning | AppValueDroppedWarning)[];
     }
   | { readonly ok: false; readonly failure: CommandFailure; readonly index?: number };
-
-// Keeps the app values; callers must not depend on object identity.
-export function applyLoopBoundary(state: InputState): InputState {
-  return state;
-}
 
 export function applyNewTimeline(
   state: InputState,

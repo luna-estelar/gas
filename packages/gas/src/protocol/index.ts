@@ -1,8 +1,6 @@
-// Shared, transport-neutral payload schemas and types used across GAS. This
-// module depends on no other GAS module. The v1.0 JSON
-// schemas ship under `schemas/1.0/`; JSON-compatible value contracts have
-// matching schemas, while service interfaces and binary values remain
-// canonical TypeScript contracts.
+// Types shared across GAS. This module depends on no other GAS module. The JSON
+// values have matching schemas under `schemas/1.0/`. Interfaces and binary
+// values are defined only here.
 
 export type {
   ArrangementInstance,
@@ -56,6 +54,7 @@ export type {
 } from './diagnostics.js';
 
 export type {
+  AppValueCommand,
   ClearGlobalFlavorCommand,
   ClearGlobalLevelCommand,
   ClearTempoCommand,
@@ -67,7 +66,6 @@ export type {
   ClearTrackTimbreCommand,
   Command,
   DefineTrackCommand,
-  OverrideCommand,
   PlayTrackCommand,
   RemoveTrackCommand,
   SetGlobalFlavorCommand,
@@ -81,7 +79,7 @@ export type {
   StopTrackCommand
 } from './commands.js';
 
-export type { AppTrack, InputState, Override } from './input-state.js';
+export type { AppTrack, AppValue, InputState } from './input-state.js';
 export type { EffectiveGlobals, EffectiveState, EffectiveTrack } from './effective-state.js';
 
 export type {
@@ -91,13 +89,12 @@ export type {
   DocumentDefaults,
   GenerationPositionEvent,
   LoadResult,
-  LiveCommandResult,
-  LiveCommandSuccess,
-  PlaybackWarning,
+  PlayWarning,
   SessionEnded,
   SessionState,
   SessionStatus,
   SessionWarning,
+  SubmitLiveCommandsResult,
   TrackView,
   WarningEvent
 } from './session.js';
@@ -117,7 +114,6 @@ export type {
   ConnectorDescription,
   ConnectorFailureReason,
   ConnectorNotation,
-  ConnectorSettings,
   ConnectorTiming,
   ConnectorUpdate,
   ConnectorWarning,

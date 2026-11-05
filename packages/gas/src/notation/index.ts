@@ -1,5 +1,4 @@
-// Pure notation helpers. Owns no I/O, no clock, no Renderer state, and no
-// Language parser dependency.
+// Pure notation helpers: no I/O, no clock, no session state, and no parser.
 
 export { AldaParseError } from './alda/errors.js';
 export { parseAlda } from './parse-alda.js';

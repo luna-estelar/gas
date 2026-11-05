@@ -55,7 +55,7 @@ export function fakeDescription(
   };
 }
 
-export type ConnectionCall = 'update' | 'pause' | 'resume' | 'close';
+type ConnectionCall = 'update' | 'pause' | 'resume' | 'close';
 
 export class FakeConnection implements Connection {
   readonly calls: ConnectionCall[] = [];

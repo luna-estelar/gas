@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { compileSource, type Timeline } from '../../src/language/index.js';
 
 // These tests cover musical-time positioning only. There are no seconds in a
-// compiled timeline — bars→seconds conversion is Renderer-owned.
+// compiled timeline. The session converts bars to seconds.
 
 function compile(source: string): Timeline {
   const result = compileSource(source);

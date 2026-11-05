@@ -164,7 +164,7 @@ describe('packages', () => {
   test.each(['@luna-estelar/gas-lyria-rt'])(
     '%s peers on gas and develops against the workspace copy',
     (name) => {
-      // A peer, not a dependency: a host with two copies of gas would have two
+      // A peer, not a dependency: an app with two copies of gas would have two
       // ConnectorError classes, and instanceof checks would fail across them.
       // The range is written out because on 0.x `^0.3.0` means `<0.4.0`, which
       // would force a connector release for every gas minor.

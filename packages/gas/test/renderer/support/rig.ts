@@ -36,7 +36,7 @@ export interface Rig {
   readonly ends: RendererEnd[];
 }
 
-export interface RigOptions {
+interface RigOptions {
   readonly connector?: FakeConnector | FakeConnectorOptions;
   readonly renderer?: Partial<Omit<CreateRendererOptions, 'clock' | 'connector'>>;
 }

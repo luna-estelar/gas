@@ -1,4 +1,4 @@
-// Plays renderer chunks as a gapless chain of AudioBufferSourceNodes, each
+// Plays audio chunks as a gapless chain of AudioBufferSourceNodes, each
 // started at the exact time the previous one ends on the device clock.
 //
 // A real-time model delivers each chunk at about the moment the previous one
@@ -31,7 +31,7 @@ const FRAME_TOLERANCE = 1e-6;
 
 interface Pending {
   readonly buffer: AudioBuffer;
-  /** Length in frames at the run's own sample rate. */
+  /** Length in frames at the Play's own sample rate. */
   readonly frames: number;
   readonly sequence: number;
 }
@@ -44,7 +44,7 @@ interface Pending {
  */
 interface Segment {
   readonly startFrame: number;
-  /** Source frames the run had delivered when the segment began. */
+  /** Source frames the Play had delivered when the segment began. */
   readonly baseFrames: number;
 }
 
@@ -62,7 +62,7 @@ export class ChainedSourceEngine implements PlaybackEngine {
   private closed = false;
 
   // Whether a Play's audio is in hand. Each Play numbers its audio from 0.
-  private inRun = false;
+  private inPlay = false;
   private format: { readonly sampleRate: number; readonly channels: number } | undefined;
   private queue: Pending[] = [];
   private prebufferTimer: ClockTimer | undefined;
@@ -70,7 +70,7 @@ export class ChainedSourceEngine implements PlaybackEngine {
   // Kept after a resume so the playhead can finish the audio it was still
   // playing out through the output latency.
   private previousSegment: Segment | undefined;
-  // Source frames, at the run's rate, handed to the graph so far.
+  // Source frames, at the Play's rate, handed to the graph so far.
   private deliveredFrames = 0;
   private underruns = 0;
   private gainRestored = false;
@@ -93,9 +93,9 @@ export class ChainedSourceEngine implements PlaybackEngine {
 
   push(chunk: AudioChunk): void {
     if (this.closed) return;
-    if (!this.inRun || chunk.sequence === 0) {
-      if (this.inRun) this.flush();
-      this.beginRun();
+    if (!this.inPlay || chunk.sequence === 0) {
+      if (this.inPlay) this.flush();
+      this.beginPlay();
     }
 
     let decoded;
@@ -128,7 +128,7 @@ export class ChainedSourceEngine implements PlaybackEngine {
     switch (this.state) {
       case 'playing':
       case 'stopped':
-        // Stopped with the run still set means the chain ran dry, so this chunk
+        // Stopped during a Play means the chain ran dry, so this chunk
         // is late however the arithmetic below would read.
         if (this.state === 'stopped' || this.nextStartTime() < this.context.currentTime) {
           this.underruns++;
@@ -165,8 +165,8 @@ export class ChainedSourceEngine implements PlaybackEngine {
         // A source that already ended is harmless.
       }
     }
-    this.resetRun(false);
-    // A session flushes on every renderer stop, including one before any audio.
+    this.resetPlay(false);
+    // A session flushes on every Stop, including one before any audio.
     if (this.state !== 'idle') this.setState('stopped');
   }
 
@@ -229,7 +229,7 @@ export class ChainedSourceEngine implements PlaybackEngine {
       }
     }
     this.active.clear();
-    this.resetRun(false);
+    this.resetPlay(false);
     this.setState('stopped');
     this.master.disconnect();
     this.ownedClock?.dispose();
@@ -253,7 +253,7 @@ export class ChainedSourceEngine implements PlaybackEngine {
     );
   }
 
-  /** Run seconds heard through `segment`, capped at `endFrames` but not floored. */
+  /** Play seconds heard through `segment`, capped at `endFrames` but not floored. */
   private heardIn(segment: Segment, endFrames: number): number {
     const latency = Number.isFinite(this.context.outputLatency) ? this.context.outputLatency : 0;
     const base = this.sourceSeconds(segment.baseFrames);
@@ -261,14 +261,14 @@ export class ChainedSourceEngine implements PlaybackEngine {
     return Math.min(this.sourceSeconds(endFrames), heard);
   }
 
-  private beginRun(): void {
-    this.resetRun(true);
+  private beginPlay(): void {
+    this.resetPlay(true);
     this.capture?.reset();
     this.state = 'idle';
   }
 
-  private resetRun(inRun: boolean): void {
-    this.inRun = inRun;
+  private resetPlay(inPlay: boolean): void {
+    this.inPlay = inPlay;
     this.format = undefined;
     this.queue = [];
     this.segment = undefined;
@@ -317,8 +317,8 @@ export class ChainedSourceEngine implements PlaybackEngine {
 
   private schedule(pending: Pending): void {
     const when = this.nextStartTime();
-    // A flush or fade left the gain at 0. The first chunk of a new run brings it
-    // back at its own start, after the old run's ramp has finished.
+    // A flush or fade left the gain at 0. The first chunk of a new Play brings it
+    // back at its own start, after the old Play's ramp has finished.
     if (!this.gainRestored) {
       this.master.gain.cancelScheduledValues(when);
       this.master.gain.setValueAtTime(1, when);

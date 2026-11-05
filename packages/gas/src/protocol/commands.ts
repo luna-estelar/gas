@@ -1,6 +1,5 @@
-// Canonical GAS command shapes shared by Core state, the API, and Renderer
-// wiring. Core owns validation and application; Protocol owns only the plain
-// transport-neutral values.
+// GAS command shapes. Core validates and applies them; this module only
+// defines the plain values.
 
 export interface DefineTrackCommand {
   readonly kind: 'defineTrack';
@@ -113,7 +112,8 @@ export interface ClearTempoCommand {
   readonly kind: 'clearTempo';
 }
 
-export type OverrideCommand =
+/** A command that sets or clears one app value. */
+export type AppValueCommand =
   | PlayTrackCommand
   | StopTrackCommand
   | ClearTrackPlayCommand
@@ -134,4 +134,4 @@ export type OverrideCommand =
   | SetTempoCommand
   | ClearTempoCommand;
 
-export type Command = DefineTrackCommand | RemoveTrackCommand | OverrideCommand;
+export type Command = DefineTrackCommand | RemoveTrackCommand | AppValueCommand;

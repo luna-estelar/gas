@@ -21,7 +21,7 @@ export interface ResolvedSource {
   readonly name?: string;
 }
 
-// Explicit constructors so a host disambiguates intent at the call site.
+// Explicit constructors so an app states what it passes at the call site.
 export function sourceText(text: string, name?: string): SourceInput {
   return { kind: 'text', text, ...(name !== undefined ? { name } : {}) };
 }
@@ -42,7 +42,7 @@ export function sourcePath(path: string): SourceInput {
 }
 
 // Resolves any input to text plus an optional identity label. Only `url` and
-// `path` perform I/O, and only when the host chose those helpers; a plain string
+// `path` perform I/O, and only when the app chose those helpers; a plain string
 // stays untouched.
 export async function resolveSource(input: SourceInput): Promise<ResolvedSource> {
   if (typeof input === 'string') {

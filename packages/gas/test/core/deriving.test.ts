@@ -1,5 +1,5 @@
 import { describe, expect, it, test } from 'vitest';
-import type { ArrangementInstance, IntentValue, Timeline } from '../../src/protocol/index.js';
+import type { IntentValue, Timeline } from '../../src/protocol/index.js';
 import {
   applyCommand,
   createInputState,
@@ -55,7 +55,7 @@ const level = (value: number): IntentValue => ({ kind: 'level', value });
 const alda = (source: string): IntentValue => ({ kind: 'alda', source });
 
 // Derives at a bar with the section instance the arrangement puts there — the way
-// a caller without a Renderer supplies `activeSection`.
+// a caller without a session supplies `activeSection`.
 function deriveAtBar(state: InputState, bar: number, loopIteration = 0): EffectiveState {
   return effectiveStateAt(
     state,

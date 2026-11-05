@@ -73,7 +73,7 @@ export interface Renderer {
   updateConnectorConfig(patch: ConnectorConfig): ConnectorConfig;
   getConfigSchema(): ConnectorConfigSchema;
   /**
-   * The musical position `seconds` after bar 1 of the current Play, for a host
+   * The musical position `seconds` after bar 1 of the current Play, for an app
    * placing buffered audio. After a finite piece finishes it keeps answering,
    * capped at the declared end, until the next Play or a Stop.
    */

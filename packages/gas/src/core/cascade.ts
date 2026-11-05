@@ -12,8 +12,8 @@
 // App values sit above the score however and whenever they were set. A clear
 // removes its slot's app value, so nothing in layer 4 covers that slot and the
 // score's value at the position shows through. Values are protocol
-// `IntentValue`s; app value payloads are wrapped here. No clock, no gain math: the
-// Renderer/connector combine levels and act on tempo.
+// `IntentValue`s; app value payloads are wrapped here. There is no clock or gain
+// math here. The session and connector combine levels and act on tempo.
 
 import type {
   ArrangementInstance,
@@ -30,13 +30,13 @@ import type {
   TimelineEvent,
   TrackDefaultAction
 } from '../protocol/index.js';
-import type { InputState, Override } from './state.js';
+import type { InputState, AppValue } from './state.js';
 import { comparePositions } from './positions.js';
 
 export type { EffectiveGlobals, EffectiveState, EffectiveTrack } from '../protocol/index.js';
 
-// Renderer-derived position context. Section events require an active instance;
-// loopIteration is reserved and currently does not affect state derivation.
+// Where in the arrangement the position is. Section events need an active
+// instance. loopIteration is reserved and doesn't change the result yet.
 export interface EffectiveStateOptions {
   readonly loopIteration?: number;
   readonly activeSection?: ArrangementInstance;
@@ -193,40 +193,40 @@ function applyEvent(
 }
 
 function applyAppValue(
-  override: Override,
+  value: AppValue,
   globals: WorkingGlobals,
   tracks: Map<string, WorkingTrack>
 ): void {
-  switch (override.kind) {
+  switch (value.kind) {
     case 'playTrack':
-      setActive(tracks, override.trackId, true);
+      setActive(tracks, value.trackId, true);
       return;
     case 'stopTrack':
-      setActive(tracks, override.trackId, false);
+      setActive(tracks, value.trackId, false);
       return;
     case 'setGlobalFlavor':
-      globals.flavor = textValue(override.value);
+      globals.flavor = textValue(value.value);
       return;
     case 'setGlobalLevel':
-      globals.level = levelValue(override.value);
+      globals.level = levelValue(value.value);
       return;
     case 'setTempo':
-      globals.tempo = override.bpm;
+      globals.tempo = value.bpm;
       return;
     case 'setTrackFlavor':
-      setSlot(tracks, override.trackId, 'flavor', textValue(override.value));
+      setSlot(tracks, value.trackId, 'flavor', textValue(value.value));
       return;
     case 'setTrackTimbre':
-      setSlot(tracks, override.trackId, 'timbre', textValue(override.value));
+      setSlot(tracks, value.trackId, 'timbre', textValue(value.value));
       return;
     case 'setTrackLevel':
-      setSlot(tracks, override.trackId, 'level', levelValue(override.value));
+      setSlot(tracks, value.trackId, 'level', levelValue(value.value));
       return;
     case 'setTrackNotes':
-      setSlot(tracks, override.trackId, 'notes', aldaValue(override.alda));
+      setSlot(tracks, value.trackId, 'notes', aldaValue(value.alda));
       return;
     case 'setTrackMotif':
-      setSlot(tracks, override.trackId, 'motif', aldaValue(override.alda));
+      setSlot(tracks, value.trackId, 'motif', aldaValue(value.alda));
       return;
     // Clears are never stored in app values; see `applyCommand`.
     case 'clearGlobalFlavor':

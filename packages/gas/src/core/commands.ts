@@ -18,7 +18,7 @@ import type {
   CommandWarning,
   DefineTrackCommand,
   IntentKeyword,
-  OverrideCommand,
+  AppValueCommand,
   RemoveTrackCommand
 } from '../protocol/index.js';
 import type { AppTrack, InputState } from './state.js';
@@ -40,7 +40,7 @@ export type {
   CommandFailureCode,
   CommandWarning,
   DefineTrackCommand,
-  OverrideCommand,
+  AppValueCommand,
   PlayTrackCommand,
   RemoveTrackCommand,
   SetGlobalFlavorCommand,
@@ -55,7 +55,7 @@ export type {
 } from '../protocol/index.js';
 
 // Commands apply the same way whether or not the music is playing, so the only
-// option is the Renderer's capabilities, which drive warnings.
+// option is the connector's capabilities, which drive warnings.
 export interface ApplyCommandOptions {
   readonly capabilities: CapabilitiesTable;
 }
@@ -197,7 +197,7 @@ export function applyCommand(
     return result.ok ? { ok: true, state: result.state, warnings: [] } : result;
   }
 
-  if (!OVERRIDE_KINDS.has(loose.kind)) {
+  if (!APP_VALUE_KINDS.has(loose.kind)) {
     return { ok: false, failure: invalidValue(`"${loose.kind}" isn't a command GAS understands.`) };
   }
 
@@ -212,18 +212,18 @@ export function applyCommand(
     }
   }
 
-  const built = buildOverride(loose);
+  const built = buildAppValue(loose);
   if ('failure' in built) {
     return { ok: false, failure: built.failure };
   }
 
-  const override = built.override;
-  const others = state.appValues.filter((value) => !sameSlot(value, override));
-  const appValues = CLEAR_KINDS.has(override.kind) ? others : [...others, override];
+  const value = built.value;
+  const others = state.appValues.filter((stored) => !sameSlot(stored, value));
+  const appValues = CLEAR_KINDS.has(value.kind) ? others : [...others, value];
   return {
     ok: true,
     state: freezeInputState({ ...state, appValues }),
-    warnings: warningsFor(override, options.capabilities)
+    warnings: warningsFor(value, options.capabilities)
   };
 }
 
@@ -237,7 +237,7 @@ function trackIdExists(state: InputState, id: string): boolean {
 
 // The slot each command writes. A set and its clear share a slot, and so do
 // playTrack, stopTrack and clearTrackPlay.
-const SLOT_OF: Readonly<Record<OverrideCommand['kind'], string>> = {
+const SLOT_OF: Readonly<Record<AppValueCommand['kind'], string>> = {
   setGlobalFlavor: 'flavor',
   clearGlobalFlavor: 'flavor',
   setGlobalLevel: 'level',
@@ -259,7 +259,7 @@ const SLOT_OF: Readonly<Record<OverrideCommand['kind'], string>> = {
   clearTrackMotif: 'motif'
 };
 
-const CLEAR_KINDS: ReadonlySet<OverrideCommand['kind']> = new Set([
+const CLEAR_KINDS: ReadonlySet<AppValueCommand['kind']> = new Set([
   'clearGlobalFlavor',
   'clearGlobalLevel',
   'clearTempo',
@@ -271,13 +271,13 @@ const CLEAR_KINDS: ReadonlySet<OverrideCommand['kind']> = new Set([
   'clearTrackMotif'
 ]);
 
-function sameSlot(a: OverrideCommand, b: OverrideCommand): boolean {
+function sameSlot(a: AppValueCommand, b: AppValueCommand): boolean {
   return SLOT_OF[a.kind] === SLOT_OF[b.kind] && trackIdOf(a) === trackIdOf(b);
 }
 
 // The track an app value belongs to, or undefined for a global value.
-export function trackIdOf(override: OverrideCommand): string | undefined {
-  return 'trackId' in override ? override.trackId : undefined;
+export function trackIdOf(value: AppValueCommand): string | undefined {
+  return 'trackId' in value ? value.trackId : undefined;
 }
 
 function defineTrackShapeFailure(command: DefineTrackCommand): CommandFailure | undefined {
@@ -313,7 +313,7 @@ const TRACK_SCOPED_KINDS: ReadonlySet<string> = new Set([
   'clearTrackMotif'
 ]);
 
-const OVERRIDE_KINDS: ReadonlySet<string> = new Set([
+const APP_VALUE_KINDS: ReadonlySet<string> = new Set([
   ...TRACK_SCOPED_KINDS,
   'setGlobalFlavor',
   'clearGlobalFlavor',
@@ -323,14 +323,13 @@ const OVERRIDE_KINDS: ReadonlySet<string> = new Set([
   'clearTempo'
 ]);
 
-type BuildResult = { readonly override: OverrideCommand } | { readonly failure: CommandFailure };
+type BuildResult = { readonly value: AppValueCommand } | { readonly failure: CommandFailure };
 
-// Validates an override command's payload and rebuilds its canonical stored copy
-// from the declared fields only, frozen — so stray fields never reach the input
-// state and the caller cannot mutate an accepted override. The kind is already
-// known to be an override kind, and track ids are already resolved.
-function buildOverride(command: Record<string, unknown>): BuildResult {
-  const kind = command.kind as OverrideCommand['kind'];
+// Checks an app value command's payload and rebuilds a frozen copy from the
+// declared fields, so stray fields never reach the input state and the caller
+// can't change a stored value. The kind and track id are already checked.
+function buildAppValue(command: Record<string, unknown>): BuildResult {
+  const kind = command.kind as AppValueCommand['kind'];
   const trackId = command.trackId as string;
   switch (kind) {
     case 'playTrack':
@@ -396,17 +395,16 @@ function buildOverride(command: Record<string, unknown>): BuildResult {
   }
 }
 
-function accept(override: OverrideCommand): BuildResult {
-  return { override: Object.freeze(override) };
+function accept(value: AppValueCommand): BuildResult {
+  return { value: Object.freeze(value) };
 }
 
-// Which intent keyword each command expresses, driving capabilities warnings.
-// Play, stop, clearTrackPlay, and track definitions carry no renderable intent — track activity and
-// track identity are structural — so they never warn. Global level is also
-// absent because the Renderer owns post-render gain. Other clears warn exactly
-// like sets: a clear moves effective state back toward authored values, which
-// an unsupported model equally cannot render.
-const COMMAND_INTENTS: Readonly<Partial<Record<OverrideCommand['kind'], IntentKeyword>>> = {
+// Which intent keyword each command expresses, for capability warnings. Play,
+// stop and clearTrackPlay change only whether a track plays, so they never warn.
+// Global level is gain GAS applies itself, so it never warns either. Clears warn
+// like sets, because a clear moves back to an authored value the model also
+// can't render.
+const COMMAND_INTENTS: Readonly<Partial<Record<AppValueCommand['kind'], IntentKeyword>>> = {
   setGlobalFlavor: 'flavor',
   clearGlobalFlavor: 'flavor',
   setTrackFlavor: 'flavor',
@@ -424,12 +422,12 @@ const COMMAND_INTENTS: Readonly<Partial<Record<OverrideCommand['kind'], IntentKe
 };
 
 function warningsFor(
-  override: OverrideCommand,
+  value: AppValueCommand,
   capabilities: CapabilitiesTable
 ): readonly CommandWarning[] {
-  const intent = COMMAND_INTENTS[override.kind];
+  const intent = COMMAND_INTENTS[value.kind];
   if (intent === undefined) return [];
-  const warning = warningForIntent(intent, capabilities, trackIdOf(override));
+  const warning = warningForIntent(intent, capabilities, trackIdOf(value));
   return warning === undefined ? [] : [warning];
 }
 

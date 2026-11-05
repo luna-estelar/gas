@@ -1,5 +1,5 @@
 import type { IntentKeyword, IntentSupport } from './capabilities.js';
-import type { OverrideCommand } from './commands.js';
+import type { AppValueCommand } from './commands.js';
 import type { SourceRange } from './timeline.js';
 
 export type GasDiagnosticSeverity = 'error' | 'warning' | 'info';
@@ -64,6 +64,6 @@ export interface CommandWarning {
 export interface AppValueDroppedWarning {
   readonly code: 'app-value-dropped';
   readonly trackId: string;
-  readonly command: OverrideCommand;
+  readonly command: AppValueCommand;
   readonly message: string;
 }

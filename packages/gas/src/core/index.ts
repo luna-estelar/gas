@@ -1,6 +1,6 @@
-// Pure session state, command and lifecycle semantics.
+// Session state and commands, as pure functions.
 
-export type { AppTrack, InputState, Override } from './state.js';
+export type { AppTrack, InputState, AppValue } from './state.js';
 export { createInputState } from './state.js';
 
 export type {
@@ -22,7 +22,7 @@ export type {
   CommandWarning,
   DefineTrackCommand,
   DefineTrackResult,
-  OverrideCommand,
+  AppValueCommand,
   PlayTrackCommand,
   RemoveTrackCommand,
   SetGlobalFlavorCommand,
@@ -70,4 +70,4 @@ export { effectiveStateAt, sectionInstanceAt } from './cascade.js';
 export { authoredEventSchedule } from './schedule.js';
 
 export type { AppValuesMode, NewTimelineResult } from './transitions.js';
-export { applyLoopBoundary, applyNewTimeline } from './transitions.js';
+export { applyNewTimeline } from './transitions.js';

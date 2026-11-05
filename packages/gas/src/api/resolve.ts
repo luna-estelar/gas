@@ -3,7 +3,7 @@
 
 import type { InputState } from '../core/index.js';
 // From Protocol, not the language barrel: this module is on the eager path of
-// every host that imports a session, and the barrel would pull the parser in.
+// every app that imports a session, and the barrel would pull the parser in.
 import { slugify } from '../protocol/index.js';
 
 // Resolve a live reference to a Core track id. Display names win over ids and

@@ -27,7 +27,7 @@ describe('renderer connector failure propagation', () => {
 
     const caught = await rejection(r.renderer.play());
     expect(caught).toMatchObject({
-      code: 'connector-unavailable',
+      code: 'connection-failed',
       failure: { ...expected, message: 'The connector could not open a connection.' }
     });
     // Play's rejection is the only report (rule 2).
@@ -37,8 +37,8 @@ describe('renderer connector failure propagation', () => {
   it.each([
     ['a thrown ConnectorError', true],
     ['a connection-reported failure', false]
-  ] as const)('carries a transport close code to the host through %s', async (_label, isThrown) => {
-    // The renderer classifies nothing about a close code; a host maps the
+  ] as const)('carries a transport close code to the app through %s', async (_label, isThrown) => {
+    // The renderer classifies nothing about a close code; an app maps the
     // application range itself, so the raw number has to survive the trip.
     const timeline = infinite();
     const { connection, renderer, ends } = await playing(timeline);
@@ -139,7 +139,7 @@ describe('renderer connector failure propagation', () => {
       };
       const caught = await rejection(r.renderer.play());
       expect(caught).toMatchObject({
-        code: 'connector-unavailable',
+        code: 'connection-failed',
         failure: {
           code: 'connector-unavailable',
           reason: 'internal',

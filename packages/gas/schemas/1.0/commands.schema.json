@@ -7,10 +7,10 @@
       "oneOf": [
         { "$ref": "#/$defs/DefineTrackCommand" },
         { "$ref": "#/$defs/RemoveTrackCommand" },
-        { "$ref": "#/$defs/OverrideCommand" }
+        { "$ref": "#/$defs/AppValueCommand" }
       ]
     },
-    "OverrideCommand": {
+    "AppValueCommand": {
       "oneOf": [
         { "$ref": "#/$defs/PlayTrackCommand" },
         { "$ref": "#/$defs/StopTrackCommand" },

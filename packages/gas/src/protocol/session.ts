@@ -15,13 +15,14 @@ export interface LoadResult {
   readonly warnings: readonly SessionWarning[];
 }
 
-export interface PlaybackWarning {
+/** A warning from the connection during a Play. */
+export interface PlayWarning {
   readonly warningId: string;
   readonly code: string;
   readonly message: string;
 }
 
-export type WarningEvent = SessionWarning | PlaybackWarning;
+export type WarningEvent = SessionWarning | PlayWarning;
 
 export interface AppliedPosition {
   readonly requestedPosition?: MusicalPosition;
@@ -32,13 +33,10 @@ export interface CommandResult extends AppliedPosition {
   readonly warnings: readonly SessionWarning[];
 }
 
-export interface LiveCommandSuccess extends AppliedPosition {
-  readonly ok: true;
+export interface SubmitLiveCommandsResult extends CommandResult {
+  /** How many commands were applied. */
   readonly applied: number;
-  readonly warnings: readonly SessionWarning[];
 }
-
-export type LiveCommandResult = LiveCommandSuccess;
 
 export interface TrackView {
   readonly id: string;
@@ -47,7 +45,7 @@ export interface TrackView {
   readonly source: 'document' | 'app';
 }
 
-/** Defaults for what a document leaves unset. They used to be the renderer's defaults. */
+/** Defaults for what a document leaves unset. */
 export interface DocumentDefaults {
   readonly tempo?: number;
   readonly timeSignature?: TimeSignature;

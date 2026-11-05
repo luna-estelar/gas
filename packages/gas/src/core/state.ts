@@ -3,7 +3,7 @@
 
 import type { InputState, Timeline } from '../protocol/index.js';
 
-export type { AppTrack, InputState, Override } from '../protocol/index.js';
+export type { AppTrack, InputState, AppValue } from '../protocol/index.js';
 
 // Creates the input state for a document: the timeline, no app tracks and no
 // app values. `applyNewTimeline` decides what carries over from an old document.

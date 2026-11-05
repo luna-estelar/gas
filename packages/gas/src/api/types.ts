@@ -1,7 +1,7 @@
-// Public result, warning, error, and state shapes the session hands back to a
-// host. Warnings and command failures are Core's plain objects, enriched only
-// with what the API owns: a `warningId` (so a host renders one channel) and, for
-// commands applied during playback, the Renderer's requested/applied positions.
+// The results, warnings, errors and state the session hands back to an app.
+// Warnings and command failures are Core's plain objects plus a `warningId`, so
+// an app shows one channel, and, during a Play, the requested and applied
+// positions.
 
 import type {
   CommandFailure,
@@ -14,15 +14,14 @@ export type {
   AppliedPosition,
   CommandResult,
   LoadResult,
-  LiveCommandResult,
-  LiveCommandSuccess,
-  PlaybackWarning,
+  PlayWarning,
   DocumentDefaults,
   GenerationPositionEvent,
   SessionEnded,
   SessionState,
   SessionStatus,
   SessionWarning,
+  SubmitLiveCommandsResult,
   TrackView,
   WarningEvent
 } from '../protocol/index.js';

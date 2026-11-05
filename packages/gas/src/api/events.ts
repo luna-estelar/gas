@@ -6,7 +6,7 @@ import type {
   AudioChunk,
   CommandWarning,
   GenerationPositionEvent,
-  PlaybackWarning,
+  PlayWarning,
   SessionState,
   SessionWarning,
   WarningEvent
@@ -67,16 +67,14 @@ export class EventHub {
     return sessionWarning;
   }
 
-  // Renderer warning: same channel, its own id, event only (no result carries
-  // it, since no command produced it).
-  warnRenderer(warning: { readonly code: string; readonly message: string }): PlaybackWarning {
-    const playbackWarning: PlaybackWarning = {
+  // A warning from the Play: same channel, its own id, event only, since no
+  // command produced it.
+  warnPlay(warning: { readonly code: string; readonly message: string }): void {
+    this.emit('warning', {
       warningId: this.nextWarningId(),
       code: warning.code,
       message: warning.message
-    };
-    this.emit('warning', playbackWarning);
-    return playbackWarning;
+    } satisfies PlayWarning);
   }
 
   private nextWarningId(): string {

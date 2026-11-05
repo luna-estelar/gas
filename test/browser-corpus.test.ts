@@ -23,7 +23,7 @@ function compile(name: string) {
   return result.timeline;
 }
 
-describe('host compile and timeline over the example documents', () => {
+describe('app compile and timeline over the example documents', () => {
   it('derives musical time and timeline view models without mutating the timeline', () => {
     const timeline = compile('spec-example');
     expect(secondsPerBar(timeline)).toBeCloseTo(240 / 104);

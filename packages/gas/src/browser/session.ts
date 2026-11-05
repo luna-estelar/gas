@@ -1,5 +1,5 @@
 // Compose a GAS session and a playback engine for a browser page. It never
-// imports a connector: the host builds one and passes it in.
+// imports a connector: the app builds one and passes it in.
 import { createSession, type GasSession } from '../api/index.js';
 import type { Connector, ConnectorConfig, MusicalPosition } from '../protocol/index.js';
 import { ChainedSourceEngine } from './audio/chained-source-engine.js';
@@ -16,7 +16,7 @@ export interface BrowserSessionOptions {
   readonly context?: AudioContext;
   /** Defaults to one chunk duration of the connector's model. Clamped to 0.25-4 s. */
   readonly prebufferSeconds?: number;
-  /** Record each run so it can be offered as a WAV download. Off by default. */
+  /** Record each Play so it can be offered as a WAV download. Off by default. */
   readonly capture?: boolean;
   readonly engine?: (context: AudioContext, options: EngineOptions) => PlaybackEngine;
   /** @internal How long a playing track may go without audio. For tests. */
@@ -43,7 +43,7 @@ export async function createBrowserSession(
   options: BrowserSessionOptions
 ): Promise<BrowserSession> {
   // Created before the first await, so a context opened here resumes inside the
-  // host's gesture.
+  // app's gesture.
   const opening = options.context === undefined ? openAudioContext() : undefined;
   let context: AudioContext | undefined = options.context;
   let clock: AudioClock | undefined;
@@ -64,10 +64,10 @@ export async function createBrowserSession(
       engineOptions
     );
 
-    const rendererClock = clock;
+    const audioClock = clock;
     const session = await createSession({
       connector: options.connector,
-      clock: rendererClock,
+      clock: audioClock,
       ...(options.connectorConfig !== undefined
         ? { connectorConfig: options.connectorConfig }
         : {}),
@@ -97,7 +97,7 @@ export async function createBrowserSession(
           await session.close();
         } finally {
           await activeEngine.close();
-          rendererClock.dispose();
+          audioClock.dispose();
           if (opening !== undefined) await audioContext.close().catch(() => undefined);
         }
       }

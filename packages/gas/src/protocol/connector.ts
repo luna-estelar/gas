@@ -1,7 +1,7 @@
-// The connector interface: what a package that knows one model implements. GAS
-// owns the lifecycle. A connector opens one connection per Play and reports what
-// happens on it; GAS decides when to start, pause and stop it. The numbered rules
-// are in the GAS 0.4 behaviour contract.
+// The connector interface: what a package that knows one model implements. A
+// connector opens one connection per Play and reports what happens on it. GAS
+// decides when to start, pause and stop it. The numbered rules are in the GAS
+// 0.4 behaviour contract.
 
 import type { CapabilitiesTable } from './capabilities.js';
 import type { EffectiveState } from './effective-state.js';
@@ -41,7 +41,6 @@ export interface ModelInfo extends AudioFormat {
   readonly chunkDurationSeconds: number;
 }
 
-export type ConnectorSettings = JsonObject;
 export type ConnectorConfig = JsonObject;
 export type ConnectorConfigSchema = JsonObject;
 
@@ -63,10 +62,7 @@ export type ConnectorConfigValidation =
   | { readonly ok: true }
   | { readonly ok: false; readonly problems: readonly ConnectorConfigProblem[] };
 
-/**
- * What a connector is, known without opening anything. Every connection can
- * pause (rule 6), so there is no flow-control flag.
- */
+/** What a connector is, known without opening anything. */
 export interface ConnectorDescription {
   readonly id: string;
   readonly displayName: string;
@@ -114,7 +110,6 @@ export interface ConnectorUpdate {
 export interface ConnectorAudioChunk extends AudioFormat {
   readonly bytes: Uint8Array;
   readonly durationSeconds: number;
-  readonly final?: boolean;
 }
 
 /** Audio as the session delivers it, numbered in delivery order. */
@@ -139,7 +134,7 @@ export interface ConnectOptions {
    * can. GAS has already moved on and won't wait.
    */
   readonly signal: AbortSignal;
-  /** Called after GAS ends the connection does nothing, so no guard is needed. */
+  /** Calling it after GAS ends the connection does nothing, so no guard is needed. */
   onAudio(chunk: ConnectorAudioChunk): void;
   onWarning(warning: ConnectorWarning): void;
   /**

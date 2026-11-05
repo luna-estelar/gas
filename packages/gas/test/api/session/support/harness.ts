@@ -16,7 +16,7 @@ import {
 import { flushAsync } from '../../../../../../test/support/deferred.js';
 import { VirtualClock } from '../../../../../../test/support/virtual-clock.js';
 
-export const SECONDS_PER_BAR = 2;
+const SECONDS_PER_BAR = 2;
 
 /** The clock time of `bar` when bar 1 started at `barOne`. */
 export function barTime(bar: number, barOne = 0): number {

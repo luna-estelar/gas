@@ -1,11 +1,10 @@
-// Exercise Core through the API session, renderer state derivation and compile-only inspection.
+// Exercise Core through the session, the per-boundary derivation and compile-only inspection.
 
 import { describe, expect, it } from 'vitest';
 import { compileSource, type Timeline } from '../packages/gas/src/language/index.js';
 import { createSession, GasOperationError } from '../packages/gas/src/api/index.js';
 import {
   applyCommand,
-  applyLoopBoundary,
   authoredEventSchedule,
   createInputState,
   effectiveStateAt,
@@ -46,7 +45,7 @@ function trackOf(snapshot: EffectiveState, trackId: string) {
   return track;
 }
 
-// The API path runs through a real session and Renderer rather than a copy of
+// The API path runs through a real session rather than a copy of
 // the API's command mapping: a copy once declared live tracks as `pad` while the
 // API declares `track.pad`, and the test passed while asserting behaviour the
 // API did not have. Capability warnings come from the connector's description,
@@ -73,7 +72,7 @@ describe('consumer: the GAS API command path', () => {
     );
 
     // All four landed, and none touched an unsupported intent.
-    expect(result).toMatchObject({ ok: true, applied: 4, warnings: [] });
+    expect(result).toMatchObject({ applied: 4, warnings: [] });
     // An app track joined the namespace under the compiler's id scheme.
     expect(session.getTracks()).toContainEqual({
       id: 'track.pad',
@@ -82,7 +81,7 @@ describe('consumer: the GAS API command path', () => {
       source: 'app'
     });
 
-    // The Renderer forwarded the derived state, which reflects every command.
+    // The session forwarded the derived state, which reflects every command.
     const forwarded = connector.latest().updates.at(-1)?.update.state;
     expect(forwarded).toBeDefined();
     expect(forwarded!.globals.tempo).toBe(120);
@@ -96,7 +95,7 @@ describe('consumer: the GAS API command path', () => {
 
     const result = await session.submitLiveCommands('guitar.motif alda( c d e )');
     // Unsupported by the connector: the override is kept, but warned.
-    expect(result).toMatchObject({ ok: true, applied: 1 });
+    expect(result).toMatchObject({ applied: 1 });
     expect(result.warnings).toHaveLength(1);
     expect(result.warnings[0]).toMatchObject({
       code: 'unsupported-intent',
@@ -104,7 +103,7 @@ describe('consumer: the GAS API command path', () => {
       support: 'unsupported'
     });
 
-    // Kept rather than dropped: the run starts with it.
+    // Kept rather than dropped: the Play starts with it.
     expect(connector.connects).toEqual([]);
     await session.play();
     expect(trackOf(connector.connects[0]!.state, 'track.guitar').motif).toBeDefined();
@@ -123,9 +122,9 @@ describe('consumer: the GAS API command path', () => {
   });
 });
 
-// --- Consumer 2: the Renderer derivation loop ---------------------------------
+// --- Consumer 2: the session derivation loop ----------------------------------
 
-describe('consumer: the Renderer derivation loop', () => {
+describe('consumer: the session derivation loop', () => {
   it('derives at every schedule position and preserves app values across a loop', () => {
     const timeline = corpusTimeline('drum-loop'); // loop playback, one section
     const drumsId = timeline.tracks.find((track) => track.name === 'drums')!.trackId;
@@ -140,7 +139,7 @@ describe('consumer: the Renderer derivation loop', () => {
     if (!applied.ok) return;
     const state = applied.state;
 
-    // The Renderer re-derives at each authored boundary, supplying the section
+    // The session re-derives at each authored boundary, supplying the section
     // and the current loop iteration.
     const schedule = authoredEventSchedule(timeline);
     expect(schedule.length).toBeGreaterThan(0);
@@ -153,11 +152,8 @@ describe('consumer: the Renderer derivation loop', () => {
       expect(trackOf(snapshot, drumsId).level).toEqual({ kind: 'level', value: 0.7 });
     }
 
-    // At the loop boundary the Renderer keeps app values; iteration 2 still
-    // sees the app level.
-    const looped = applyLoopBoundary(state);
-    expect(looped.appValues).toEqual(state.appValues);
-    const iterationTwo = effectiveStateAt(looped, schedule[0], {
+    // App values outlast a loop; iteration 2 still sees the app level.
+    const iterationTwo = effectiveStateAt(state, schedule[0], {
       loopIteration: 2,
       activeSection: sectionInstanceAt(timeline, schedule[0])
     });
@@ -168,7 +164,7 @@ describe('consumer: the Renderer derivation loop', () => {
 // --- Consumer 3: CLI / compile-only inspection --------------------------------
 
 describe('consumer: CLI / compile-only inspection', () => {
-  it('scrubs effective state across bars with no Renderer, connector, or capabilities table', () => {
+  it('scrubs effective state across bars with no session, connector, or capabilities table', () => {
     const timeline = corpusTimeline('arrangement');
     const state = createInputState(timeline);
 

@@ -158,7 +158,7 @@ describe('the Google GenAI SDK', () => {
 });
 
 // The compiler carries Langium and Chevrotain, which dwarf everything else here.
-// A host that drives a session without compiling source must not pay for them,
+// An app that drives a session without compiling source must not pay for them,
 // so every entry point but ./language is parser-free, including the root, whose
 // session loads the compiler through a dynamic import only when it compiles.
 describe('the GAS compiler', () => {

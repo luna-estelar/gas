@@ -1,5 +1,4 @@
-// Application-facing sessions and commands. The session builds its renderer
-// itself; the renderer is internal.
+// The session and its commands, as an app uses them.
 
 export { createSession, GasSession } from './session.js';
 export type {
@@ -27,17 +26,16 @@ export type {
   AppliedPosition,
   CommandResult,
   LoadResult,
-  LiveCommandResult,
-  LiveCommandSuccess,
   OperationErrorInit,
   OperationErrorKind,
-  PlaybackWarning,
+  PlayWarning,
   DocumentDefaults,
   GenerationPositionEvent,
   SessionEnded,
   SessionState,
   SessionStatus,
   SessionWarning,
+  SubmitLiveCommandsResult,
   TrackView,
   WarningEvent
 } from './types.js';

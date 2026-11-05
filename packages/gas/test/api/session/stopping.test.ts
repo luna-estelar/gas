@@ -2,7 +2,7 @@
 // provider. Cleanup runs in the background with a time limit and never delays the
 // next Play.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CONNECTOR_CLEANUP_TIMEOUT_SECONDS } from '../../../src/renderer/constants.js';
+import { CONNECTION_CLOSE_TIMEOUT_SECONDS } from '../../../src/renderer/constants.js';
 import { flushAsync } from '../../../../../test/support/deferred.js';
 import { playing, totalSeconds } from './support/harness.js';
 
@@ -51,11 +51,11 @@ describe('stopping', () => {
     const h = await playing({ connector: { closeHangs: true } });
     await h.session.stop();
 
-    await vi.advanceTimersByTimeAsync(CONNECTOR_CLEANUP_TIMEOUT_SECONDS * 1000 - 1);
+    await vi.advanceTimersByTimeAsync(CONNECTION_CLOSE_TIMEOUT_SECONDS * 1000 - 1);
     expect(closeTimeouts(h.warnings)).toEqual([]);
     await vi.advanceTimersByTimeAsync(1);
     expect(closeTimeouts(h.warnings)).toHaveLength(1);
-    await vi.advanceTimersByTimeAsync(CONNECTOR_CLEANUP_TIMEOUT_SECONDS * 1000);
+    await vi.advanceTimersByTimeAsync(CONNECTION_CLOSE_TIMEOUT_SECONDS * 1000);
     expect(closeTimeouts(h.warnings)).toHaveLength(1);
   });
 
@@ -63,7 +63,7 @@ describe('stopping', () => {
     const h = await playing();
     await h.session.stop();
 
-    await vi.advanceTimersByTimeAsync(CONNECTOR_CLEANUP_TIMEOUT_SECONDS * 2000);
+    await vi.advanceTimersByTimeAsync(CONNECTION_CLOSE_TIMEOUT_SECONDS * 2000);
     expect(closeTimeouts(h.warnings)).toEqual([]);
   });
 

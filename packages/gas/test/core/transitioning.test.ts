@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import type { IntentValue, Timeline } from '../../src/protocol/index.js';
 import {
   applyCommand,
-  applyLoopBoundary,
   applyNewTimeline,
   authoredEventSchedule,
   createInputState,
@@ -60,15 +59,6 @@ function nextTimeline(): Timeline {
     )
   };
 }
-
-// --- Loop boundary ------------------------------------------------------------
-
-describe('applyLoopBoundary keeps app values', () => {
-  it('keeps app values, app tracks and the timeline', () => {
-    const state = loadedState();
-    expect(applyLoopBoundary(state)).toEqual(state);
-  });
-});
 
 // --- New timeline -------------------------------------------------------------
 

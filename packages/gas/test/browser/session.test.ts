@@ -1,6 +1,6 @@
-// The browser session over the real api and renderer, a fake connector and a
+// The browser session over the real session, a fake connector and a
 // scripted audio device. Device time and wall-time timeouts advance together,
-// because the renderer and the engine both run on an AudioClock.
+// because the session and the engine both run on an AudioClock.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBrowserSession, type BrowserSession } from '../../src/browser/session.js';
 import { ConnectorError, type ConnectorConfigValidation } from '../../src/protocol/index.js';
@@ -91,7 +91,7 @@ async function harness(
 }
 
 describe('composition', () => {
-  it('plays renderer audio through the engine and places the audible playhead musically', async () => {
+  it('plays session audio through the engine and places the audible playhead musically', async () => {
     const { context, browser, deliver } = await harness();
     await browser.session.play();
     expect(browser.audiblePosition()).toBeUndefined();
@@ -176,8 +176,8 @@ describe('composition', () => {
   });
 });
 
-describe('lifecycle', () => {
-  it('stops before anything plays when the host stops mid-buffer', async () => {
+describe('stopping and ending', () => {
+  it('stops before anything plays when the app stops mid-buffer', async () => {
     const { context, browser, deliver } = await harness();
     await browser.session.play();
     deliver();
@@ -209,7 +209,7 @@ describe('lifecycle', () => {
     await closing;
   });
 
-  it('silences playing audio within the ramp when the host stops', async () => {
+  it('silences playing audio within the ramp when the app stops', async () => {
     const { context, browser, deliver } = await harness();
     await browser.session.play();
     deliver();
@@ -224,7 +224,7 @@ describe('lifecycle', () => {
     await browser.close();
   });
 
-  it('plays a second run at full gain after stopping the first', async () => {
+  it('plays a second Play at full gain after stopping the first', async () => {
     const { context, browser, connector, deliver } = await harness();
     await browser.session.play();
     deliver();
@@ -289,7 +289,7 @@ describe('lifecycle', () => {
     await browser.close();
   });
 
-  it('silences the tail of a finished piece when the host stops', async () => {
+  it('silences the tail of a finished piece when the app stops', async () => {
     const { context, browser, deliver } = await harness({ declaredBars: 2 });
     await browser.session.play();
     deliver();
@@ -303,7 +303,7 @@ describe('lifecycle', () => {
     await browser.close();
   });
 
-  it('flushes when the connection fails mid-run', async () => {
+  it('flushes when the connection fails mid-Play', async () => {
     const { context, browser, connection, deliver } = await harness();
     await browser.session.play();
     deliver();

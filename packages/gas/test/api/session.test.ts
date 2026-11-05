@@ -1,5 +1,5 @@
-// Compiling, loading, commands and tracks through the public session API. The
-// lifecycle lives in ./session/*.
+// Compiling, loading, commands and tracks through the public session API. Play,
+// Stop and failures live in ./session/*.
 import { describe, expect, it } from 'vitest';
 import { GasOperationError, sourceBlob, type SessionState } from '../../src/api/index.js';
 import {
@@ -205,11 +205,11 @@ describe('command forwarding', () => {
         }
       })
     );
-    await session.defineTrack({ id: 'host.late', name: 'Late' });
+    await session.defineTrack({ id: 'app.late', name: 'Late' });
     release();
 
-    expect(await live).toMatchObject({ ok: true, applied: 1 });
-    expect(session.getTracks().map((track) => track.id)).toContain('host.late');
+    expect(await live).toMatchObject({ applied: 1 });
+    expect(session.getTracks().map((track) => track.id)).toContain('app.late');
   });
 });
 
@@ -435,7 +435,7 @@ describe('app values', () => {
 });
 
 describe('provider errors', () => {
-  it('carries a transport close code to the host', async () => {
+  it('carries a transport close code to the app', async () => {
     const h = await loadedSession();
     await h.session.play();
     h.connector.latest().fail(

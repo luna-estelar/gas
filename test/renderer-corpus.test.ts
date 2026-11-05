@@ -1,4 +1,4 @@
-// Every corpus document compiles, derives state in Core and schedules in the Renderer.
+// Every corpus document compiles, derives state in Core and schedules in the session's renderer.
 
 import { describe, expect, test } from 'vitest';
 import {
@@ -144,7 +144,7 @@ async function drainClock(
     await flushAsync();
     feed(connection, elapsed);
   }
-  throw new Error('Renderer corpus script did not reach its terminal checkpoint.');
+  throw new Error('The corpus script did not reach its terminal checkpoint.');
 }
 
 function allSupportedCapabilities(): CapabilitiesTable {

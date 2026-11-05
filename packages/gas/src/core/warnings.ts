@@ -51,7 +51,7 @@ export function warningsForTimeline(
   const seen = new Set<string>();
 
   const add = (intent: IntentKeyword, trackId?: string): void => {
-    // Global level is Renderer-owned post-render gain, so it never depends on a
+    // GAS applies global level as gain after the model, so it never depends on a
     // connector capability. Track level still uses the `level` capability.
     if (intent === 'level' && trackId === undefined) return;
     const key = `${intent}\u0000${trackId ?? ''}`;

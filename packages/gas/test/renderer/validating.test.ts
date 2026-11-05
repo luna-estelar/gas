@@ -359,7 +359,7 @@ describe('renderer connector configuration validation', () => {
     renderer.load(timeline, createInputState(timeline));
     await renderer.play();
     expect(thrown(() => renderer.updateConnectorConfig({ mode: 'live' }))).toMatchObject({
-      code: 'renderer-state-conflict'
+      code: 'wrong-state'
     });
     renderer.stop();
   });
@@ -375,7 +375,7 @@ describe('renderer connector configuration validation', () => {
     clock.advanceTo(8);
     await flushAsync();
     expect(thrown(() => renderer.updateConnectorConfig({ mode: 'live' }))).toMatchObject({
-      code: 'renderer-state-conflict'
+      code: 'wrong-state'
     });
     renderer.stop();
   });

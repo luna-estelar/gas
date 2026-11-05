@@ -114,9 +114,9 @@ describe('close codes', () => {
     }
   });
 
-  it('carries a close code through the error for the host to interpret', () => {
+  it('carries a close code through the error for the app to interpret', () => {
     // 4429 is in the application range: the connector cannot classify it, so the
-    // number reaches the host unchanged.
+    // number reaches the app unchanged.
     const error = new ConnectorError({
       code: 'lyria-rt-network-failure',
       reason: 'network',

@@ -1,9 +1,8 @@
-// The renderer turns a loaded document into one connection per Play. It owns the
-// lifecycle (rules 1 to 3), writes silence while no track plays (rule 4), and
+// The renderer turns a loaded document into one connection per Play. It decides
+// when a connection opens and ends (rules 1 to 3), writes silence while no track plays (rule 4), and
 // pauses the model for rests and backlogs (rule 6). The numbered rules are in
 // the GAS 0.4 behaviour contract. It is internal to the session.
 import {
-  applyLoopBoundary,
   authoredEventSchedule,
   barToTime,
   createTempoSegmentMap,
@@ -47,7 +46,7 @@ import {
   BUFFER_HARD_LIMIT_SECONDS,
   BUFFER_OVERFLOW_SECONDS,
   BUFFER_WARNING_SECONDS,
-  CONNECTOR_CLEANUP_TIMEOUT_SECONDS,
+  CONNECTION_CLOSE_TIMEOUT_SECONDS,
   DEFAULT_FIRST_AUDIO_CHUNKS,
   FADE_OUT_SECONDS,
   LOOKAHEAD_CHUNKS,
@@ -63,7 +62,7 @@ import {
   isPlainJsonObject,
   NonJsonValueError
 } from './connector-config.js';
-import { classifyConnectorFailure, RendererError, type RendererProblem } from './errors.js';
+import { classifyConnectorFailure, RendererError } from './errors.js';
 import type {
   Renderer,
   RendererEventMap,
@@ -172,8 +171,8 @@ class RendererImpl implements Renderer {
   private closed = false;
   private loaded: LoadedDocument | undefined;
   private run: Run | undefined;
-  // A finished piece is still playing for a host that buffers audio, so its
-  // mapping outlives the run until another run starts or playback is stopped.
+  // A finished piece is still playing for an app that buffers audio, so its
+  // mapping outlives the Play until another Play starts or playback is stopped.
   private completedTail: CompletedTail | undefined;
   private readonly listeners: ListenerMap = {
     audio: new Set(),
@@ -195,14 +194,14 @@ class RendererImpl implements Renderer {
     this.assertStopped('load a timeline');
     const validation = validateTimeline(timeline);
     if (!validation.ok) {
-      throw new RendererError('invalid-timeline', 'The renderer could not load this timeline.', {
+      throw new RendererError('invalid-timeline', 'This timeline is invalid.', {
         problems: validation.problems
       });
     }
     if (inputState.timeline !== timeline) {
       throw new RendererError(
         'invalid-timeline',
-        'The renderer input state must belong to the timeline being loaded.'
+        'The input state must belong to the timeline being loaded.'
       );
     }
     const timing = resolveTiming(timeline.musicalContext, this.defaults);
@@ -222,7 +221,7 @@ class RendererImpl implements Renderer {
     if (inputState.timeline !== loaded.timeline) {
       throw new RendererError(
         'invalid-timeline',
-        'The renderer input state must belong to the loaded timeline.'
+        'The input state must belong to the loaded timeline.'
       );
     }
     loaded.inputState = inputState;
@@ -244,7 +243,7 @@ class RendererImpl implements Renderer {
         reason: 'internal',
         retryable: true
       });
-      throw new RendererError('connector-unavailable', failure.message, { failure });
+      throw new RendererError('connection-failed', failure.message, { failure });
     }
   }
 
@@ -431,7 +430,7 @@ class RendererImpl implements Renderer {
     this.endRun(run);
     if (cancelled) return new RendererError('cancelled', 'Playback stopped before it started.');
     const failure = run.startupFailure!;
-    return new RendererError('connector-unavailable', failure.message, { failure });
+    return new RendererError('connection-failed', failure.message, { failure });
   }
 
   stop(): void {
@@ -509,10 +508,10 @@ class RendererImpl implements Renderer {
   }
 
   /**
-   * The musical position `seconds` after this run's anchor, for hosts that place
-   * buffered audio. Undefined before the last loop boundary, since the map
-   * restarts at bar one there. After a finite run completes it stays capped at the
-   * declared end until the next run or a Stop.
+   * The musical position `seconds` after this Play's anchor, for an app that
+   * places buffered audio. Undefined before the last loop boundary, since the map
+   * restarts at bar one there. After a finite Play completes it stays capped at
+   * the declared end until the next Play or a Stop.
    */
   positionAtSeconds(seconds: number): MusicalPosition | undefined {
     if (!Number.isFinite(seconds)) return undefined;
@@ -628,7 +627,7 @@ class RendererImpl implements Renderer {
       throw error;
     }
     const candidate = applyMergePatch(base, patchClone);
-    const problems: readonly RendererProblem[] = this.checkConfig(connector, candidate);
+    const problems = this.checkConfig(connector, candidate);
     if (problems.length > 0) {
       throw new RendererError('invalid-configuration', 'The connector configuration is invalid.', {
         problems
@@ -645,8 +644,8 @@ class RendererImpl implements Renderer {
       try {
         listener(payload);
       } catch {
-        // Host callbacks are isolated from renderer state transitions. Reporting
-        // them through this event surface would recurse and could expose secrets.
+        // A listener that throws can't break the renderer. Reporting it as an
+        // event would recurse and could expose secrets.
       }
     }
   }
@@ -656,28 +655,25 @@ class RendererImpl implements Renderer {
   }
 
   private assertOpen(): void {
-    if (this.closed) throw new RendererError('renderer-closed', 'The renderer is closed.');
+    if (this.closed) throw new RendererError('wrong-state', 'The session is closed.');
   }
 
   private assertStopped(action: string): void {
     if (this.run !== undefined) {
-      throw new RendererError('renderer-state-conflict', `Stop playback before you ${action}.`);
+      throw new RendererError('wrong-state', `Stop playback before you ${action}.`);
     }
   }
 
   private requireLoaded(): LoadedDocument {
     if (this.loaded === undefined) {
-      throw new RendererError(
-        'renderer-state-conflict',
-        'Load a timeline before you start playback.'
-      );
+      throw new RendererError('wrong-state', 'Load a timeline before you start playback.');
     }
     return this.loaded;
   }
 
   private requireConnection(run: Run): Connection {
     if (run.connection === undefined) {
-      throw new RendererError('renderer-state-conflict', 'The connection is not open.');
+      throw new RendererError('wrong-state', 'The connection is not open.');
     }
     return run.connection;
   }
@@ -843,7 +839,7 @@ class RendererImpl implements Renderer {
   private serialize<T>(run: Run, task: () => Promise<T>): Promise<T> {
     const result = run.chain.then(async () => {
       if (run.ended) {
-        throw new RendererError('renderer-state-conflict', 'This Play has ended.');
+        throw new RendererError('wrong-state', 'This Play has ended.');
       }
       return task();
     });
@@ -867,7 +863,6 @@ class RendererImpl implements Renderer {
 
   private async applyLoop(loaded: LoadedDocument, run: Run): Promise<void> {
     if (run.ended) return;
-    loaded.inputState = applyLoopBoundary(loaded.inputState);
     run.loopIteration += 1;
     const position = { bar: 1 } as const;
     const state = this.deriveAt(loaded, position, run.loopIteration);
@@ -967,7 +962,7 @@ class RendererImpl implements Renderer {
   /** Closes a connection without waiting, and warns if it takes too long. */
   private closeInBackground(connection: Connection): void {
     const closing = (async () => connection.close())();
-    void this.withinCleanupTimeout(closing).then(
+    void this.withinCloseTimeout(closing).then(
       (released) => {
         if (released || this.closed) return;
         this.warn({
@@ -980,13 +975,13 @@ class RendererImpl implements Renderer {
   }
 
   /**
-   * Resolves true once `work` settles, or false after the cleanup timeout. Uses
+   * Resolves true once `work` settles, or false after the close timeout. Uses
    * wall time, because the audio clock stops while a browser context is suspended.
    */
-  private async withinCleanupTimeout(work: Promise<void>): Promise<boolean> {
+  private async withinCloseTimeout(work: Promise<void>): Promise<boolean> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<false>((resolve) => {
-      timer = setTimeout(() => resolve(false), CONNECTOR_CLEANUP_TIMEOUT_SECONDS * 1000);
+      timer = setTimeout(() => resolve(false), CONNECTION_CLOSE_TIMEOUT_SECONDS * 1000);
     });
     try {
       return await Promise.race([
@@ -1345,7 +1340,7 @@ class RendererImpl implements Renderer {
     if (held >= BUFFER_OVERFLOW_SECONDS) {
       this.failRun(run, {
         code: 'audio-backpressure-overflow',
-        message: 'Generated audio exceeded the renderer buffer limit.',
+        message: 'Generated audio exceeded the buffer limit.',
         reason: 'internal',
         retryable: true
       });

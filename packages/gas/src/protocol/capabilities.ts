@@ -1,5 +1,5 @@
-// Model support levels consumed by Core warnings and exposed by renderer capabilities.
-// Unsupported intents remain in session state.
+// How well a model supports each intent. Core warns from it, and the connector
+// reports it. An unsupported intent stays in session state.
 export type IntentSupport = 'supported' | 'approximated' | 'unsupported';
 
 // Every intent keyword Core can warn about: the global musical context

@@ -175,7 +175,7 @@ function reservedMessage(feature: string): string {
     return 'Effects are reserved for after v1; describe the sound with flavor for now.';
   }
   if (feature === 'extend') {
-    return 'Renderer extension syntax is reserved for after v1.';
+    return 'Extension syntax is reserved for after v1.';
   }
   return 'Direct model prompts are reserved for after v1; use GAS intent like flavor and timbre instead.';
 }
