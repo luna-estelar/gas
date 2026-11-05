@@ -328,12 +328,13 @@ export function openLyriaRtSessionWithDependencies(
     };
 
     const handleClose = (code: number | undefined): void => {
-      if (phase === 'closing') {
+      if (phase === 'starting' || phase === 'open') fail(classifyClose(code, !setupReceived));
+      // A failure while open leaves the phase 'closing'. Either way this was the
+      // close event, and no other will come to settle `close()`.
+      if (phase !== 'closed') {
         phase = 'closed';
         closed();
-        return;
       }
-      fail(classifyClose(code, !setupReceived));
     };
 
     const setupTimer = clock.schedule(clock.now() + setupTimeoutSeconds, () =>

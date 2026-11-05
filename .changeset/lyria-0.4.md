@@ -17,3 +17,5 @@ socket.
 - The connector reads `quarterNoteTempo` instead of converting the tempo itself.
 - The description reports Lyria's measured warm `startupDelaySeconds` (1.2 s) and cold
   `initialStartupDelaySeconds` (5.4 s), covering the measured first-play maximum of 5.3 s.
+- After the server closes the socket, `close()` resolves instead of waiting for a second close
+  event.
