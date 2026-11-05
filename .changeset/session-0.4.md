@@ -22,3 +22,4 @@ GAS owns the connection lifecycle, and the session is the only public object.
   `setConnector`.
 - The `Legacy*` connector types are removed. `createBrowserSession` takes a `Connector`, with no
   factory, `settings` or `renderer` option.
+- `diagnostics.schema.json` no longer defines `RendererWarning` or `RendererFailure`.
