@@ -43,6 +43,7 @@ export type {
 export type { CapabilitiesTable, IntentKeyword, IntentSupport } from './capabilities.js';
 
 export type {
+  AppValueDroppedWarning,
   CommandFailure,
   CommandFailureCode,
   CommandWarning,
@@ -60,11 +61,15 @@ export type {
   ClearTempoCommand,
   ClearTrackFlavorCommand,
   ClearTrackLevelCommand,
+  ClearTrackMotifCommand,
+  ClearTrackNotesCommand,
+  ClearTrackPlayCommand,
   ClearTrackTimbreCommand,
   Command,
   DefineTrackCommand,
   OverrideCommand,
   PlayTrackCommand,
+  RemoveTrackCommand,
   SetGlobalFlavorCommand,
   SetGlobalLevelCommand,
   SetTempoCommand,
@@ -76,7 +81,7 @@ export type {
   StopTrackCommand
 } from './commands.js';
 
-export type { HostTrack, InputState, Override } from './input-state.js';
+export type { AppTrack, InputState, Override } from './input-state.js';
 export type { EffectiveGlobals, EffectiveState, EffectiveTrack } from './effective-state.js';
 
 export type {
@@ -86,7 +91,6 @@ export type {
   DiagnosticEvent,
   LifecycleEvent,
   LoadResult,
-  LiveCommandFailureResult,
   LiveCommandResult,
   LiveCommandSuccess,
   PlaybackPhase,

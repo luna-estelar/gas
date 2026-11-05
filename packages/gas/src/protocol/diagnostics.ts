@@ -1,4 +1,5 @@
 import type { IntentKeyword, IntentSupport } from './capabilities.js';
+import type { OverrideCommand } from './commands.js';
 import type { SourceRange } from './timeline.js';
 
 export type GasDiagnosticSeverity = 'error' | 'warning' | 'info';
@@ -38,7 +39,12 @@ export interface ValidateTimelineResult {
 }
 
 export type CommandFailureCode =
-  'duplicate-track' | 'unknown-track' | 'invalid-level' | 'invalid-tempo' | 'invalid-value';
+  | 'duplicate-track'
+  | 'unknown-track'
+  | 'not-app-track'
+  | 'invalid-level'
+  | 'invalid-tempo'
+  | 'invalid-value';
 
 export interface CommandFailure {
   readonly code: CommandFailureCode;
@@ -51,5 +57,13 @@ export interface CommandWarning {
   readonly intent: IntentKeyword;
   readonly support: Exclude<IntentSupport, 'supported'>;
   readonly trackId?: string;
+  readonly message: string;
+}
+
+// A new document was loaded with `appValues: 'keep'`, and this app value's track is gone.
+export interface AppValueDroppedWarning {
+  readonly code: 'app-value-dropped';
+  readonly trackId: string;
+  readonly command: OverrideCommand;
   readonly message: string;
 }

@@ -48,6 +48,7 @@
           "enum": [
             "duplicate-track",
             "unknown-track",
+            "not-app-track",
             "invalid-level",
             "invalid-tempo",
             "invalid-value"
@@ -66,6 +67,17 @@
         "intent": { "$ref": "capabilities.schema.json#/$defs/IntentKeyword" },
         "support": { "enum": ["approximated", "unsupported"] },
         "trackId": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    },
+    "AppValueDroppedWarning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "trackId", "command", "message"],
+      "properties": {
+        "code": { "const": "app-value-dropped" },
+        "trackId": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
+        "command": { "$ref": "commands.schema.json#/$defs/OverrideCommand" },
         "message": { "type": "string", "minLength": 1 }
       }
     },

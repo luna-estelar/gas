@@ -100,7 +100,7 @@ describe('command forwarding', () => {
     await session.setGlobalFlavor('warm and distant');
     const updates = wiring.current().updates;
     expect(updates).toHaveLength(1);
-    expect(updates[0]?.staged).toEqual([{ kind: 'setGlobalFlavor', value: 'warm and distant' }]);
+    expect(updates[0]?.appValues).toEqual([{ kind: 'setGlobalFlavor', value: 'warm and distant' }]);
   });
 
   it('a rejected command throws a structured error and does not forward', async () => {
@@ -178,6 +178,205 @@ describe('atomic replacement', () => {
   });
 });
 
+describe('app values', () => {
+  it('a value set before Play equals the same value set during Play', async () => {
+    const before = await loadedSession();
+    await before.session.setTrackLevel('track.drums', 0.4);
+    await before.session.play();
+
+    const during = await loadedSession();
+    await during.session.play();
+    await during.session.setTrackLevel('track.drums', 0.4);
+
+    expect(before.session.getState().appValues).toEqual(during.session.getState().appValues);
+    expect(before.wiring.current().updates.at(-1)).toEqual(during.wiring.current().updates.at(-1));
+  });
+
+  it('getState().appValues round-trips through apply', async () => {
+    const first = await loadedSession();
+    await first.session.defineTrack({ id: 'app.bells', name: 'bells' });
+    await first.session.playTrack('app.bells');
+    await first.session.setTrackLevel('track.drums', 0.4);
+    await first.session.setTempo(100);
+    await first.session.setTrackLevel('track.drums', 0.6);
+    const saved = first.session.getState().appValues;
+    expect(saved).toEqual([
+      { kind: 'defineTrack', id: 'app.bells', name: 'bells' },
+      { kind: 'playTrack', trackId: 'app.bells' },
+      { kind: 'setTempo', bpm: 100 },
+      { kind: 'setTrackLevel', trackId: 'track.drums', value: 0.6 }
+    ]);
+
+    const second = await loadedSession();
+    await second.session.apply(saved);
+    expect(second.session.getState().appValues).toEqual(saved);
+    expect(second.session.getTracks()).toEqual(first.session.getTracks());
+  });
+
+  it('apply forwards once and applies nothing when one command fails', async () => {
+    const { wiring, session } = await loadedSession();
+    await session.apply([
+      { kind: 'setTempo', bpm: 100 },
+      { kind: 'setGlobalFlavor', value: 'dusk' }
+    ]);
+    expect(wiring.current().updates).toHaveLength(1);
+
+    await expect(
+      session.apply([
+        { kind: 'setTempo', bpm: 140 },
+        { kind: 'playTrack', trackId: 'ghost' }
+      ])
+    ).rejects.toMatchObject({ kind: 'command', failure: { code: 'unknown-track' } });
+    expect(wiring.current().updates).toHaveLength(1);
+    expect(session.getState().appValues).toEqual([
+      { kind: 'setTempo', bpm: 100 },
+      { kind: 'setGlobalFlavor', value: 'dusk' }
+    ]);
+  });
+
+  it('clearAppValues removes app tracks and values and keeps the document', async () => {
+    const { wiring, session } = await loadedSession();
+    await session.defineTrack({ id: 'app.bells' });
+    await session.setTempo(100);
+    await session.clearAppValues();
+    expect(session.getState().appValues).toEqual([]);
+    expect(session.getTracks().map((t) => t.id)).toEqual(['track.drums', 'track.lead']);
+    expect(wiring.current().updates.at(-1)?.appValues).toEqual([]);
+  });
+
+  it('clears play, notes and motif, and removes app tracks', async () => {
+    const { session } = await loadedSession();
+    await session.defineTrack({ id: 'app.bells' });
+    await session.stopTrack('track.drums');
+    await session.clearTrackPlay('track.drums');
+    await session.apply([
+      { kind: 'setTrackNotes', trackId: 'track.lead', alda: 'c d e' },
+      { kind: 'setTrackMotif', trackId: 'track.lead', alda: 'g2' }
+    ]);
+    await session.clearTrackNotes('track.lead');
+    await session.clearTrackMotif('track.lead');
+    await session.setTrackLevel('app.bells', 0.3);
+    await session.removeTrack('app.bells');
+    expect(session.getState().appValues).toEqual([]);
+    await expect(session.removeTrack('track.drums')).rejects.toMatchObject({
+      failure: { code: 'not-app-track' }
+    });
+  });
+
+  it('loadSource keeps app values by default and warns about dropped ones', async () => {
+    const { session } = await loadedSession();
+    await session.setTempo(100);
+    await session.setTrackLevel('track.drums', 0.4);
+    const warnings: string[] = [];
+    session.on('warning', (warning) => warnings.push(warning.warningId));
+    const result = await session.loadSource(OTHER_SOURCE);
+    expect(session.getState().appValues).toEqual([{ kind: 'setTempo', bpm: 100 }]);
+    expect(result.warnings).toEqual([
+      expect.objectContaining({ code: 'app-value-dropped', trackId: 'track.drums' })
+    ]);
+    expect(warnings).toEqual(result.warnings.map((warning) => warning.warningId));
+  });
+
+  it("loadSource with 'clear' starts with no app values", async () => {
+    const { session } = await loadedSession();
+    await session.setTempo(100);
+    await session.loadSource(OTHER_SOURCE, { appValues: 'clear' });
+    expect(session.getState().appValues).toEqual([]);
+  });
+
+  it('loadSource with a command list replaces the app values', async () => {
+    const { wiring, session } = await loadedSession();
+    await session.setTempo(100);
+    await session.loadSource(OTHER_SOURCE, {
+      appValues: [{ kind: 'setTrackLevel', trackId: 'track.pad', value: 0.2 }]
+    });
+    expect(session.getState().appValues).toEqual([
+      { kind: 'setTrackLevel', trackId: 'track.pad', value: 0.2 }
+    ]);
+    expect(wiring.current().loads.at(-1)?.inputState.appValues).toEqual([
+      { kind: 'setTrackLevel', trackId: 'track.pad', value: 0.2 }
+    ]);
+  });
+
+  it('applies saved app values back onto the same session', async () => {
+    const { session } = await loadedSession();
+    await session.defineTrack({ id: 'app.bells', name: 'bells' });
+    await session.playTrack('app.bells');
+    await session.setTrackLevel('track.drums', 0.4);
+    const saved = session.getState().appValues;
+    await session.setTrackLevel('track.drums', 0.9);
+    await session.apply(saved);
+    expect(session.getState().appValues).toEqual(saved);
+  });
+
+  it("a keep load rejects when the new document declares an app track's id", async () => {
+    const { wiring, session } = await loadedSession();
+    await session.defineTrack({ id: 'track.pad', name: 'my pad' });
+    await session.setTempo(100);
+    await expect(session.loadSource(OTHER_SOURCE)).rejects.toMatchObject({
+      kind: 'command',
+      failure: { code: 'duplicate-track', trackId: 'track.pad' }
+    });
+    expect(wiring.current().loads).toHaveLength(1);
+    expect(session.getTracks().map((t) => t.id)).toEqual([
+      'track.drums',
+      'track.lead',
+      'track.pad'
+    ]);
+    expect(session.getState().appValues).toEqual([
+      { kind: 'defineTrack', id: 'track.pad', name: 'my pad' },
+      { kind: 'setTempo', bpm: 100 }
+    ]);
+  });
+
+  it('rejects commands while a document is loading', async () => {
+    const { session } = await loadedSession();
+    const next = (await session.compileSource(OTHER_SOURCE)).timeline;
+    const [load, command] = await Promise.allSettled([
+      session.loadTimeline(next),
+      session.setGlobalFlavor('warm')
+    ]);
+    expect(load.status).toBe('fulfilled');
+    expect(command).toMatchObject({ status: 'rejected', reason: { kind: 'lifecycle' } });
+    expect(session.getTracks().map((t) => t.id)).toEqual(['track.pad']);
+    expect(session.getState().appValues).toEqual([]);
+    await session.setGlobalFlavor('warm');
+    expect(session.getState().appValues).toEqual([{ kind: 'setGlobalFlavor', value: 'warm' }]);
+  });
+
+  it('rejects a second load while one is pending', async () => {
+    const { session } = await loadedSession();
+    const [first, second] = await Promise.allSettled([
+      session.loadSource(OTHER_SOURCE),
+      session.loadSource(OTHER_SOURCE)
+    ]);
+    const statuses = [first.status, second.status].sort();
+    expect(statuses).toEqual(['fulfilled', 'rejected']);
+  });
+
+  it('accepts commands again after a failed load', async () => {
+    const { wiring, session } = await loadedSession();
+    wiring.current().failLoad = true;
+    await expect(session.loadSource(OTHER_SOURCE)).rejects.toBeInstanceOf(GasOperationError);
+    wiring.current().failLoad = false;
+    await session.setTempo(100);
+    expect(session.getState().appValues).toEqual([{ kind: 'setTempo', bpm: 100 }]);
+  });
+
+  it('a failing command list rejects the load and keeps the old document', async () => {
+    const { wiring, session } = await loadedSession();
+    await session.setTempo(100);
+    await expect(
+      session.loadSource(OTHER_SOURCE, {
+        appValues: [{ kind: 'setTrackLevel', trackId: 'track.drums', value: 0.2 }]
+      })
+    ).rejects.toMatchObject({ kind: 'command', failure: { code: 'unknown-track' } });
+    expect(wiring.current().loads).toHaveLength(1);
+    expect(session.getTracks().map((t) => t.id)).toEqual(['track.drums', 'track.lead']);
+    expect(session.getState().appValues).toEqual([{ kind: 'setTempo', bpm: 100 }]);
+  });
+});
+
 describe('playback lifecycle', () => {
   it('play records the accepted run and goes active', async () => {
     const { wiring, session } = await loadedSession();
@@ -247,15 +446,15 @@ describe('playback lifecycle', () => {
     });
   });
 
-  it('stop is safe when already stopped and clears overrides', async () => {
+  it('stop is safe when already stopped and keeps app values', async () => {
     const { wiring, session } = await loadedSession();
     await session.play();
     await session.setGlobalFlavor('warm');
     await session.stop();
     expect(session.getState().playback).toBe('stopped');
     const last = wiring.current().updates.at(-1);
-    expect(last?.staged).toEqual([]);
-    expect(last?.live).toEqual([]);
+    expect(last?.appValues).toEqual([{ kind: 'setGlobalFlavor', value: 'warm' }]);
+    expect(session.getState().appValues).toEqual([{ kind: 'setGlobalFlavor', value: 'warm' }]);
     await expect(session.stop()).resolves.toBeUndefined();
   });
 
@@ -268,7 +467,7 @@ describe('playback lifecycle', () => {
     expect(session.getState().lifecycle).toBe('failed');
   });
 
-  it('applies the completion transition when the piece finishes', async () => {
+  it('keeps app values when the piece finishes', async () => {
     const { wiring, session } = await loadedSession();
     await session.play();
     await session.setGlobalFlavor('warm');
@@ -280,12 +479,13 @@ describe('playback lifecycle', () => {
     });
     expect(session.getState().playback).toBe('stopped');
     expect(session.getState().runId).toBeUndefined();
-    // Completion clears live overrides, so the next run starts from the document
-    // rather than inheriting what the last one was left holding.
+    expect(session.getState().appValues).toEqual([{ kind: 'setGlobalFlavor', value: 'warm' }]);
     await session.play();
     expect(session.getState().playback).toBe('active');
     await session.setGlobalFlavor('cool');
-    expect(wiring.current().updates.at(-1)?.live).toMatchObject([{ value: 'cool' }]);
+    expect(wiring.current().updates.at(-1)?.appValues).toEqual([
+      { kind: 'setGlobalFlavor', value: 'cool' }
+    ]);
   });
 
   it('leaves the session playing when a provider ends its stream early', async () => {
@@ -479,7 +679,7 @@ describe('retryRenderer', () => {
     });
   });
 
-  it('preserves host tracks, clears overrides, and reloads a fresh Renderer', async () => {
+  it('keeps app tracks and app values, and reloads a fresh Renderer', async () => {
     const { wiring, session } = await loadedSession();
     await session.defineTrack({ id: 'track.bass', name: 'bass', description: 'deep bass' });
     await session.setGlobalFlavor('warm');
@@ -495,8 +695,8 @@ describe('retryRenderer', () => {
     const fresh = wiring.renderers[1]!;
     expect(fresh.loads).toHaveLength(1);
     const reloaded = fresh.loads[0]!.inputState;
-    expect(reloaded.hostTracks.map((t) => t.id)).toEqual(['track.bass']);
-    expect(reloaded.staged).toEqual([]);
+    expect(reloaded.appTracks.map((t) => t.id)).toEqual(['track.bass']);
+    expect(reloaded.appValues).toEqual([{ kind: 'setGlobalFlavor', value: 'warm' }]);
     expect(session.getTracks().some((t) => t.id === 'track.bass')).toBe(true);
     expect(session.getState().lifecycle).toBe('ready');
     expect(session.getState().playback).toBe('stopped');

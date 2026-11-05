@@ -41,7 +41,7 @@ describe('running renderer changes', () => {
     expect(connector.calls).toContain('stop:run-1');
   });
 
-  it('preserves live overrides and restarts authored boundaries at loop bar one', async () => {
+  it('preserves app values and restarts authored boundaries at loop bar one', async () => {
     const timeline = testTimeline({ playback: { mode: 'loop', declaredBars: 4 } });
     const { clock, connector, renderer } = await runningRenderer(timeline);
     const positions: Array<{ bar: number; iteration: number }> = [];
@@ -184,7 +184,6 @@ async function runningRenderer(
 
 function applyActive(state: InputState, command: Parameters<typeof applyCommand>[1]): InputState {
   const result = applyCommand(state, command, {
-    phase: 'active',
     capabilities: allSupportedCapabilities()
   });
   if (!result.ok) throw new Error(result.failure.message);

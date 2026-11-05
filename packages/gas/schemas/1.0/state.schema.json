@@ -3,7 +3,7 @@
   "$id": "https://gas.luna-estelar.com/protocol/1.0/state.schema.json",
   "title": "GAS State Values 1.0",
   "$defs": {
-    "HostTrack": {
+    "AppTrack": {
       "type": "object",
       "additionalProperties": false,
       "required": ["id"],
@@ -16,15 +16,11 @@
     "InputState": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["timeline", "hostTracks", "staged", "live"],
+      "required": ["timeline", "appTracks", "appValues"],
       "properties": {
         "timeline": { "$ref": "timeline.schema.json" },
-        "hostTracks": { "type": "array", "items": { "$ref": "#/$defs/HostTrack" } },
-        "staged": {
-          "type": "array",
-          "items": { "$ref": "commands.schema.json#/$defs/OverrideCommand" }
-        },
-        "live": {
+        "appTracks": { "type": "array", "items": { "$ref": "#/$defs/AppTrack" } },
+        "appValues": {
           "type": "array",
           "items": { "$ref": "commands.schema.json#/$defs/OverrideCommand" }
         }

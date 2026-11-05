@@ -16,6 +16,24 @@
       }
     },
     "SessionWarning": {
+      "oneOf": [
+        { "$ref": "#/$defs/SessionCommandWarning" },
+        { "$ref": "#/$defs/SessionAppValueDroppedWarning" }
+      ]
+    },
+    "SessionAppValueDroppedWarning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["warningId", "code", "trackId", "command", "message"],
+      "properties": {
+        "warningId": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
+        "code": { "const": "app-value-dropped" },
+        "trackId": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
+        "command": { "$ref": "commands.schema.json#/$defs/OverrideCommand" },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    },
+    "SessionCommandWarning": {
       "type": "object",
       "additionalProperties": false,
       "required": ["warningId", "code", "intent", "support", "message"],
@@ -80,23 +98,7 @@
         "appliedPosition": { "$ref": "common.schema.json#/$defs/MusicalPosition" }
       }
     },
-    "LiveCommandFailureResult": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["ok", "applied", "warnings", "failure"],
-      "properties": {
-        "ok": { "const": false },
-        "applied": { "type": "integer", "minimum": 0 },
-        "warnings": { "type": "array", "items": { "$ref": "#/$defs/SessionWarning" } },
-        "failure": { "$ref": "diagnostics.schema.json#/$defs/CommandFailure" }
-      }
-    },
-    "LiveCommandResult": {
-      "oneOf": [
-        { "$ref": "#/$defs/LiveCommandSuccess" },
-        { "$ref": "#/$defs/LiveCommandFailureResult" }
-      ]
-    },
+    "LiveCommandResult": { "$ref": "#/$defs/LiveCommandSuccess" },
     "TrackView": {
       "type": "object",
       "additionalProperties": false,
@@ -111,13 +113,17 @@
     "SessionState": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["lifecycle", "playback", "timelineLoaded", "tracks"],
+      "required": ["lifecycle", "playback", "timelineLoaded", "tracks", "appValues"],
       "properties": {
         "lifecycle": { "enum": ["initializing", "ready", "closing", "closed", "failed"] },
         "playback": { "enum": ["stopped", "active"] },
         "timelineLoaded": { "type": "boolean" },
         "runId": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
-        "tracks": { "type": "array", "items": { "$ref": "#/$defs/TrackView" } }
+        "tracks": { "type": "array", "items": { "$ref": "#/$defs/TrackView" } },
+        "appValues": {
+          "type": "array",
+          "items": { "$ref": "commands.schema.json#/$defs/Command" }
+        }
       }
     },
     "LifecycleEvent": {

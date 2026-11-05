@@ -310,7 +310,6 @@ function chunk(runId: string, durationSeconds: number): ConnectorAudioChunk {
 
 function applyActive(state: InputState, command: Parameters<typeof applyCommand>[1]): InputState {
   const result = applyCommand(state, command, {
-    phase: 'active',
     capabilities: {
       intents: {
         flavor: 'supported',

@@ -1,4 +1,5 @@
-import type { CommandFailure, CommandWarning, GasDiagnostic } from './diagnostics.js';
+import type { Command } from './commands.js';
+import type { AppValueDroppedWarning, CommandWarning, GasDiagnostic } from './diagnostics.js';
 import type { MusicalPosition, Timeline } from './timeline.js';
 import type { ConnectorStreamStatus, PlaybackStatus, RendererLifecycle } from './renderer.js';
 
@@ -9,9 +10,9 @@ export interface CompileResult {
   readonly diagnostics: readonly GasDiagnostic[];
 }
 
-export interface SessionWarning extends CommandWarning {
+export type SessionWarning = (CommandWarning | AppValueDroppedWarning) & {
   readonly warningId: string;
-}
+};
 
 export interface LoadResult {
   readonly warnings: readonly SessionWarning[];
@@ -41,14 +42,7 @@ export interface LiveCommandSuccess extends AppliedPosition {
   readonly warnings: readonly SessionWarning[];
 }
 
-export interface LiveCommandFailureResult {
-  readonly ok: false;
-  readonly applied: number;
-  readonly warnings: readonly SessionWarning[];
-  readonly failure: CommandFailure;
-}
-
-export type LiveCommandResult = LiveCommandSuccess | LiveCommandFailureResult;
+export type LiveCommandResult = LiveCommandSuccess;
 
 export interface TrackView {
   readonly id: string;
@@ -63,6 +57,9 @@ export interface SessionState {
   readonly timelineLoaded: boolean;
   readonly runId?: string;
   readonly tracks: readonly TrackView[];
+  // A `defineTrack` for each app track, then the app values. Applying it again gives the same
+  // state.
+  readonly appValues: readonly Command[];
 }
 
 export interface LifecycleEvent {

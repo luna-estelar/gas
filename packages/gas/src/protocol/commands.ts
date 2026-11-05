@@ -82,6 +82,28 @@ export interface SetTrackMotifCommand {
   readonly alda: string;
 }
 
+export interface ClearTrackNotesCommand {
+  readonly kind: 'clearTrackNotes';
+  readonly trackId: string;
+}
+
+export interface ClearTrackMotifCommand {
+  readonly kind: 'clearTrackMotif';
+  readonly trackId: string;
+}
+
+// Hands the track's play/stop state back to the score.
+export interface ClearTrackPlayCommand {
+  readonly kind: 'clearTrackPlay';
+  readonly trackId: string;
+}
+
+// Removes an app track and every app value set on it. Document tracks can't be removed.
+export interface RemoveTrackCommand {
+  readonly kind: 'removeTrack';
+  readonly trackId: string;
+}
+
 export interface SetTempoCommand {
   readonly kind: 'setTempo';
   readonly bpm: number;
@@ -94,6 +116,7 @@ export interface ClearTempoCommand {
 export type OverrideCommand =
   | PlayTrackCommand
   | StopTrackCommand
+  | ClearTrackPlayCommand
   | SetGlobalFlavorCommand
   | ClearGlobalFlavorCommand
   | SetGlobalLevelCommand
@@ -106,7 +129,9 @@ export type OverrideCommand =
   | ClearTrackLevelCommand
   | SetTrackNotesCommand
   | SetTrackMotifCommand
+  | ClearTrackNotesCommand
+  | ClearTrackMotifCommand
   | SetTempoCommand
   | ClearTempoCommand;
 
-export type Command = DefineTrackCommand | OverrideCommand;
+export type Command = DefineTrackCommand | RemoveTrackCommand | OverrideCommand;

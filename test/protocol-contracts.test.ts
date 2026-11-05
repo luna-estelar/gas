@@ -97,7 +97,8 @@ describe('landed values match canonical protocol schemas', () => {
       lifecycle: 'ready',
       playback: 'stopped',
       timelineLoaded: false,
-      tracks: []
+      tracks: [],
+      appValues: []
     } satisfies SessionState;
 
     expect(compiled.formatVersion).toEqual({ major: 1, minor: 0 });
@@ -125,7 +126,7 @@ describe('landed values match canonical protocol schemas', () => {
     const warned = applyCommand(
       loaded,
       { kind: 'setTrackMotif', trackId, alda: 'c d e' },
-      { phase: 'active', capabilities: LYRIA_RT_CAPABILITIES }
+      { capabilities: LYRIA_RT_CAPABILITIES }
     );
     expect(warned.ok).toBe(true);
     if (!warned.ok) return;
@@ -136,7 +137,7 @@ describe('landed values match canonical protocol schemas', () => {
     const failed = applyCommand(
       loaded,
       { kind: 'playTrack', trackId: 'ghost' },
-      { phase: 'active', capabilities: LYRIA_RT_CAPABILITIES }
+      { capabilities: LYRIA_RT_CAPABILITIES }
     );
     expect(failed.ok).toBe(false);
     if (failed.ok) return;

@@ -10,5 +10,21 @@
       "description": "A warm analog pad",
       "source": "authored"
     }
+  ],
+  "appValues": [
+    {
+      "kind": "defineTrack",
+      "id": "track.bells",
+      "name": "bells"
+    },
+    {
+      "kind": "setTrackLevel",
+      "trackId": "track.pad",
+      "value": 0.4
+    },
+    {
+      "kind": "playTrack",
+      "trackId": "track.bells"
+    }
   ]
 }

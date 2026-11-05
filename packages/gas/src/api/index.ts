@@ -3,6 +3,7 @@
 export { createSession, GasSession } from './session.js';
 export type {
   CompileOptions,
+  LoadOptions,
   CompileResult,
   DefineTrackInput,
   RendererControl
@@ -27,7 +28,6 @@ export type {
   AppliedPosition,
   CommandResult,
   LoadResult,
-  LiveCommandFailureResult,
   LiveCommandResult,
   LiveCommandSuccess,
   OperationErrorInit,

@@ -7,6 +7,17 @@
       "support": "unsupported",
       "trackId": "track.lead",
       "message": "This model doesn't support motifs; the change is kept, but it may not be heard."
+    },
+    {
+      "warningId": "warning.2",
+      "code": "app-value-dropped",
+      "trackId": "track.bells",
+      "command": {
+        "kind": "setTrackLevel",
+        "trackId": "track.bells",
+        "value": 0.5
+      },
+      "message": "The new document has no track \"track.bells\", so its setTrackLevel value was dropped."
     }
   ]
 }

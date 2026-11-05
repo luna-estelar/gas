@@ -1,24 +1,21 @@
-// The session input state: everything the host has asked for, as frozen plain
+// The session input state: everything the app has asked for, as frozen plain
 // data. Nothing position-dependent lives here; the cascade derives that.
 
 import type { InputState, Timeline } from '../protocol/index.js';
 
-export type { HostTrack, InputState, Override } from '../protocol/index.js';
+export type { AppTrack, InputState, Override } from '../protocol/index.js';
 
-// Creates the initial input state for a document: the loaded timeline, no host
-// tracks, and no overrides. Timeline replacement is this same call with the new
-// timeline — nothing from a previous document survives except by the host
-// re-issuing `defineTrack`.
+// Creates the input state for a document: the timeline, no app tracks and no
+// app values. `applyNewTimeline` decides what carries over from an old document.
 export function createInputState(timeline: Timeline): InputState {
-  return freezeInputState({ timeline, hostTracks: [], staged: [], live: [] });
+  return freezeInputState({ timeline, appTracks: [], appValues: [] });
 }
 
 // Freezes an input state and its owned arrays so callers cannot mutate a value
 // Core returned. The timeline itself is the caller's value, referenced as-is and
 // never mutated.
 export function freezeInputState(state: InputState): InputState {
-  Object.freeze(state.hostTracks);
-  Object.freeze(state.staged);
-  Object.freeze(state.live);
+  Object.freeze(state.appTracks);
+  Object.freeze(state.appValues);
   return Object.freeze(state);
 }

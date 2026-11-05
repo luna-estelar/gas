@@ -1,5 +1,5 @@
 // Each real connector behind the real renderer, falling back to the run's
-// defaults once a live override is cleared. Starting with the override in place
+// defaults once an app value is cleared. Starting with the override in place
 // is the case that matters: the connector must not mistake the initial effective
 // tempo for the default it returns to.
 
@@ -32,7 +32,7 @@ function applyLive(
   command: Parameters<typeof applyCommand>[1],
   capabilities: CapabilitiesTable
 ): InputState {
-  const result = applyCommand(state, command, { phase: 'active', capabilities });
+  const result = applyCommand(state, command, { capabilities });
   if (!result.ok) throw new Error(result.failure.message);
   return result.state;
 }

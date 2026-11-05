@@ -34,24 +34,26 @@ describe('live commands', () => {
     const result = await session.submitLiveCommands('drums.flavor "punchy"\ntempo 132');
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.applied).toBe(2);
-    // The session is stopped, so overrides stage (Core routes by phase); they
-    // would land in `live` if applied during playback.
     const forwarded = wiring.current().updates.at(-1);
-    expect(forwarded?.staged).toEqual([
+    expect(forwarded?.appValues).toEqual([
       { kind: 'setTrackFlavor', trackId: 'track.drums', value: 'punchy' },
       { kind: 'setTempo', bpm: 132 }
     ]);
   });
 
-  it('routes live overrides to the live layer during playback', async () => {
-    const { wiring, session } = await loaded();
-    await session.play();
-    await session.submitLiveCommands('drums.flavor "punchy"');
-    const forwarded = wiring.current().updates.at(-1);
-    expect(forwarded?.live).toEqual([
+  it('stores a value the same way before and during playback', async () => {
+    const before = await loaded();
+    await before.session.submitLiveCommands('drums.flavor "punchy"');
+    await before.session.play();
+
+    const during = await loaded();
+    await during.session.play();
+    await during.session.submitLiveCommands('drums.flavor "punchy"');
+
+    expect(during.session.getState().appValues).toEqual(before.session.getState().appValues);
+    expect(during.wiring.current().updates.at(-1)?.appValues).toEqual([
       { kind: 'setTrackFlavor', trackId: 'track.drums', value: 'punchy' }
     ]);
-    expect(forwarded?.staged).toEqual([]);
   });
 
   it('declares a track live and keeps it addressable afterwards (persistent declaration)', async () => {
@@ -68,25 +70,25 @@ describe('live commands', () => {
     const { wiring, session } = await loaded();
     await session.submitLiveCommands('track echo "spacey"\necho.level 0.5');
     const forwarded = wiring.current().updates.at(-1);
-    expect(forwarded?.hostTracks.map((t) => t.id)).toEqual(['track.echo']);
-    expect(forwarded?.staged).toEqual([
+    expect(forwarded?.appTracks.map((t) => t.id)).toEqual(['track.echo']);
+    expect(forwarded?.appValues).toEqual([
       { kind: 'setTrackLevel', trackId: 'track.echo', value: 0.5 }
     ]);
   });
 
-  it('is partial-success: earlier statements commit, a later failure resolves with a payload', async () => {
-    const { session } = await loaded();
-    const result = await session.submitLiveCommands('track echo "spacey"\necho.play\nghost.play');
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.applied).toBe(2);
-      expect(result.failure.code).toBe('unknown-track');
-    }
-    // The committed declaration persists despite the later failure.
-    expect(session.getTracks().some((t) => t.id === 'track.echo')).toBe(true);
+  it('applies nothing and rejects when a later statement fails', async () => {
+    const { wiring, session } = await loaded();
+    const failed = session.submitLiveCommands('track echo "spacey"\necho.play\nghost.play');
+    await expect(failed).rejects.toMatchObject({
+      kind: 'live',
+      failure: { code: 'unknown-track' }
+    });
+    expect(session.getTracks().some((t) => t.id === 'track.echo')).toBe(false);
+    expect(session.getState().appValues).toEqual([]);
+    expect(wiring.current().updates).toHaveLength(0);
   });
 
-  it('rejects when nothing commits before the failure', async () => {
+  it('rejects a single failing statement', async () => {
     const { session } = await loaded();
     await expect(session.submitLiveCommands('ghost.play')).rejects.toBeInstanceOf(
       GasOperationError
@@ -137,7 +139,8 @@ describe('session validation scenarios', () => {
     await session.playTrack('track.bass');
     await session.stopTrack('track.bass');
     const forwarded = wiring.current().updates.at(-1);
-    expect(forwarded?.staged.at(-1)).toEqual({ kind: 'stopTrack', trackId: 'track.bass' });
+    // stopTrack replaces playTrack: one value per slot.
+    expect(forwarded?.appValues).toEqual([{ kind: 'stopTrack', trackId: 'track.bass' }]);
   });
 
   it('live fragments with persistent declarations', async () => {

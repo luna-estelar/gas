@@ -330,7 +330,7 @@ function changed(timeline: Timeline): InputState {
   const result = applyCommand(
     createInputState(timeline),
     { kind: 'setTrackFlavor', trackId: 'track.pad', value: 'brighter' },
-    { phase: 'active', capabilities: allSupported() }
+    { capabilities: allSupported() }
   );
   if (!result.ok) throw new Error(result.failure.message);
   return result.state;

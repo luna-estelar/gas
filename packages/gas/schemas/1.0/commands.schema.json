@@ -4,12 +4,17 @@
   "title": "GAS Commands 1.0",
   "$defs": {
     "Command": {
-      "oneOf": [{ "$ref": "#/$defs/DefineTrackCommand" }, { "$ref": "#/$defs/OverrideCommand" }]
+      "oneOf": [
+        { "$ref": "#/$defs/DefineTrackCommand" },
+        { "$ref": "#/$defs/RemoveTrackCommand" },
+        { "$ref": "#/$defs/OverrideCommand" }
+      ]
     },
     "OverrideCommand": {
       "oneOf": [
         { "$ref": "#/$defs/PlayTrackCommand" },
         { "$ref": "#/$defs/StopTrackCommand" },
+        { "$ref": "#/$defs/ClearTrackPlayCommand" },
         { "$ref": "#/$defs/SetGlobalFlavorCommand" },
         { "$ref": "#/$defs/ClearGlobalFlavorCommand" },
         { "$ref": "#/$defs/SetGlobalLevelCommand" },
@@ -22,6 +27,8 @@
         { "$ref": "#/$defs/ClearTrackLevelCommand" },
         { "$ref": "#/$defs/SetTrackNotesCommand" },
         { "$ref": "#/$defs/SetTrackMotifCommand" },
+        { "$ref": "#/$defs/ClearTrackNotesCommand" },
+        { "$ref": "#/$defs/ClearTrackMotifCommand" },
         { "$ref": "#/$defs/SetTempoCommand" },
         { "$ref": "#/$defs/ClearTempoCommand" }
       ]
@@ -46,6 +53,26 @@
       "$ref": "#/$defs/TrackCommandWithoutValue",
       "unevaluatedProperties": false,
       "properties": { "kind": { "const": "stopTrack" } }
+    },
+    "RemoveTrackCommand": {
+      "$ref": "#/$defs/TrackCommandWithoutValue",
+      "unevaluatedProperties": false,
+      "properties": { "kind": { "const": "removeTrack" } }
+    },
+    "ClearTrackPlayCommand": {
+      "$ref": "#/$defs/TrackCommandWithoutValue",
+      "unevaluatedProperties": false,
+      "properties": { "kind": { "const": "clearTrackPlay" } }
+    },
+    "ClearTrackNotesCommand": {
+      "$ref": "#/$defs/TrackCommandWithoutValue",
+      "unevaluatedProperties": false,
+      "properties": { "kind": { "const": "clearTrackNotes" } }
+    },
+    "ClearTrackMotifCommand": {
+      "$ref": "#/$defs/TrackCommandWithoutValue",
+      "unevaluatedProperties": false,
+      "properties": { "kind": { "const": "clearTrackMotif" } }
     },
     "ClearTrackFlavorCommand": {
       "$ref": "#/$defs/TrackCommandWithoutValue",

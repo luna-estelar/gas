@@ -286,7 +286,6 @@ async function createRejects(promise: Promise<unknown>): Promise<RendererError> 
 
 function applyActive(state: InputState, command: Parameters<typeof applyCommand>[1]): InputState {
   const result = applyCommand(state, command, {
-    phase: 'active',
     capabilities: allSupportedCapabilities()
   });
   if (!result.ok) throw new Error(result.failure.message);

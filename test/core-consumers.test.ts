@@ -6,7 +6,6 @@ import { createSession, GasOperationError } from '../packages/gas/src/api/index.
 import { createRenderer } from '../packages/gas/src/renderer/index.js';
 import {
   applyCommand,
-  applyCompletion,
   applyLoopBoundary,
   authoredEventSchedule,
   createInputState,
@@ -77,7 +76,7 @@ describe('consumer: the GAS API command path', () => {
 
     // All four landed, and none touched an unsupported intent.
     expect(result).toMatchObject({ ok: true, applied: 4, warnings: [] });
-    // A host track joined the namespace under the compiler's id scheme.
+    // An app track joined the namespace under the compiler's id scheme.
     expect(session.getTracks()).toContainEqual({
       id: 'track.pad',
       name: 'pad',
@@ -107,7 +106,7 @@ describe('consumer: the GAS API command path', () => {
       support: 'unsupported'
     });
 
-    // Staged rather than dropped: the run starts with it.
+    // Kept rather than dropped: the run starts with it.
     expect(connector.prepared).toEqual([]);
     await session.play();
     expect(trackOf(connector.prepared[0]!.state, 'track.guitar').motif).toBeDefined();
@@ -129,15 +128,15 @@ describe('consumer: the GAS API command path', () => {
 // --- Consumer 2: the Renderer derivation loop ---------------------------------
 
 describe('consumer: the Renderer derivation loop', () => {
-  it('derives at every schedule position and preserves live overrides across a loop', () => {
+  it('derives at every schedule position and preserves app values across a loop', () => {
     const timeline = corpusTimeline('drum-loop'); // loop playback, one section
     const drumsId = timeline.tracks.find((track) => track.name === 'drums')!.trackId;
 
-    // A live level override during the run.
+    // An app level value.
     const applied = applyCommand(
       createInputState(timeline),
       { kind: 'setTrackLevel', trackId: drumsId, value: 0.7 },
-      { phase: 'active', capabilities: CAPABILITIES }
+      { capabilities: CAPABILITIES }
     );
     expect(applied.ok).toBe(true);
     if (!applied.ok) return;
@@ -156,27 +155,15 @@ describe('consumer: the Renderer derivation loop', () => {
       expect(trackOf(snapshot, drumsId).level).toEqual({ kind: 'level', value: 0.7 });
     }
 
-    // At the loop boundary the Renderer preserves live overrides; iteration 2
-    // still sees the live level.
+    // At the loop boundary the Renderer keeps app values; iteration 2 still
+    // sees the app level.
     const looped = applyLoopBoundary(state);
-    expect(looped.live).toEqual(state.live);
+    expect(looped.appValues).toEqual(state.appValues);
     const iterationTwo = effectiveStateAt(looped, schedule[0], {
       loopIteration: 2,
       activeSection: sectionInstanceAt(timeline, schedule[0])
     });
     expect(trackOf(iterationTwo, drumsId).level).toEqual({ kind: 'level', value: 0.7 });
-
-    // On completion the Renderer clears overrides; the authored document alone remains.
-    const completed = applyCompletion(state);
-    expect(completed.live).toEqual([]);
-    expect(
-      trackOf(
-        effectiveStateAt(completed, schedule[0], {
-          activeSection: sectionInstanceAt(timeline, schedule[0])
-        }),
-        drumsId
-      ).level
-    ).toBeUndefined();
   });
 });
 

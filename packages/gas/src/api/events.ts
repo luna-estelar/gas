@@ -2,6 +2,7 @@
 // before forwarding renderer position and audio events.
 
 import type {
+  AppValueDroppedWarning,
   AudioChunk,
   CommandWarning,
   DiagnosticEvent,
@@ -66,7 +67,7 @@ export class EventHub {
 
   // Core warning: allocate an id, emit the event, and return the enriched
   // warning for the operation result — the result and the event share one id.
-  warn(warning: CommandWarning): SessionWarning {
+  warn(warning: CommandWarning | AppValueDroppedWarning): SessionWarning {
     const sessionWarning: SessionWarning = { ...warning, warningId: this.nextWarningId() };
     this.emit('warning', sessionWarning);
     return sessionWarning;

@@ -3,12 +3,13 @@
 
 import {
   applyCommand,
-  applyCompletion,
-  applyRetry,
-  applyStop,
+  applyCommands,
+  applyNewTimeline,
   createInputState,
   validateTimeline,
   warningsForTimeline,
+  type AppValuesMode,
+  type ApplyCommandOptions,
   type CommandFailure,
   type InputState
 } from '../core/index.js';
@@ -22,6 +23,7 @@ function language(): Promise<LanguageModule> {
 import type {
   CapabilitiesTable,
   Command,
+  CommandWarning,
   CompileResult,
   ConnectorConfig,
   ConnectorConfigSchema,
@@ -49,13 +51,17 @@ import {
   type LiveCommandResult,
   type PlaybackPhase,
   type SessionState,
-  type SessionWarning,
   type TrackView
 } from './types.js';
 
 export interface CompileOptions {
   readonly name?: string;
   readonly timelineId?: string;
+}
+
+// What a new document does with the current app values. Defaults to `'keep'`.
+export interface LoadOptions {
+  readonly appValues?: AppValuesMode;
 }
 
 // The Renderer config window (`session.renderer`). Reads pass straight through;
@@ -91,6 +97,10 @@ export class GasSession {
   private capabilities: CapabilitiesTable;
   private lifecycle: RendererLifecycle = 'ready';
   private phase: PlaybackPhase = 'stopped';
+  // Set while a document loads. The load commits a state built before it awaits
+  // the Renderer, so a command accepted in that window would be overwritten;
+  // commands and other loads reject until it settles.
+  private loading = false;
   private input: InputState | undefined;
   private closed = false;
   // The Play call currently allowed to settle the session. Stop, Close and a
@@ -132,9 +142,12 @@ export class GasSession {
   // Compile then commit the timeline while stopped. Atomic: nothing is mutated
   // until the Renderer accepts the load, so a failed load leaves the previous
   // document and playback untouched.
-  async loadSource(input: SourceInput, options: CompileOptions = {}): Promise<LoadResult> {
+  async loadSource(
+    input: SourceInput,
+    options: CompileOptions & LoadOptions = {}
+  ): Promise<LoadResult> {
     const compiled = await this.compileSource(input, options);
-    const result = await this.commitTimeline(compiled.timeline);
+    const result = await this.commitTimeline(compiled.timeline, options);
     if (compiled.diagnostics.length > 0) {
       this.events.emit('diagnostic', { source: 'compile', diagnostics: compiled.diagnostics });
     }
@@ -143,7 +156,7 @@ export class GasSession {
 
   // Commit a canonical protocol 1.0 timeline. Core validates it before any
   // Renderer call; an invalid timeline rejects and leaves the session unchanged.
-  async loadTimeline(timeline: Timeline): Promise<LoadResult> {
+  async loadTimeline(timeline: Timeline, options: LoadOptions = {}): Promise<LoadResult> {
     const validation = validateTimeline(timeline);
     if (!validation.ok) {
       throw new GasOperationError('The timeline is not valid.', {
@@ -152,17 +165,41 @@ export class GasSession {
         cause: validation.problems
       });
     }
-    return this.commitTimeline(timeline);
+    return this.commitTimeline(timeline, options);
   }
 
-  private async commitTimeline(timeline: Timeline): Promise<LoadResult> {
+  private async commitTimeline(timeline: Timeline, options: LoadOptions): Promise<LoadResult> {
     this.ensureOpen();
     if (this.phase !== 'stopped') {
       throw new GasOperationError('Stop the session before loading a new document.', {
         kind: 'lifecycle'
       });
     }
-    const next = createInputState(timeline);
+    if (this.loading) {
+      throw new GasOperationError('A document is already loading.', { kind: 'lifecycle' });
+    }
+    this.loading = true;
+    try {
+      return await this.commitLoading(timeline, options);
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  private async commitLoading(timeline: Timeline, options: LoadOptions): Promise<LoadResult> {
+    const carried = applyNewTimeline(
+      this.input ?? createInputState(timeline),
+      timeline,
+      options.appValues ?? 'keep',
+      this.applyOptions()
+    );
+    if (!carried.ok) {
+      throw new GasOperationError(carried.failure.message, {
+        kind: 'command',
+        failure: carried.failure
+      });
+    }
+    const next = carried.state;
     // Load the Renderer first; only commit once it accepts, so a failure is
     // atomic with respect to the previously loaded document.
     try {
@@ -177,8 +214,8 @@ export class GasSession {
     this.acceptedRunId = undefined;
     this.phase = 'stopped';
     this.emitState();
-    const warnings = warningsForTimeline(timeline, this.capabilities).map((warning) =>
-      this.events.warn(warning)
+    const warnings = [...carried.warnings, ...warningsForTimeline(timeline, this.capabilities)].map(
+      (warning) => this.events.warn(warning)
     );
     return { warnings };
   }
@@ -231,6 +268,18 @@ export class GasSession {
   clearTrackLevel(id: string): Promise<CommandResult> {
     return this.runCommand({ kind: 'clearTrackLevel', trackId: id });
   }
+  clearTrackNotes(id: string): Promise<CommandResult> {
+    return this.runCommand({ kind: 'clearTrackNotes', trackId: id });
+  }
+  clearTrackMotif(id: string): Promise<CommandResult> {
+    return this.runCommand({ kind: 'clearTrackMotif', trackId: id });
+  }
+  clearTrackPlay(id: string): Promise<CommandResult> {
+    return this.runCommand({ kind: 'clearTrackPlay', trackId: id });
+  }
+  removeTrack(id: string): Promise<CommandResult> {
+    return this.runCommand({ kind: 'removeTrack', trackId: id });
+  }
 
   playTrack(id: string): Promise<CommandResult> {
     return this.runCommand({ kind: 'playTrack', trackId: id });
@@ -246,10 +295,30 @@ export class GasSession {
     return this.runCommand({ kind: 'clearTempo' });
   }
 
+  // Applies a group of commands fully or not at all, then forwards the state to
+  // the Renderer once.
+  async apply(commands: readonly Command[]): Promise<CommandResult> {
+    const state = this.requireCommandInput();
+    const result = applyCommands(state, commands, this.applyOptions());
+    if (!result.ok) {
+      throw new GasOperationError(result.failure.message, {
+        kind: 'command',
+        failure: result.failure
+      });
+    }
+    return this.commit(result.state, result.warnings);
+  }
+
+  // Removes every app track and app value. The document stays loaded.
+  async clearAppValues(): Promise<CommandResult> {
+    const state = this.requireCommandInput();
+    return this.commit(createInputState(state.timeline), []);
+  }
+
   // Parse the whole submission first (a structural error rejects everything),
-  // then apply statements sequentially through the same Core path. Earlier
-  // successes stay committed; a later failure resolves with a failure payload
-  // (partial success). A failure before anything commits rejects.
+  // then apply the statements in order on a working copy. Any failure rejects
+  // and nothing applies. Statements are converted one at a time because a name
+  // may refer to a track declared earlier in the same submission.
   async submitLiveCommands(input: SourceInput): Promise<LiveCommandResult> {
     // Checked up front so an unloaded or closed session fails before any work,
     // and so those errors keep precedence over a parse error.
@@ -267,11 +336,10 @@ export class GasSession {
     // Read the state only after the awaits above: a programmatic command may have
     // committed in the meantime, and a stale snapshot would discard it on the
     // write below. Nothing from here to `this.input = state` yields.
-    let state = this.requireInput();
+    let state = this.requireCommandInput();
 
     const options = this.applyOptions();
-    const warnings: SessionWarning[] = [];
-    let applied = 0;
+    const coreWarnings: CommandWarning[] = [];
     let failure: CommandFailure | undefined;
 
     for (const statement of parsed.statements) {
@@ -282,23 +350,19 @@ export class GasSession {
         break;
       }
       state = result.state;
-      for (const warning of result.warnings) warnings.push(this.events.warn(warning));
-      applied += 1;
+      coreWarnings.push(...result.warnings);
     }
-
-    // Nothing committed → a plain failed operation → reject.
-    if (failure !== undefined && applied === 0) {
-      throw new GasOperationError(failure.message, { kind: 'live', failure, warnings });
-    }
-
-    this.input = state;
-    const positions = applied > 0 ? await this.forwardState() : {};
-    this.emitState();
 
     if (failure !== undefined) {
-      return { ok: false, applied, warnings, failure };
+      throw new GasOperationError(failure.message, { kind: 'live', failure });
     }
-    return { ok: true, applied, warnings, ...(this.phase === 'active' ? positions : {}) };
+
+    const applied = parsed.statements.length;
+    if (applied === 0) {
+      return { ok: true, applied, warnings: [] };
+    }
+    const { warnings, ...positions } = await this.commit(state, coreWarnings);
+    return { ok: true, applied, warnings, ...positions };
   }
 
   async play(): Promise<void> {
@@ -362,7 +426,8 @@ export class GasSession {
       }
     }
     if (this.input !== undefined) {
-      this.input = applyStop(this.input);
+      // App values survive Stop. Forward the state so the Renderer starts the
+      // next run from it.
       if (this.lifecycle === 'ready') {
         try {
           await this.rendererInstance.updateState(this.input);
@@ -375,9 +440,8 @@ export class GasSession {
     this.emitState();
   }
 
-  // Close the failed Renderer, apply Core's retry transition (overrides cleared,
-  // host tracks preserved), build a fresh Renderer from the factory, reload from
-  // bar 1, and remain stopped.
+  // Close the failed Renderer, build a fresh Renderer from the factory, reload
+  // from bar 1 with the app values kept, and remain stopped.
   async retryRenderer(): Promise<void> {
     this.ensureOpen();
     this.pendingPlay = undefined;
@@ -389,9 +453,6 @@ export class GasSession {
     }
     this.acceptedRunId = undefined;
     this.phase = 'stopped';
-    if (this.input !== undefined) {
-      this.input = applyRetry(this.input);
-    }
 
     let renderer: Renderer;
     try {
@@ -462,7 +523,7 @@ export class GasSession {
   // the Renderer, and emit `state`. Active commands carry the Renderer's
   // positions; stopped commands carry none.
   private async runCommand(command: Command): Promise<CommandResult> {
-    const state = this.requireInput();
+    const state = this.requireCommandInput();
     const result = applyCommand(state, command, this.applyOptions());
     if (!result.ok) {
       throw new GasOperationError(result.failure.message, {
@@ -470,18 +531,24 @@ export class GasSession {
         failure: result.failure
       });
     }
-    this.input = result.state;
-    const warnings = result.warnings.map((warning) => this.events.warn(warning));
+    return this.commit(result.state, result.warnings);
+  }
+
+  // Commit an accepted state: allocate warning ids, forward it to the Renderer
+  // and emit `state`.
+  private async commit(
+    state: InputState,
+    coreWarnings: readonly CommandWarning[]
+  ): Promise<CommandResult> {
+    this.input = state;
+    const warnings = coreWarnings.map((warning) => this.events.warn(warning));
     const positions = await this.forwardState();
     this.emitState();
     return this.phase === 'active' ? { warnings, ...positions } : { warnings };
   }
 
-  private applyOptions(): {
-    readonly phase: PlaybackPhase;
-    readonly capabilities: CapabilitiesTable;
-  } {
-    return { phase: this.phase, capabilities: this.capabilities };
+  private applyOptions(): ApplyCommandOptions {
+    return { capabilities: this.capabilities };
   }
 
   // Forward the current input to the Renderer after an accepted command. While
@@ -516,13 +583,24 @@ export class GasSession {
       description: track.description,
       source: 'authored'
     }));
-    const host: TrackView[] = this.input.hostTracks.map((track) => ({
+    const app: TrackView[] = this.input.appTracks.map((track) => ({
       id: track.id,
       ...(track.name !== undefined ? { name: track.name } : {}),
       ...(track.description !== undefined ? { description: track.description } : {}),
       source: 'host'
     }));
-    return [...authored, ...host];
+    return [...authored, ...app];
+  }
+
+  private appValueCommands(): readonly Command[] {
+    if (this.input === undefined) return [];
+    const defines: Command[] = this.input.appTracks.map((track) => ({
+      kind: 'defineTrack',
+      id: track.id,
+      ...(track.name !== undefined ? { name: track.name } : {}),
+      ...(track.description !== undefined ? { description: track.description } : {})
+    }));
+    return [...defines, ...this.input.appValues];
   }
 
   private snapshot(): SessionState {
@@ -531,7 +609,8 @@ export class GasSession {
       playback: this.phase,
       timelineLoaded: this.input !== undefined,
       ...(this.acceptedRunId !== undefined ? { runId: this.acceptedRunId } : {}),
-      tracks: this.trackViews()
+      tracks: this.trackViews(),
+      appValues: this.appValueCommands()
     };
   }
 
@@ -545,6 +624,17 @@ export class GasSession {
       throw new GasOperationError('No timeline is loaded.', { kind: 'command' });
     }
     return this.input;
+  }
+
+  // The state a command applies to. Commands reject while a document loads.
+  private requireCommandInput(): InputState {
+    const state = this.requireInput();
+    if (this.loading) {
+      throw new GasOperationError('Wait for the document to finish loading.', {
+        kind: 'lifecycle'
+      });
+    }
+    return state;
   }
 
   private ensureOpen(): void {
@@ -641,7 +731,6 @@ export class GasSession {
       status.completed === true && (status.runId === undefined || this.acceptsRun(status.runId));
     if (this.phase === 'active' && endedThisRun) {
       this.acceptedRunId = undefined;
-      if (this.input !== undefined) this.input = applyCompletion(this.input);
       this.phase = 'stopped';
       this.emitState();
     }
