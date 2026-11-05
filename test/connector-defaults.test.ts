@@ -12,12 +12,12 @@ import type {
 } from '../packages/gas/src/protocol/index.js';
 import { createRenderer, type Renderer } from '../packages/gas/src/renderer/index.js';
 import { DEFAULT_LYRIA_RT_CONFIG, LYRIA_RT_CAPABILITIES } from '../packages/lyria-rt/src/index.js';
-import {
-  createLyriaRtConnectorWithDependencies,
-  type LyriaRtMusicGenerationConfig,
-  type LyriaRtMusicSession,
-  type LyriaRtSdkClient
-} from '../packages/lyria-rt/src/connector.js';
+import { createLyriaRtConnectorWithDependencies } from '../packages/lyria-rt/src/connector.js';
+import type {
+  LyriaRtMusicGenerationConfig,
+  LyriaRtMusicSession,
+  LyriaRtSdkClient
+} from '../packages/lyria-rt/src/transport.js';
 import { flushAsync } from './support/deferred.js';
 import { testTimeline } from './support/timeline.js';
 import { VirtualClock } from './support/virtual-clock.js';
@@ -42,8 +42,7 @@ function loadWithOverride(renderer: Renderer, capabilities: CapabilitiesTable): 
 }
 
 describe('connectors return to the run defaults when an initial override is cleared', () => {
-  // Needs Lyria on connect(), 0.4 step 5.
-  it.fails('Lyria RealTime sends the default tempo again', async () => {
+  it('Lyria RealTime sends the default tempo again', async () => {
     const clock = new VirtualClock();
     const configs: LyriaRtMusicGenerationConfig[] = [];
     let ready: (() => void) | undefined;
@@ -67,12 +66,10 @@ describe('connectors return to the run defaults when an initial override is clea
           };
         })
     };
-    // The API key moves to the connector factory in step 5.
-    const connector = createLyriaRtConnectorWithDependencies({
-      clock,
-      setupTimeoutSeconds: 15,
-      createClient: () => client
-    });
+    const connector = createLyriaRtConnectorWithDependencies(
+      { apiKey: 'test-key' },
+      { clock, setupTimeoutSeconds: 15, createClient: () => client }
+    );
     const renderer = createRenderer({
       clock,
       connector,

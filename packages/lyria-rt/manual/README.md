@@ -44,8 +44,8 @@ The checked-in fixtures under `manual/fixtures/` map to the numbered rows. Row 6
 
 ## Transport smoke
 
-The transport smoke exercises the concrete connector lifecycle, prompt/config update, flow pause,
-resume, stop, and close. It makes real provider calls and must be run only with authorized settings.
+The smoke plays a document through `createSession`, changes its tempo and flavor, stops, plays
+again and closes, and fails unless both Plays got audio. It makes real provider calls and must be run only with authorized settings.
 It accepts connection settings only through the environment and never records them.
 
 ```sh

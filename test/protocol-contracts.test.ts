@@ -136,11 +136,11 @@ describe('landed values match canonical protocol schemas', () => {
     }
   });
 
-  it('validates a connector description against the capabilities and config schemas', async () => {
+  it('validates a connector description against the capabilities and config schemas', () => {
     // The runtime-shape schemas are no longer published; the data a description
     // carries still has schemas.
-    for (const connector of [createLyriaRtConnector()]) {
-      const description = await connector.describe();
+    for (const connector of [createLyriaRtConnector({ apiKey: 'test-key' })]) {
+      const { description } = connector;
       expect(schema(`${base}/capabilities.schema.json`)(description.capabilities)).toBe(true);
       expect(
         schema(`${base}/config.schema.json#/$defs/ConnectorConfigSchema`)(description.configSchema)

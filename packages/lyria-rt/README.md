@@ -18,34 +18,54 @@ npm install @luna-estelar/gas @luna-estelar/gas-lyria-rt
 ## Example
 
 ```ts
-import { createRenderer } from '@luna-estelar/gas';
-import type { MonotonicClock } from '@luna-estelar/gas/protocol';
+import { createSession } from '@luna-estelar/gas';
 import { createLyriaRtConnector } from '@luna-estelar/gas-lyria-rt';
 
-declare const clock: MonotonicClock;
 declare const apiKey: string;
 
-const renderer = await createRenderer({
-  clock,
-  connector: createLyriaRtConnector(),
-  settings: { apiKey }
+const session = await createSession({ connector: createLyriaRtConnector({ apiKey }) });
+```
+
+In a browser, pass the connector to `createBrowserSession` from `@luna-estelar/gas/browser`
+instead.
+
+## Options
+
+- `apiKey`: a key authorized for Lyria RealTime, or a function that returns one. The function is
+  called once per Play, so it can fetch a short-lived token. If it throws or returns an empty
+  string, Play fails with `lyria-rt-api-key-unavailable`.
+- `endpoint`: optional. An HTTPS origin that speaks the Lyria RealTime WebSocket protocol. It is
+  rejected if it has userinfo, a path, a query or a fragment.
+- `translate` and `transition`: optional hooks, below.
+
+`createLyriaRtConnector` throws `lyria-rt-invalid-settings` for a bad option. The connector passes
+the key to the transport and nowhere else. Getting a key is up to your app.
+
+## Changing the translation
+
+`translate` turns the session's state into weighted prompts. The default is exported, so a hook
+can wrap it:
+
+```ts
+import { createLyriaRtConnector, translatePrompts } from '@luna-estelar/gas-lyria-rt';
+
+declare function getToken(): Promise<string>;
+
+const connector = createLyriaRtConnector({
+  apiKey: () => getToken(),
+  translate: (state, config) =>
+    translatePrompts(state, config.prompt).map((p) => ({ ...p, weight: p.weight ** 1.5 }))
 });
 ```
 
-Most apps pass the connector to `createSession` from `@luna-estelar/gas` or `createBrowserSession`
-from `@luna-estelar/gas/browser` instead.
+`translate` is pure and synchronous, so you can test it without a socket. If it throws or returns
+an empty text or a weight that isn't finite, the change fails with `lyria-rt-translate-failed`.
 
-## Settings
+`transition` makes the crossfade for each connection. The default is `createPromptTransition`.
 
-```ts
-import type { LyriaRtConnectorSettings } from '@luna-estelar/gas-lyria-rt';
-
-const settings: LyriaRtConnectorSettings = { apiKey: 'a key authorized for Lyria RealTime' };
-```
-
-`endpoint` is optional: an HTTPS origin that speaks the Lyria RealTime WebSocket protocol. It is
-rejected if it has userinfo, a path, a query or a fragment. The connector passes the key to the
-transport and nowhere else. Getting a key is up to your app.
+To build your own connector, use `openLyriaRtSession` (the socket, setup and audio) and
+`LYRIA_RT_DESCRIPTION`. A variant that renders differently needs its own id:
+`{ ...LYRIA_RT_DESCRIPTION, id: 'my-lyria' }`.
 
 ## Configuration
 
@@ -56,17 +76,18 @@ with a JSON Pointer `path` and a code: `wrong-type`, `out-of-range`, `not-allowe
 
 ## Exports
 
-| Export                                                                                 | Purpose                                                      |
-| -------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `createLyriaRtConnector`                                                               | Create a Lyria RealTime connector                            |
-| `LYRIA_RT_CAPABILITIES`                                                                | What Lyria RealTime renders, approximates and cannot render  |
-| `LyriaRtConnectorSettings`                                                             | The settings type: `{ apiKey, endpoint? }`                   |
-| `validateLyriaRtConfig`, `resolveLyriaRtConfig`                                        | Check a configuration, or resolve one with defaults applied  |
-| `LYRIA_RT_CONFIG_SCHEMA`, `DEFAULT_LYRIA_RT_CONFIG`                                    | The configuration options as JSON Schema, and their defaults |
-| `translatePrompts`, `createPromptTransition`                                           | Turn effective state into weighted prompts and blend changes |
-| `classifyKey`, `LYRIA_RT_SCALES`                                                       | Map a GAS key to the nearest Lyria RealTime scale            |
-| `LyriaRtConnectorConfig`, `WeightedPrompt`, `PromptTransition`, `KeyClassification`, … | The type families above                                      |
-| `version`                                                                              | This package's version                                       |
+| Export                                                                              | Purpose                                                      |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `createLyriaRtConnector`                                                            | Create a Lyria RealTime connector                            |
+| `LYRIA_RT_DESCRIPTION`, `LYRIA_RT_CAPABILITIES`                                     | What the connector is, and what Lyria RealTime renders       |
+| `LyriaRtConnectorOptions`, `LyriaRtApiKey`, `LyriaRtTranslate`                      | The option types                                             |
+| `validateLyriaRtConfig`, `resolveLyriaRtConfig`                                     | Check a configuration, or resolve one with defaults applied  |
+| `LYRIA_RT_CONFIG_SCHEMA`, `DEFAULT_LYRIA_RT_CONFIG`                                 | The configuration options as JSON Schema, and their defaults |
+| `translatePrompts`, `createPromptTransition`                                        | The default translation and crossfade                        |
+| `openLyriaRtSession`                                                                | The transport, for building your own connector               |
+| `classifyKey`, `LYRIA_RT_SCALES`                                                    | Map a GAS key to the nearest Lyria RealTime scale            |
+| `LyriaRtConnectorConfig`, `WeightedPrompt`, `PromptTransition`, `LyriaRtSession`, … | The type families above                                      |
+| `version`                                                                           | This package's version                                       |
 
 ## Errors
 
@@ -80,9 +101,6 @@ Failures carry the raw WebSocket close code as `closeCode`:
 
 Application codes (4000-4999) are reported as network failures. Their meaning is up to whoever
 runs the endpoint.
-
-Calling `stop()` or `close()` during `start()` rejects the start with `lyria-rt-start-cancelled`.
-If the connection opens after that, the connector closes it.
 
 ## What Lyria RealTime supports
 

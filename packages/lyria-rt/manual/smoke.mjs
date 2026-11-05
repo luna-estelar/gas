@@ -21,81 +21,70 @@ const endpoint = process.env.GAS_LYRIA_RT_ENDPOINT;
 const settings =
   endpoint === undefined || endpoint.trim() === '' ? { apiKey } : { apiKey, endpoint };
 
-const { createLyriaRtConnector, DEFAULT_LYRIA_RT_CONFIG } = await import(outIndex);
-const connector = createLyriaRtConnector();
+const { createSession, sourceText } = await import('@luna-estelar/gas');
+const { createLyriaRtConnector } = await import(outIndex);
+
+const document = `tempo 96
+key "C major"
+length bars 64
+flavor "warm, spacious, and gently uplifting"
+track pad "soft evolving synthesizer chords"
+section a:
+    length bars 64
+    bar 1:
+        pad.play
+a()
+`;
+
 const chunks = [];
+const errors = [];
 let generatedSeconds = 0;
-let failure;
-const runId = 'manual-smoke';
-
-const initialState = {
-  globals: { flavor: { kind: 'text', text: 'warm, spacious, and gently uplifting' }, tempo: 96 },
-  tracks: [
-    {
-      trackId: 'smoke-pad',
-      name: 'soft synthesizer',
-      description: 'soft evolving synthesizer chords',
-      active: true,
-      timbre: { kind: 'text', text: 'rounded analog tone' },
-      level: { kind: 'level', value: 0.8 }
-    }
-  ]
-};
-const updatedState = {
-  ...initialState,
-  globals: { ...initialState.globals, tempo: 104 },
-  tracks: [
-    {
-      ...initialState.tracks[0],
-      flavor: { kind: 'text', text: 'a little brighter and more rhythmic' }
-    }
-  ]
-};
-const timing = {
-  tempo: 96,
-  timeSignature: { beatsPerBar: 4, beatUnit: 4 },
-  key: 'C major',
-  secondsPerBar: 2.5
-};
-
-const sink = {
-  push(chunk) {
-    chunks.push(chunk.bytes);
-    generatedSeconds += chunk.durationSeconds;
-  },
-  status() {},
-  warning(warning) {
-    console.log(`warning: ${warning.code}`);
-  },
-  failure(value) {
-    failure = value;
-  }
-};
+let playSeconds = 0;
 
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
+// Plays, changes tempo and flavor, stops, plays again and closes, so each Play
+// opens its own connection.
+const session = await createSession({ connector: createLyriaRtConnector(settings) });
+session.on('audio', (chunk) => {
+  chunks.push(chunk.bytes);
+  generatedSeconds += chunk.durationSeconds;
+  playSeconds += chunk.durationSeconds;
+});
+session.on('warning', (warning) => console.log(`warning: ${warning.code}`));
+session.on('error', (error) => errors.push(error));
+
+const playsWithAudio = [];
 try {
-  await connector.describe();
-  await connector.open(settings);
-  await connector.prepare(initialState, DEFAULT_LYRIA_RT_CONFIG);
-  await connector.start(sink, timing, runId);
+  await session.loadSource(sourceText(document, 'smoke.gas'));
+
+  await session.play();
   await delay(6000);
-  await connector.update({ state: updatedState }, { bar: 2 });
-  await delay(3000);
-  await connector.setGenerationPaused?.(true);
-  await delay(1000);
-  await connector.setGenerationPaused?.(false);
-  await delay(3000);
-  await connector.stop(runId);
-  await connector.close();
-} catch {
-  await connector.close();
-  console.error('The authorized Lyria RealTime smoke did not complete.');
+  await session.apply([
+    { kind: 'setTempo', bpm: 104 },
+    { kind: 'setTrackFlavor', trackId: 'track.pad', value: 'a little brighter and more rhythmic' }
+  ]);
+  await delay(4000);
+  await session.stop();
+  playsWithAudio.push(playSeconds);
+
+  playSeconds = 0;
+  await session.play();
+  await delay(5000);
+  await session.stop();
+  playsWithAudio.push(playSeconds);
+} catch (error) {
+  console.error(
+    `The authorized Lyria RealTime smoke did not complete: ${error.kind} ${error.code ?? ''}`
+  );
+  await session.close();
   process.exit(1);
 }
+await session.close();
 
-if (failure !== undefined || chunks.length === 0) {
-  console.error('The Lyria RealTime smoke ended without usable audio.');
+for (const error of errors) console.error(`error: ${error.kind} ${error.code ?? ''}`);
+if (errors.length > 0 || playsWithAudio.some((seconds) => seconds === 0)) {
+  console.error('The Lyria RealTime smoke ended without usable audio on every Play.');
   process.exit(1);
 }
 
@@ -120,5 +109,6 @@ if (outputPath !== undefined && outputPath.trim() !== '') {
 }
 
 console.log(
-  `Lyria RealTime smoke completed with ${chunks.length} chunks and ${generatedSeconds.toFixed(2)} generated seconds.`
+  `Lyria RealTime smoke completed: ${chunks.length} chunks, ${generatedSeconds.toFixed(2)} generated seconds, ` +
+    `${playsWithAudio.map((seconds) => seconds.toFixed(1)).join(' s and ')} s on the two Plays.`
 );

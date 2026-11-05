@@ -57,7 +57,6 @@ function setup(overrides: { durationMs?: number; steps?: number } = {}) {
 describe('prompt transition — stepping', () => {
   it('crossfades an initial set from empty in exact thirds and requests play once', async () => {
     const { clock, sender, machine } = setup();
-    machine.beginRun('run-1');
 
     await machine.update([
       { text: 'a', weight: 3 },
@@ -88,7 +87,6 @@ describe('prompt transition — stepping', () => {
 
   it('sends the first mixture before requesting play', async () => {
     const { sender, machine } = setup({ steps: 1 });
-    machine.beginRun('run-1');
     await machine.update([{ text: 'a', weight: 2 }]);
     expect(sender.calls[0]).toEqual({ kind: 'send', prompts: [{ text: 'a', weight: 2 }] });
     expect(sender.calls[1]).toEqual({ kind: 'play' });
@@ -96,7 +94,6 @@ describe('prompt transition — stepping', () => {
 
   it('does nothing for an unchanged target with nothing in flight', async () => {
     const { clock, sender, machine } = setup();
-    machine.beginRun('run-1');
     await machine.update([{ text: 'a', weight: 3 }]);
     clock.advanceBy(1.5);
     await flushAsync();
@@ -108,7 +105,6 @@ describe('prompt transition — stepping', () => {
 
   it('does nothing for an empty target while already empty', async () => {
     const { sender, machine } = setup();
-    machine.beginRun('run-1');
     await machine.update([]);
     expect(sender.calls).toEqual([]);
   });
@@ -127,7 +123,6 @@ describe('prompt transition — interpolation', () => {
 
   it('interpolates over the union of current and target text', async () => {
     const { clock, sender, machine } = setup();
-    machine.beginRun('run-1');
     await seed(machine, clock, [{ text: 'a', weight: 3 }]);
     const offset = sender.sends.length;
 
@@ -144,7 +139,6 @@ describe('prompt transition — interpolation', () => {
 
   it('omits an entry that interpolates to zero at the final step', async () => {
     const { clock, sender, machine } = setup();
-    machine.beginRun('run-1');
     await seed(machine, clock, [{ text: 'a', weight: 3 }]);
 
     await machine.update([{ text: 'b', weight: 3 }]);
@@ -157,7 +151,6 @@ describe('prompt transition — interpolation', () => {
 
   it('rebases a new transition from the exact last emitted mixture', async () => {
     const { clock, sender, machine } = setup();
-    machine.beginRun('run-1');
     await machine.update([{ text: 'a', weight: 3 }]);
     clock.advanceBy(0.75);
     await flushAsync();
@@ -176,7 +169,6 @@ describe('prompt transition — interpolation', () => {
 describe('prompt transition — empty target', () => {
   it('fades out then requests pause on the final empty send', async () => {
     const { clock, sender, machine } = setup();
-    machine.beginRun('run-1');
     await machine.update([{ text: 'a', weight: 3 }]);
     clock.advanceBy(1.5);
     await flushAsync();
@@ -196,7 +188,6 @@ describe('prompt transition — empty target', () => {
 describe('prompt transition — collapse', () => {
   it('sends a single full-weight move when steps is one', async () => {
     const { clock, sender, machine } = setup({ steps: 1 });
-    machine.beginRun('run-1');
     await machine.update([{ text: 'a', weight: 4 }]);
     expect(sender.sends).toEqual([[{ text: 'a', weight: 4 }]]);
     expect(clock.pendingDeadlines()).toEqual([]);
@@ -204,7 +195,6 @@ describe('prompt transition — collapse', () => {
 
   it('sends a single full-weight move when duration is zero', async () => {
     const { clock, sender, machine } = setup({ durationMs: 0 });
-    machine.beginRun('run-1');
     await machine.update([{ text: 'a', weight: 4 }]);
     expect(sender.sends).toEqual([[{ text: 'a', weight: 4 }]]);
     expect(clock.pendingDeadlines()).toEqual([]);
@@ -214,7 +204,6 @@ describe('prompt transition — collapse', () => {
 describe('prompt transition — cancellation and staleness', () => {
   it('cancels pending sends of a superseded transition', async () => {
     const { clock, sender, machine } = setup();
-    machine.beginRun('run-1');
     await machine.update([{ text: 'a', weight: 3 }]);
     expect(clock.pendingDeadlines()).toEqual([0.75, 1.5]);
 
@@ -233,27 +222,16 @@ describe('prompt transition — cancellation and staleness', () => {
     expect(sender.sends.length).toBe(afterUpdate + 2);
   });
 
-  it('fires no further sends after the run ends', async () => {
+  it('fires no further sends once cancelled', async () => {
     const { clock, sender, machine } = setup();
-    machine.beginRun('run-1');
     await machine.update([{ text: 'a', weight: 3 }]);
     const sent = sender.sends.length;
 
-    machine.endRun('run-1');
+    machine.cancel();
+    expect(clock.pendingDeadlines()).toEqual([]);
     clock.advanceBy(1.5);
     await flushAsync();
     expect(sender.sends.length).toBe(sent);
-  });
-
-  it('ignores endRun for a run that is not active', async () => {
-    const { clock, sender, machine } = setup();
-    machine.beginRun('run-1');
-    await machine.update([{ text: 'a', weight: 3 }]);
-
-    machine.endRun('other');
-    clock.advanceBy(1.5);
-    await flushAsync();
-    expect(sender.sends.length).toBe(3);
   });
 });
 
@@ -261,7 +239,6 @@ describe('prompt transition — failures', () => {
   it('rejects update and does not report when the first send fails', async () => {
     const { sender, onFailure, machine } = setup();
     sender.failSendIndices = new Set([0]);
-    machine.beginRun('run-1');
 
     await expect(machine.update([{ text: 'a', weight: 3 }])).rejects.toBeInstanceOf(ConnectorError);
     expect(onFailure).not.toHaveBeenCalled();
@@ -270,7 +247,6 @@ describe('prompt transition — failures', () => {
   it('reports a scheduled send failure once and cancels the rest', async () => {
     const { clock, sender, onFailure, machine } = setup();
     sender.failSendIndices = new Set([1]);
-    machine.beginRun('run-1');
 
     await machine.update([{ text: 'a', weight: 3 }]);
     clock.advanceBy(0.75);
@@ -284,7 +260,6 @@ describe('prompt transition — failures', () => {
     const { clock, sender, onFailure, machine } = setup();
     sender.failSendIndices = new Set([1]);
     sender.sendError = new Error('secret-vendor-text');
-    machine.beginRun('run-1');
 
     await machine.update([{ text: 'a', weight: 3 }]);
     clock.advanceBy(0.75);
@@ -302,7 +277,6 @@ describe('prompt transition — failures', () => {
     const { clock, sender, onFailure, machine } = setup();
     sender.failSendIndices = new Set([1]);
     sender.sendError = new ConnectorError({ code: 'quota', reason: 'quota', retryable: true });
-    machine.beginRun('run-1');
 
     await machine.update([{ text: 'a', weight: 3 }]);
     clock.advanceBy(0.75);
@@ -313,41 +287,30 @@ describe('prompt transition — failures', () => {
     expect(error.retryable).toBe(true);
   });
 
-  it('reports at most once per run and resets on the next run', async () => {
+  it('reports at most once per transition', async () => {
     const { clock, sender, onFailure, machine } = setup();
     sender.failSendIndices = new Set([1, 3]);
-    machine.beginRun('run-1');
 
     await machine.update([{ text: 'a', weight: 3 }]);
     clock.advanceBy(0.75);
     await flushAsync();
     expect(onFailure).toHaveBeenCalledTimes(1);
 
-    // A second transition in the same run fails again but stays silent.
+    // A second crossfade fails again but stays silent.
     await machine.update([{ text: 'b', weight: 3 }]);
     clock.advanceBy(0.75);
     await flushAsync();
     expect(onFailure).toHaveBeenCalledTimes(1);
-
-    machine.endRun('run-1');
-    machine.beginRun('run-2');
-    sender.failSendIndices = new Set([sender.sends.length + 1]);
-    await machine.update([{ text: 'c', weight: 3 }]);
-    clock.advanceBy(0.75);
-    await flushAsync();
-    expect(onFailure).toHaveBeenCalledTimes(2);
   });
 });
 
-describe('prompt transition — lifecycle guards', () => {
-  it('throws when updating with no active run', async () => {
-    const { machine } = setup();
-    await expect(machine.update([{ text: 'a', weight: 1 }])).rejects.toBeInstanceOf(ConnectorError);
-  });
-
-  it('throws when beginning a run while one is active', () => {
-    const { machine } = setup();
-    machine.beginRun('run-1');
-    expect(() => machine.beginRun('run-2')).toThrow(ConnectorError);
+describe('prompt transition — cancel', () => {
+  it('rejects an update after cancel', async () => {
+    const { sender, machine } = setup();
+    machine.cancel();
+    await expect(machine.update([{ text: 'a', weight: 1 }])).rejects.toMatchObject({
+      code: 'lyria-rt-transition-cancelled'
+    });
+    expect(sender.calls).toEqual([]);
   });
 });

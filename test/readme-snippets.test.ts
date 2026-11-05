@@ -154,18 +154,8 @@ describe('README TypeScript snippets', () => {
   });
 
   const cases = tsSnippets.map((snippet, index) => ({ ...snippet, index }));
-  // Needs Lyria on connect(), 0.4 step 5.
-  const needsLyria = (snippet: Snippet) => snippet.code.includes('createLyriaRtConnector(');
 
-  test.each(cases.filter((snippet) => !needsLyria(snippet)))(
-    '$file — ```ts typechecks',
-    ({ index }) => {
-      expect(tsFailures.get(index) ?? '').toBe('');
-    }
-  );
-
-  // Needs Lyria on connect(), 0.4 step 5.
-  test.fails.each(cases.filter(needsLyria))('$file — ```ts typechecks', ({ index }) => {
+  test.each(cases)('$file — ```ts typechecks', ({ index }) => {
     expect(tsFailures.get(index) ?? '').toBe('');
   });
 });

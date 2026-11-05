@@ -228,8 +228,6 @@ const machine = createPromptTransition({
   transitionSteps: config.prompt.transitionSteps
 });
 
-const runId = 'listen';
-machine.beginRun(runId);
 await session.setMusicGenerationConfig({ musicGenerationConfig });
 
 function delay(seconds) {
@@ -263,7 +261,7 @@ for (const position of schedule) {
 const remaining = durationSeconds - (clock.now() - startTime);
 if (remaining > 0) await delay(remaining);
 
-machine.endRun(runId);
+machine.cancel();
 session.stop();
 session.close();
 

@@ -37,8 +37,7 @@ $('play').addEventListener('click', async () => {
       `context ${context.sampleRate} Hz, resumed ${resumed}, output latency ${context.outputLatency ?? 'n/a'}`
     );
     browser = await createBrowserSession({
-      connector: createLyriaRtConnector,
-      settings: { apiKey },
+      connector: createLyriaRtConnector({ apiKey }),
       context
     });
     browser.audio.on('status', (status) => {
@@ -50,7 +49,9 @@ $('play').addEventListener('click', async () => {
       chunks++;
       summarise(context);
     });
-    browser.session.on('lifecycle', (event) => log(`lifecycle ${JSON.stringify(event)}`));
+    browser.session.on('state', (state) =>
+      log(`state ${state.status}${state.ended !== undefined ? ` (${state.ended})` : ''}`)
+    );
     browser.session.on('warning', (warning) =>
       log(`session warning ${warning.code ?? ''} ${warning.message ?? ''}`)
     );
