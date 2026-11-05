@@ -280,4 +280,30 @@ describe('resting', () => {
       });
     });
   });
+
+  describe('the app stopping the last track', () => {
+    it('rests where the audio already handed out ends, fading what follows', async () => {
+      const h = await harness();
+      await h.session.play();
+      h.connector.latest().pushAudio(6);
+      await h.advanceTo(1);
+      const handedOut = totalSeconds(h.audio);
+
+      const result = await h.session.stopTrack(PAD);
+      // Before the loop at bar 5 restarts the musical clock.
+      await h.advanceTo(barTime(4));
+
+      // The rest can't start before audio the player already has.
+      const model = h.audio.filter((chunk) => !isSilent(chunk));
+      const end = totalSeconds(model);
+      expect(end).toBeGreaterThanOrEqual(handedOut);
+      expect(end).toBeLessThanOrEqual(handedOut + 0.011);
+      expect(result.requestedPosition).toEqual(h.session.positionAtSeconds(end));
+      // The model audio after that point fades out instead of stopping dead.
+      const last = model.at(-1)!;
+      const lastFrame = Math.round(last.durationSeconds * FAKE_SAMPLE_RATE) - 1;
+      expect(Math.abs(sampleAt(last, lastFrame))).toBeLessThan(100);
+      expect(h.audio.slice(h.audio.indexOf(last) + 1).every(isSilent)).toBe(true);
+    });
+  });
 });

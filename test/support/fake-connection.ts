@@ -66,6 +66,10 @@ export class FakeConnection implements Connection {
   readonly lateCalls: ConnectionCall[] = [];
   /** What `update()` resolves with. Unset, it echoes the requested position. */
   appliedPosition: MusicalPosition | undefined;
+  /** Set, `update()` rejects with it, as a provider refusing a change does. */
+  updateFailure: unknown;
+  /** Holds `update()` open until it settles. Set `updateHangs` on the connector for every connection. */
+  updateGate: Promise<void> | undefined;
   /** Holds `close()` open until it settles. Set `closeHangs` on the connector for every connection. */
   closeGate: Promise<void> | undefined;
   closed = false;
@@ -78,6 +82,8 @@ export class FakeConnection implements Connection {
   async update(update: ConnectorUpdate, requested: MusicalPosition): Promise<MusicalPosition> {
     this.record('update');
     this.updates.push({ update, requested });
+    if (this.updateGate !== undefined) await this.updateGate;
+    if (this.updateFailure !== undefined) throw this.updateFailure;
     return this.appliedPosition ?? requested;
   }
 
@@ -132,6 +138,8 @@ export interface FakeConnectorOptions {
   readonly validateConfig?: ((config: ConnectorConfig) => ConnectorConfigValidation) | null;
   /** Every connection's `close()` never settles. */
   readonly closeHangs?: boolean;
+  /** Every connection's `update()` never settles. */
+  readonly updateHangs?: boolean;
 }
 
 interface PendingConnect {
@@ -204,6 +212,9 @@ export class FakeConnector implements Connector {
   private open(options: ConnectOptions): FakeConnection {
     const connection = new FakeConnection(options, this.description.model.chunkDurationSeconds);
     if (this.fakeOptions.closeHangs === true) connection.closeGate = new Promise(() => undefined);
+    if (this.fakeOptions.updateHangs === true) {
+      connection.updateGate = new Promise(() => undefined);
+    }
     this.connections.push(connection);
     return connection;
   }

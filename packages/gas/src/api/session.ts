@@ -544,8 +544,6 @@ export class GasSession {
     return { capabilities: this.renderer.getCapabilities() };
   }
 
-  // A connection that fails the update also ends its Play, which reports the
-  // error once; the command rejects too.
   private async forwardState(): Promise<AppliedPosition> {
     if (this.input === undefined) return {};
     try {
@@ -557,8 +555,13 @@ export class GasSession {
         ...(result.appliedPosition !== undefined ? { appliedPosition: result.appliedPosition } : {})
       };
     } catch (error) {
-      if (error instanceof RendererError && error.code === 'renderer-state-conflict') {
-        // The Play ended while the change was on its way; the state is kept.
+      // The Play ended while the change was on its way, or the connection
+      // refused it, which ended the Play with one `error` event. Either way the
+      // app value is kept (rule 5) and the event is the only report (rule 3).
+      if (
+        error instanceof RendererError &&
+        (error.code === 'renderer-state-conflict' || error.code === 'connector-unavailable')
+      ) {
         return {};
       }
       throw fromRendererError(error, 'The connection could not take the change.');

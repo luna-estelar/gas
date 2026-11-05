@@ -116,4 +116,40 @@ describe('starting', () => {
     await flushAsync();
     expect(h.errors).toEqual([]);
   });
+
+  describe('while the first update hangs', () => {
+    // A change made while connecting is sent before Play resolves, so Play
+    // waits on that update too.
+    async function firstUpdateHangs() {
+      const h = await harness({ connector: { updateHangs: true } });
+      h.connector.autoConnect = false;
+      const play = h.session.play();
+      await flushAsync();
+      await h.session.setTrackLevel('track.pad', 0.5);
+      const connection = h.connector.resolveConnect();
+      await flushAsync();
+      expect(connection.calls).toEqual(['update']);
+      return { ...h, play, connection };
+    }
+
+    it('cancels Play at once on Stop', async () => {
+      const h = await firstUpdateHangs();
+      await h.session.stop();
+
+      expect((await rejectionOf(h.play)).kind).toBe('cancelled');
+      expect(h.session.getState().status).toBe('stopped');
+      expect(h.connection.calls).toContain('close');
+    });
+
+    it('rejects Play with provider when the connection fails, with no error event', async () => {
+      const h = await firstUpdateHangs();
+      h.connection.fail(
+        new ConnectorError({ code: 'socket-closed', reason: 'network', retryable: true })
+      );
+
+      expect(await rejectionOf(h.play)).toMatchObject({ kind: 'provider', reason: 'network' });
+      expect(h.errors).toEqual([]);
+      expect(h.session.getState().status).toBe('stopped');
+    });
+  });
 });

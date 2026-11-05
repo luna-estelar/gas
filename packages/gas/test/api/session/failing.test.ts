@@ -92,4 +92,24 @@ describe('failing', () => {
     expect(h.errors[0]).toMatchObject({ kind: 'provider', reason: 'internal' });
     expect(h.errors[0]!.message).not.toContain('secret');
   });
+
+  it('keeps a change the connection refuses, and reports the failure once', async () => {
+    const h = await playing();
+    h.connector.latest().updateFailure = new ConnectorError({
+      code: 'bad-prompt',
+      reason: 'provider',
+      retryable: false
+    });
+
+    const result = await h.session.setTrackLevel('track.pad', 0.3);
+    await flushAsync();
+
+    expect(result.requestedPosition).toBeUndefined();
+    expect(h.session.getState().appValues).toEqual([
+      { kind: 'setTrackLevel', trackId: 'track.pad', value: 0.3 }
+    ]);
+    expect(h.errors).toHaveLength(1);
+    expect(h.errors[0]).toMatchObject({ kind: 'provider', code: 'bad-prompt' });
+    expect(h.session.getState()).toMatchObject({ status: 'stopped', ended: 'failed' });
+  });
 });

@@ -26,11 +26,11 @@ import type {
   ConnectorConfigProblem,
   ConnectorConfigValidation,
   GasDiagnostic as ProtocolGasDiagnostic,
-  RendererFailure,
   SessionState as ProtocolSessionState,
   Timeline as ProtocolTimeline,
   TimelineProblem as ProtocolTimelineProblem
 } from '../packages/gas/src/protocol/index.js';
+import type { RendererFailure } from '../packages/gas/src/renderer/index.js';
 import { ConnectorError, isCloseCode } from '../packages/gas/src/protocol/index.js';
 import { readExample } from '../examples/support.js';
 
@@ -160,7 +160,6 @@ describe('landed values match canonical protocol schemas', () => {
       code: 'lyria-rt-network-failure',
       message: 'The connector lost its connection to the model.',
       reason: 'network',
-      runId: 'run.1',
       retryable: true,
       closeCode: 4429
     };

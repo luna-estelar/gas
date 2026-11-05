@@ -352,7 +352,8 @@ class RendererImpl implements Renderer {
           { ...loaded.timing, tempo: run.tempo },
           run.startTime
         );
-        await connection.update(update, initialPosition);
+        // Raced like connect(): Stop never waits on a provider call (rule 2).
+        await raceAbort(run.abort.signal, connection.update(update, initialPosition));
       }
     } catch (error) {
       throw this.startupFailed(run, error);
@@ -413,14 +414,7 @@ class RendererImpl implements Renderer {
       },
       () => undefined
     );
-    return new Promise<Connection>((resolve, reject) => {
-      if (signal.aborted) {
-        reject(signal.reason);
-        return;
-      }
-      signal.addEventListener('abort', () => reject(signal.reason), { once: true });
-      connecting.then(resolve, reject);
-    });
+    return raceAbort(signal, connecting);
   }
 
   /** Ends a run whose startup didn't finish, and says why Play rejects. */
@@ -1088,8 +1082,16 @@ class RendererImpl implements Renderer {
   ): MusicalPosition | undefined {
     const plays = tracksPlay(this.deriveAt(loaded, requested, run.loopIteration));
     if (!run.resting) {
-      if (!plays) this.enterRest(loaded, run, positionToTime(loaded.tempoMap, requested));
-      return undefined;
+      if (plays) return undefined;
+      // Audio already handed to the player can't be taken back, so the rest
+      // starts where it ends. Held model audio from there fades out first.
+      let restTime = Math.max(positionToTime(loaded.tempoMap, requested), run.deliveredEnd);
+      const heldFromRest = run.heldAudio.some(
+        (held) => !held.silent && Math.abs(held.startTime - restTime) < EPSILON
+      );
+      if (heldFromRest) restTime += FADE_OUT_SECONDS;
+      this.enterRest(loaded, run, restTime);
+      return timeToPosition(loaded.tempoMap, restTime);
     }
     if (!plays || run.entryTime !== undefined) return undefined;
     const earliest = Math.max(this.options.clock.now() + RESUME_LEAD_SECONDS, run.deliveredEnd);
@@ -1484,6 +1486,18 @@ class RendererImpl implements Renderer {
       MAX_LOOKAHEAD_SECONDS
     );
   }
+}
+
+/** Settles with `promise`, or rejects as soon as `signal` aborts. */
+function raceAbort<T>(signal: AbortSignal, promise: Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason);
+      return;
+    }
+    signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+    promise.then(resolve, reject);
+  });
 }
 
 function connectorTiming(timing: ResolvedTiming): ConnectorTiming {
