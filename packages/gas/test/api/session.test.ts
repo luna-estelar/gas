@@ -3,7 +3,7 @@ import {
   createSession,
   GasOperationError,
   sourceBlob,
-  type SessionState
+  type LegacySessionState
 } from '../../src/api/index.js';
 import { capabilities, capabilitiesWith, createFakeWiring } from './support/fake-renderer.js';
 
@@ -62,8 +62,8 @@ describe('session creation and loading', () => {
     expect(wiring.current().loads).toHaveLength(1);
     expect(session.getState().timelineLoaded).toBe(true);
     expect(session.getTracks()).toEqual([
-      { id: 'track.drums', name: 'drums', description: 'Lofi breakbeat', source: 'authored' },
-      { id: 'track.lead', name: 'lead', description: 'Bright square lead', source: 'authored' }
+      { id: 'track.drums', name: 'drums', description: 'Lofi breakbeat', source: 'document' },
+      { id: 'track.lead', name: 'lead', description: 'Bright square lead', source: 'document' }
     ]);
   });
 
@@ -337,7 +337,7 @@ describe('app values', () => {
       session.setGlobalFlavor('warm')
     ]);
     expect(load.status).toBe('fulfilled');
-    expect(command).toMatchObject({ status: 'rejected', reason: { kind: 'lifecycle' } });
+    expect(command).toMatchObject({ status: 'rejected', reason: { kind: 'state' } });
     expect(session.getTracks().map((t) => t.id)).toEqual(['track.pad']);
     expect(session.getState().appValues).toEqual([]);
     await session.setGlobalFlavor('warm');
@@ -672,7 +672,7 @@ describe('retryRenderer', () => {
 
     expect(errors).toHaveLength(1);
     expect(errors[0]).toMatchObject({
-      kind: 'renderer',
+      kind: 'provider',
       code: 'lyria-rt-auth',
       reason: 'auth',
       retryable: false
@@ -732,7 +732,7 @@ describe('retryRenderer', () => {
 
     await expect(session.retryRenderer()).rejects.toMatchObject({
       name: 'GasOperationError',
-      kind: 'renderer',
+      kind: 'provider',
       message: 'The fresh Renderer failed to reload the timeline.'
     });
     expect(failures).toHaveLength(1);
@@ -748,8 +748,8 @@ describe('retryRenderer', () => {
 describe('events and single-channel warnings', () => {
   it('fans a state event out to every subscriber', async () => {
     const { session } = await loadedSession();
-    const a: SessionState[] = [];
-    const b: SessionState[] = [];
+    const a: LegacySessionState[] = [];
+    const b: LegacySessionState[] = [];
     session.on('state', (s) => a.push(s));
     session.on('state', (s) => b.push(s));
     await session.setGlobalFlavor('warm');
@@ -784,7 +784,7 @@ describe('events and single-channel warnings', () => {
 
   it('unsubscribes cleanly', async () => {
     const { session } = await loadedSession();
-    const seen: SessionState[] = [];
+    const seen: LegacySessionState[] = [];
     const off = session.on('state', (s) => seen.push(s));
     off();
     await session.setGlobalFlavor('warm');

@@ -17,16 +17,16 @@ import {
 } from '../core/index.js';
 import { AldaParseError, parseAlda, toMidi } from '../notation/index.js';
 import type {
-  AudioChunk,
+  LegacyAudioChunk,
   AudioSink,
   CapabilitiesTable,
   ClockTimer,
-  Connector,
-  ConnectorAudioChunk,
+  LegacyConnector,
+  LegacyConnectorAudioChunk,
   ConnectorConfig,
   ConnectorConfigProblem,
   ConnectorConfigSchema,
-  ConnectorDescription,
+  LegacyConnectorDescription,
   ConnectorFailureReason,
   ConnectorNotation,
   ConnectorSettings,
@@ -39,7 +39,7 @@ import type {
   MonotonicClock,
   PlaybackStatus,
   Renderer,
-  RendererDefaults,
+  DocumentDefaults,
   RendererEventMap,
   RendererFailure,
   RendererLifecycle,
@@ -72,9 +72,9 @@ import {
 
 export interface CreateRendererOptions {
   readonly clock: MonotonicClock;
-  readonly connector: Connector;
+  readonly connector: LegacyConnector;
   readonly settings?: ConnectorSettings;
-  readonly defaults?: RendererDefaults;
+  readonly defaults?: DocumentDefaults;
   readonly connectorConfig?: ConnectorConfig;
   readonly runIdFactory?: () => string;
   /**
@@ -146,7 +146,7 @@ interface ActiveRun {
 }
 
 interface BufferedAudio {
-  readonly chunk: ConnectorAudioChunk;
+  readonly chunk: LegacyConnectorAudioChunk;
   startTime: number;
 }
 
@@ -162,8 +162,8 @@ export async function createRenderer(options: CreateRendererOptions): Promise<Re
 class RendererSession implements Renderer {
   private lifecycle: RendererLifecycle = 'initializing';
   private playback: PlaybackStatus = 'stopped';
-  private description: ConnectorDescription | undefined;
-  private defaults: RendererDefaults;
+  private description: LegacyConnectorDescription | undefined;
+  private defaults: DocumentDefaults;
   private connectorConfig: ConnectorConfig = Object.freeze({});
   private warnedConfigUnvalidated = false;
   private loaded: LoadedDocument | undefined;
@@ -184,7 +184,7 @@ class RendererSession implements Renderer {
   }
 
   async initialize(settings: ConnectorSettings): Promise<void> {
-    let description: ConnectorDescription;
+    let description: LegacyConnectorDescription;
     try {
       description = await this.options.connector.describe();
     } catch (error) {
@@ -410,6 +410,7 @@ class RendererSession implements Renderer {
         this.createAudioSink(run),
         {
           tempo: loaded.timing.tempo,
+          quarterNoteTempo: (loaded.timing.tempo * 4) / loaded.timing.timeSignature.beatUnit,
           timeSignature: loaded.timing.timeSignature,
           ...(loaded.timing.key !== undefined ? { key: loaded.timing.key } : {}),
           secondsPerBar: secondsPerBar(loaded.timing.tempo, loaded.timing.timeSignature.beatsPerBar)
@@ -557,11 +558,11 @@ class RendererSession implements Renderer {
     return this.requireDescription().model;
   }
 
-  getDefaults(): RendererDefaults {
+  getDefaults(): DocumentDefaults {
     return this.defaults;
   }
 
-  async updateDefaults(patch: Partial<RendererDefaults>): Promise<RendererDefaults> {
+  async updateDefaults(patch: Partial<DocumentDefaults>): Promise<DocumentDefaults> {
     this.assertReady();
     this.assertStopped('update renderer defaults');
     const defaults = normalizeDefaults(mergeDefined(this.defaults, patch));
@@ -699,7 +700,7 @@ class RendererSession implements Renderer {
     }
   }
 
-  private requireDescription(): ConnectorDescription {
+  private requireDescription(): LegacyConnectorDescription {
     this.assertReady();
     return this.description!;
   }
@@ -1222,7 +1223,7 @@ class RendererSession implements Renderer {
     };
   }
 
-  private receiveAudio(run: ActiveRun, chunk: ConnectorAudioChunk): void {
+  private receiveAudio(run: ActiveRun, chunk: LegacyConnectorAudioChunk): void {
     try {
       run.ledger.receive(chunk.durationSeconds);
     } catch {
@@ -1287,7 +1288,7 @@ class RendererSession implements Renderer {
       }
     }
     run.ledger.deliver(chunk.durationSeconds);
-    const emitted: AudioChunk = Object.freeze({
+    const emitted: LegacyAudioChunk = Object.freeze({
       ...chunk,
       bytes,
       sequence: run.audioSequence++
@@ -1367,7 +1368,7 @@ function placeOnMap(tempoMap: TempoSegmentMap, time: number): MusicalPosition | 
   return timeToPosition(tempoMap, time);
 }
 
-function normalizeDefaults(defaults: RendererDefaults): RendererDefaults {
+function normalizeDefaults(defaults: DocumentDefaults): DocumentDefaults {
   // resolveTiming performs all positivity/finite checks without storing its
   // built-in fallbacks in the editable defaults object.
   resolveTiming(undefined, defaults);

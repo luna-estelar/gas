@@ -2,7 +2,7 @@
 // The wiring factory creates a fresh instance for each session retry.
 
 import type {
-  AudioChunk,
+  LegacyAudioChunk,
   CapabilitiesTable,
   ConnectorConfig,
   ConnectorConfigSchema,
@@ -12,7 +12,7 @@ import type {
   ModelInfo,
   MusicalPosition,
   Renderer,
-  RendererDefaults,
+  DocumentDefaults,
   RendererEventMap,
   RendererFailure,
   RendererPositionEvent,
@@ -76,7 +76,7 @@ export class FakeRenderer implements Renderer {
   updateResult: RendererUpdateResult = {};
 
   private readonly caps: CapabilitiesTable;
-  private defaults: RendererDefaults = { tempo: 120 };
+  private defaults: DocumentDefaults = { tempo: 120 };
   private connectorConfig: ConnectorConfig = { preset: 'default' };
   private readonly configSchema: ConnectorConfigSchema = { type: 'object' };
   private runCounter = 0;
@@ -143,10 +143,10 @@ export class FakeRenderer implements Renderer {
   getModelInfo(): ModelInfo {
     return MODEL_INFO;
   }
-  getDefaults(): RendererDefaults {
+  getDefaults(): DocumentDefaults {
     return this.defaults;
   }
-  async updateDefaults(patch: Partial<RendererDefaults>): Promise<RendererDefaults> {
+  async updateDefaults(patch: Partial<DocumentDefaults>): Promise<DocumentDefaults> {
     this.defaults = { ...this.defaults, ...patch };
     return this.defaults;
   }
@@ -164,7 +164,7 @@ export class FakeRenderer implements Renderer {
   emitStatus(status: RendererStatusEvent): void {
     this.dispatch('status', status);
   }
-  emitAudio(chunk: Partial<AudioChunk> & { runId: string }): void {
+  emitAudio(chunk: Partial<LegacyAudioChunk> & { runId: string }): void {
     this.dispatch('audio', { ...audioChunk(chunk.runId), ...chunk });
   }
   emitPosition(runId: string, position: MusicalPosition, seconds = 0, loopIteration = 0): void {
@@ -183,7 +183,7 @@ export class FakeRenderer implements Renderer {
   }
 }
 
-function audioChunk(runId: string): AudioChunk {
+function audioChunk(runId: string): LegacyAudioChunk {
   return {
     runId,
     sequence: 0,

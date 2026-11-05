@@ -5,8 +5,8 @@
 import { describe, expect, it } from 'vitest';
 import type {
   AudioSink,
-  Connector,
-  ConnectorAudioChunk,
+  LegacyConnector,
+  LegacyConnectorAudioChunk,
   ConnectorConfig,
   ConnectorSettings,
   ConnectorTiming,
@@ -17,7 +17,7 @@ import { flushAsync } from './deferred.js';
 import type { VirtualClock } from './virtual-clock.js';
 
 export interface ConformanceHarness {
-  readonly connector: Connector;
+  readonly connector: LegacyConnector;
   readonly clock: VirtualClock;
   readonly settings: ConnectorSettings;
   readonly config: ConnectorConfig;
@@ -35,12 +35,12 @@ export interface ConformanceHarness {
 
 interface Recorded {
   readonly sink: AudioSink;
-  readonly chunks: ConnectorAudioChunk[];
+  readonly chunks: LegacyConnectorAudioChunk[];
   readonly failures: RendererFailure[];
 }
 
 function recorder(): Recorded {
-  const chunks: ConnectorAudioChunk[] = [];
+  const chunks: LegacyConnectorAudioChunk[] = [];
   const failures: RendererFailure[] = [];
   return {
     chunks,

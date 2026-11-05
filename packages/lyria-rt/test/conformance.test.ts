@@ -24,7 +24,12 @@ describeConnectorConformance('Lyria RealTime', () => {
       globals: { flavor: { kind: 'text', text: 'warm' }, tempo: 96 },
       tracks: [{ trackId: 'pad', name: 'pad', description: 'soft chords', active: true }]
     },
-    timing: { tempo: 96, timeSignature: { beatsPerBar: 4, beatUnit: 4 }, secondsPerBar: 2.5 },
+    timing: {
+      tempo: 96,
+      quarterNoteTempo: 96,
+      timeSignature: { beatsPerBar: 4, beatUnit: 4 },
+      secondsPerBar: 2.5
+    },
     connect: (index) => sdk.connections[index]!.open(),
     ready: (index) => sdk.connections[index]!.setupComplete(),
     audio: (index) => sdk.connections[index]!.audio([1, 2, 3, 4]),

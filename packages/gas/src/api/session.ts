@@ -30,7 +30,7 @@ import type {
   LoadResult,
   ModelInfo,
   Renderer,
-  RendererDefaults,
+  DocumentDefaults,
   RendererFailure,
   RendererLifecycle,
   RendererStatusEvent,
@@ -50,7 +50,7 @@ import {
   type CommandResult,
   type LiveCommandResult,
   type PlaybackPhase,
-  type SessionState,
+  type LegacySessionState,
   type TrackView
 } from './types.js';
 
@@ -69,8 +69,8 @@ export interface LoadOptions {
 export interface RendererControl {
   getCapabilities(): CapabilitiesTable;
   getModelInfo(): ModelInfo;
-  getDefaults(): RendererDefaults;
-  updateDefaults(patch: Partial<RendererDefaults>): Promise<RendererDefaults>;
+  getDefaults(): DocumentDefaults;
+  updateDefaults(patch: Partial<DocumentDefaults>): Promise<DocumentDefaults>;
   getConnectorConfig(): ConnectorConfig;
   updateConnectorConfig(patch: ConnectorConfig): Promise<ConnectorConfig>;
   getConfigSchema(): ConnectorConfigSchema;
@@ -132,7 +132,7 @@ export class GasSession {
     });
     if (!result.ok) {
       throw new GasOperationError('The GAS source could not be compiled.', {
-        kind: 'compile',
+        kind: 'document',
         diagnostics: result.diagnostics
       });
     }
@@ -160,7 +160,7 @@ export class GasSession {
     const validation = validateTimeline(timeline);
     if (!validation.ok) {
       throw new GasOperationError('The timeline is not valid.', {
-        kind: 'validate',
+        kind: 'document',
         diagnostics: [],
         cause: validation.problems
       });
@@ -172,11 +172,11 @@ export class GasSession {
     this.ensureOpen();
     if (this.phase !== 'stopped') {
       throw new GasOperationError('Stop the session before loading a new document.', {
-        kind: 'lifecycle'
+        kind: 'state'
       });
     }
     if (this.loading) {
-      throw new GasOperationError('A document is already loading.', { kind: 'lifecycle' });
+      throw new GasOperationError('A document is already loading.', { kind: 'state' });
     }
     this.loading = true;
     try {
@@ -206,7 +206,7 @@ export class GasSession {
       await this.rendererInstance.load(timeline, next);
     } catch (error) {
       throw new GasOperationError('The Renderer failed to load the timeline.', {
-        kind: 'renderer',
+        kind: 'provider',
         cause: error
       });
     }
@@ -229,7 +229,7 @@ export class GasSession {
     });
   }
 
-  getState(): SessionState {
+  getState(): LegacySessionState {
     return this.snapshot();
   }
 
@@ -328,7 +328,7 @@ export class GasSession {
     const parsed = (await language()).parseLiveCommands(text);
     if (!parsed.ok) {
       throw new GasOperationError('The live commands could not be parsed.', {
-        kind: 'live',
+        kind: 'command',
         diagnostics: parsed.diagnostics
       });
     }
@@ -354,7 +354,7 @@ export class GasSession {
     }
 
     if (failure !== undefined) {
-      throw new GasOperationError(failure.message, { kind: 'live', failure });
+      throw new GasOperationError(failure.message, { kind: 'command', failure });
     }
 
     const applied = parsed.statements.length;
@@ -368,14 +368,14 @@ export class GasSession {
   async play(): Promise<void> {
     this.ensureOpen();
     if (this.input === undefined) {
-      throw new GasOperationError('Load a timeline before playing.', { kind: 'playback' });
+      throw new GasOperationError('Load a timeline before playing.', { kind: 'state' });
     }
     if (this.phase === 'active' || this.pendingPlay !== undefined) {
-      throw new GasOperationError('The session is already playing.', { kind: 'playback' });
+      throw new GasOperationError('The session is already playing.', { kind: 'state' });
     }
     if (this.lifecycle !== 'ready') {
       throw new GasOperationError('The Renderer is not ready; retry it first.', {
-        kind: 'playback'
+        kind: 'state'
       });
     }
     let runId: string;
@@ -389,7 +389,7 @@ export class GasSession {
       this.markRendererFailed();
       const rendererFailure = getRendererFailureFields(error);
       const failure = new GasOperationError('The Renderer failed to start.', {
-        kind: 'playback',
+        kind: 'provider',
         ...(rendererFailure ?? {}),
         cause: error
       });
@@ -460,7 +460,7 @@ export class GasSession {
     } catch (error) {
       this.lifecycle = 'failed';
       const failure = new GasOperationError('Building a fresh Renderer failed.', {
-        kind: 'renderer',
+        kind: 'provider',
         cause: error
       });
       this.events.emit('error', failure);
@@ -479,7 +479,7 @@ export class GasSession {
         }
         this.lifecycle = 'failed';
         const failure = new GasOperationError('The fresh Renderer failed to reload the timeline.', {
-          kind: 'renderer',
+          kind: 'provider',
           cause: error
         });
         this.events.emit('error', failure);
@@ -567,7 +567,7 @@ export class GasSession {
     } catch (error) {
       this.markRendererFailed();
       const failure = new GasOperationError('The Renderer failed to accept the command.', {
-        kind: 'renderer',
+        kind: 'provider',
         cause: error
       });
       this.events.emit('error', failure);
@@ -581,13 +581,13 @@ export class GasSession {
       id: track.trackId,
       name: track.name,
       description: track.description,
-      source: 'authored'
+      source: 'document'
     }));
     const app: TrackView[] = this.input.appTracks.map((track) => ({
       id: track.id,
       ...(track.name !== undefined ? { name: track.name } : {}),
       ...(track.description !== undefined ? { description: track.description } : {}),
-      source: 'host'
+      source: 'app'
     }));
     return [...authored, ...app];
   }
@@ -603,7 +603,7 @@ export class GasSession {
     return [...defines, ...this.input.appValues];
   }
 
-  private snapshot(): SessionState {
+  private snapshot(): LegacySessionState {
     return {
       lifecycle: this.lifecycle,
       playback: this.phase,
@@ -621,7 +621,7 @@ export class GasSession {
   private requireInput(): InputState {
     this.ensureOpen();
     if (this.input === undefined) {
-      throw new GasOperationError('No timeline is loaded.', { kind: 'command' });
+      throw new GasOperationError('No timeline is loaded.', { kind: 'state' });
     }
     return this.input;
   }
@@ -631,7 +631,7 @@ export class GasSession {
     const state = this.requireInput();
     if (this.loading) {
       throw new GasOperationError('Wait for the document to finish loading.', {
-        kind: 'lifecycle'
+        kind: 'state'
       });
     }
     return state;
@@ -639,7 +639,7 @@ export class GasSession {
 
   private ensureOpen(): void {
     if (this.closed) {
-      throw new GasOperationError('The session is closed.', { kind: 'lifecycle' });
+      throw new GasOperationError('The session is closed.', { kind: 'state' });
     }
   }
 
@@ -673,7 +673,7 @@ export class GasSession {
     this.ensureOpen();
     if (this.phase !== 'stopped') {
       throw new GasOperationError('Renderer config edits are only allowed while stopped.', {
-        kind: 'lifecycle'
+        kind: 'state'
       });
     }
   }
@@ -699,7 +699,7 @@ export class GasSession {
         this.events.emit(
           'error',
           new GasOperationError(failure.message, {
-            kind: 'renderer',
+            kind: 'provider',
             ...operationFailureFields(failure)
           })
         );
@@ -751,7 +751,7 @@ export class GasSession {
 // stopped, closed or replaced the renderer already settled the session.
 function abandonedPlay(cause?: unknown): GasOperationError {
   return new GasOperationError('Playback was stopped before it started.', {
-    kind: 'playback',
+    kind: 'cancelled',
     ...(cause !== undefined ? { cause } : {})
   });
 }

@@ -2,7 +2,12 @@
 // The one module that imports the concrete renderer. It never imports a
 // connector: the host builds one and passes it in, along with its settings.
 import { createSession, type GasSession } from '../api/index.js';
-import type { Connector, ConnectorSettings, MusicalPosition, Renderer } from '../protocol/index.js';
+import type {
+  LegacyConnector,
+  ConnectorSettings,
+  MusicalPosition,
+  Renderer
+} from '../protocol/index.js';
 import { createRenderer, type CreateRendererOptions } from '../renderer/index.js';
 import { ChainedSourceEngine } from './audio/chained-source-engine.js';
 import { AudioClock } from './audio/clock.js';
@@ -15,7 +20,7 @@ export interface BrowserSessionOptions {
    * The connector, or a factory for one. A connector opens once, so only a
    * factory lets `session.retryRenderer()` build a working replacement.
    */
-  readonly connector: Connector | (() => Connector);
+  readonly connector: LegacyConnector | (() => LegacyConnector);
   readonly settings: ConnectorSettings;
   /** Adopted as is and never closed by the session. Omitted, the session opens one and owns it. */
   readonly context?: AudioContext;
@@ -73,7 +78,7 @@ export async function createBrowserSession(
 
     // The session replaces its renderer on retry, so the playhead must ask
     // whichever one it built last.
-    let unusedConnector: Connector | undefined = firstConnector;
+    let unusedConnector: LegacyConnector | undefined = firstConnector;
     let renderer: Renderer | undefined;
     const rendererClock = clock;
     const session = await createSession({
@@ -156,7 +161,7 @@ function wireEngine(session: GasSession, engine: PlaybackEngine): () => void {
       engine.flush();
     }),
     session.on('error', (error) => {
-      if (error.kind === 'renderer') engine.flush();
+      if (error.kind === 'provider') engine.flush();
     })
   ];
   return () => {

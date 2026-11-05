@@ -18,10 +18,7 @@ export const PROTOCOL_SCHEMA_IDS = Object.freeze({
   common: `${SCHEMA_BASE}/common.schema.json`,
   config: `${SCHEMA_BASE}/config.schema.json`,
   diagnostics: `${SCHEMA_BASE}/diagnostics.schema.json`,
-  renderer: `${SCHEMA_BASE}/renderer.schema.json`,
   resources: `${SCHEMA_BASE}/resources.schema.json`,
-  session: `${SCHEMA_BASE}/session.schema.json`,
-  state: `${SCHEMA_BASE}/state.schema.json`,
   timeline: `${SCHEMA_BASE}/timeline.schema.json`
 } as const);
 

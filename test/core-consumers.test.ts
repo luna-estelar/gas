@@ -81,7 +81,7 @@ describe('consumer: the GAS API command path', () => {
       id: 'track.pad',
       name: 'pad',
       description: 'warm background',
-      source: 'host'
+      source: 'app'
     });
 
     // The Renderer forwarded the derived state, which reflects every command.
@@ -118,7 +118,7 @@ describe('consumer: the GAS API command path', () => {
     const rejection = session.submitLiveCommands('ghost.play');
     await expect(rejection).rejects.toBeInstanceOf(GasOperationError);
     await expect(rejection).rejects.toMatchObject({
-      kind: 'live',
+      kind: 'command',
       failure: { code: 'unknown-track', trackId: 'ghost' }
     });
     await session.close();

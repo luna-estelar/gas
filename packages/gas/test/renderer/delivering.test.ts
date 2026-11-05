@@ -1,5 +1,5 @@
 import { createInputState } from '../../src/core/index.js';
-import type { ConnectorAudioChunk, Renderer, Timeline } from '../../src/protocol/index.js';
+import type { LegacyConnectorAudioChunk, Renderer, Timeline } from '../../src/protocol/index.js';
 import { describe, expect, it } from 'vitest';
 import { applyS16leGain, BufferLedger, createRenderer } from '../../src/renderer/index.js';
 import { FakeConnector } from '../../../../test/support/fake-connector.js';
@@ -247,7 +247,7 @@ function chunk(
   runId: string,
   samples: readonly number[],
   durationSeconds: number
-): ConnectorAudioChunk {
+): LegacyConnectorAudioChunk {
   return {
     runId,
     bytes: encodeSamples(samples),

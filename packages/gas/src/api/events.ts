@@ -3,14 +3,14 @@
 
 import type {
   AppValueDroppedWarning,
-  AudioChunk,
+  LegacyAudioChunk,
   CommandWarning,
   DiagnosticEvent,
   LifecycleEvent,
   PlaybackWarning,
   RendererPositionEvent,
   RendererWarning,
-  SessionState,
+  LegacySessionState,
   SessionWarning,
   WarningEvent
 } from '../protocol/index.js';
@@ -19,10 +19,10 @@ import type { GasOperationError } from './types.js';
 export type { DiagnosticEvent, LifecycleEvent } from '../protocol/index.js';
 
 export interface SessionEventMap {
-  readonly state: SessionState;
+  readonly state: LegacySessionState;
   readonly lifecycle: LifecycleEvent;
   readonly position: RendererPositionEvent;
-  readonly audio: AudioChunk;
+  readonly audio: LegacyAudioChunk;
   readonly warning: WarningEvent;
   readonly error: GasOperationError;
   readonly diagnostic: DiagnosticEvent;

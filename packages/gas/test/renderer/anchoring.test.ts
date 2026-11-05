@@ -5,8 +5,8 @@
 
 import { applyCommand, createInputState } from '../../src/core/index.js';
 import type {
-  AudioChunk,
-  ConnectorAudioChunk,
+  LegacyAudioChunk,
+  LegacyConnectorAudioChunk,
   InputState,
   RendererFailure,
   RendererPositionEvent,
@@ -78,7 +78,7 @@ describe('renderer anchoring', () => {
     const timeline = testTimeline({ playback: { mode: 'infinite' } });
     await renderer.load(timeline, createInputState(timeline));
     const positions: RendererPositionEvent[] = [];
-    const audio: AudioChunk[] = [];
+    const audio: LegacyAudioChunk[] = [];
     renderer.on('position', (event) => positions.push(event));
     renderer.on('audio', (value) => audio.push(value));
 
@@ -190,7 +190,7 @@ describe('renderer anchoring', () => {
     const timeline = testTimeline();
     await renderer.load(timeline, createInputState(timeline));
     const warnings: string[] = [];
-    const audio: AudioChunk[] = [];
+    const audio: LegacyAudioChunk[] = [];
     renderer.on('warning', (warning) => warnings.push(warning.code));
     renderer.on('audio', (value) => audio.push(value));
     await renderer.start();
@@ -280,7 +280,7 @@ async function startedRenderer(
   renderer: Awaited<ReturnType<typeof createRenderer>>;
   positions: RendererPositionEvent[];
   statuses: RendererStatusEvent[];
-  audio: AudioChunk[];
+  audio: LegacyAudioChunk[];
   failures: RendererFailure[];
 }> {
   const clock = new VirtualClock();
@@ -294,7 +294,7 @@ async function startedRenderer(
   await renderer.load(timeline, createInputState(timeline));
   const positions: RendererPositionEvent[] = [];
   const statuses: RendererStatusEvent[] = [];
-  const audio: AudioChunk[] = [];
+  const audio: LegacyAudioChunk[] = [];
   const failures: RendererFailure[] = [];
   renderer.on('position', (event) => positions.push(event));
   renderer.on('status', (event) => statuses.push(event));
@@ -304,7 +304,7 @@ async function startedRenderer(
   return { clock, connector, renderer, positions, statuses, audio, failures };
 }
 
-function chunk(runId: string, durationSeconds: number): ConnectorAudioChunk {
+function chunk(runId: string, durationSeconds: number): LegacyConnectorAudioChunk {
   return { ...anchorChunk(runId), durationSeconds };
 }
 

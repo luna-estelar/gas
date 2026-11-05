@@ -14,7 +14,7 @@ import type {
   BeatOffset,
   MusicalContext,
   MusicalPosition,
-  RendererDefaults,
+  DocumentDefaults,
   TimeSignature
 } from '../protocol/index.js';
 
@@ -50,7 +50,7 @@ export type TempoSegmentMap = readonly TempoSegment[];
 
 export function resolveTiming(
   authored: MusicalContext | undefined,
-  defaults: RendererDefaults = {}
+  defaults: DocumentDefaults = {}
 ): ResolvedTiming {
   const tempo = authored?.tempo ?? defaults.tempo ?? DEFAULT_TEMPO;
   const timeSignature = authored?.timeSignature ?? defaults.timeSignature ?? DEFAULT_TIME_SIGNATURE;

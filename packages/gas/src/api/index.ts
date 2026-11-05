@@ -34,7 +34,12 @@ export type {
   OperationErrorKind,
   PlaybackPhase,
   PlaybackWarning,
+  DocumentDefaults,
+  GenerationPositionEvent,
+  LegacySessionState,
+  SessionEnded,
   SessionState,
+  SessionStatus,
   SessionWarning,
   TrackView,
   WarningEvent

@@ -1,103 +1,42 @@
+// The renderer's own types and the pre-0.4 connector interface. Step 4 of 0.4
+// makes the renderer internal and removes this file.
+
 import type { CapabilitiesTable } from './capabilities.js';
+import type {
+  AudioFormat,
+  ConnectorConfig,
+  ConnectorConfigSchema,
+  ConnectorConfigValidation,
+  ConnectorDescription,
+  ConnectorFailureReason,
+  ConnectorSettings,
+  ConnectorTiming,
+  ConnectorUpdate,
+  ModelInfo
+} from './connector.js';
 import type { EffectiveState } from './effective-state.js';
 import type { InputState } from './input-state.js';
-import type { MusicalPosition, TimeSignature, Timeline } from './timeline.js';
-
-export type JsonPrimitive = string | number | boolean | null;
-export type JsonValue = JsonPrimitive | JsonObject | readonly JsonValue[];
-export interface JsonObject {
-  readonly [key: string]: JsonValue;
-}
-
-export interface ClockTimer {
-  readonly token: unknown;
-}
-
-export interface MonotonicClock {
-  now(): number;
-  schedule(deadlineSeconds: number, callback: () => void): ClockTimer;
-  cancel(timer: ClockTimer): void;
-}
+import type { DocumentDefaults } from './session.js';
+import type { MusicalPosition, Timeline } from './timeline.js';
 
 export type RendererLifecycle = 'initializing' | 'ready' | 'closing' | 'closed' | 'failed';
 export type PlaybackStatus = 'stopped' | 'starting' | 'running' | 'holding' | 'stopping' | 'failed';
-export type ConnectorFailureReason = 'network' | 'auth' | 'quota' | 'provider' | 'internal';
-export type SampleFormat = 's16le' | (string & {});
 
-export interface AudioFormat {
-  readonly codec: string;
-  readonly sampleFormat: SampleFormat;
-  readonly sampleRate: number;
-  readonly channels: number;
-}
-
-export interface ModelInfo extends AudioFormat {
-  readonly connectorId: string;
-  readonly modelId: string;
-  readonly displayName: string;
-  readonly chunkDurationSeconds: number;
-}
-
-export interface RendererDefaults {
-  readonly tempo?: number;
-  readonly timeSignature?: TimeSignature;
-  readonly key?: string;
-}
-
-export type ConnectorSettings = JsonObject;
-export type ConnectorConfig = JsonObject;
-export type ConnectorConfigSchema = JsonObject;
-
-export interface ConnectorDescription {
-  readonly id: string;
-  readonly displayName: string;
-  readonly capabilities: CapabilitiesTable;
-  readonly model: ModelInfo;
-  readonly configSchema: ConnectorConfigSchema;
-  readonly defaultConfig: ConnectorConfig;
+/** @deprecated Removed in 0.4 step 4. Use `ConnectorDescription`. */
+export interface LegacyConnectorDescription extends ConnectorDescription {
   readonly supportsFlowControl: boolean;
 }
 
-/**
- * The run's defaults: the document's timing, with any renderer defaults applied.
- * They are what applies wherever an effective state leaves tempo or key unset,
- * so a connector resolves `state.globals.tempo ?? timing.tempo`. An override
- * already present when the run starts arrives in the prepared state, not here.
- */
-export interface ConnectorTiming {
-  /**
-   * Beats per minute where a beat is `timeSignature.beatUnit`, so 120 in 6/8 is
-   * 120 eighth notes a minute and a bar lasts 3 s. A connector whose model wants
-   * an absolute tempo must convert — `tempo * 4 / beatUnit` for quarter-note BPM
-   * — or it will generate at a different tempo than the renderer's clock assumes.
-   */
-  readonly tempo: number;
-  readonly timeSignature: TimeSignature;
-  readonly key?: string;
-  /** The length of a bar at the default `tempo`. */
-  readonly secondsPerBar: number;
-}
-
-export interface ConnectorNotation {
-  readonly trackId: string;
-  readonly intent: 'notes' | 'motif';
-  readonly source: string;
-  readonly midi?: Uint8Array;
-}
-
-export interface ConnectorUpdate {
-  readonly state: EffectiveState;
-  readonly notation?: readonly ConnectorNotation[];
-}
-
-export interface ConnectorAudioChunk extends AudioFormat {
+/** @deprecated Removed in 0.4 step 4. Use `ConnectorAudioChunk`. */
+export interface LegacyConnectorAudioChunk extends AudioFormat {
   readonly runId: string;
   readonly bytes: Uint8Array;
   readonly durationSeconds: number;
   readonly final?: boolean;
 }
 
-export interface AudioChunk extends ConnectorAudioChunk {
+/** @deprecated Removed in 0.4 step 4. Use `AudioChunk`. */
+export interface LegacyAudioChunk extends LegacyConnectorAudioChunk {
   readonly sequence: number;
 }
 
@@ -121,32 +60,15 @@ export interface RendererFailure {
 export type ConnectorStreamStatus = 'streaming' | 'ended' | 'throttled';
 
 export interface AudioSink {
-  push(chunk: ConnectorAudioChunk): void;
+  push(chunk: LegacyConnectorAudioChunk): void;
   status(status: ConnectorStreamStatus, runId: string): void;
   warning(warning: RendererWarning): void;
   failure(failure: RendererFailure): void;
 }
 
-/**
- * One thing wrong with a proposed connector configuration. Deliberately not the
- * Renderer's AJV-shaped problem: a hand-written validator should not have to
- * imitate a schema compiler to report a bad value.
- */
-export interface ConnectorConfigProblem {
-  /** JSON Pointer to the offending member, '' for the root. */
-  readonly path: string;
-  /** Stable machine code, e.g. 'unknown-member', 'out-of-range', 'wrong-type'. */
-  readonly code: string;
-  /** Safe, fixed text. Never provider or caller input. */
-  readonly message: string;
-}
-
-export type ConnectorConfigValidation =
-  | { readonly ok: true }
-  | { readonly ok: false; readonly problems: readonly ConnectorConfigProblem[] };
-
-export interface Connector {
-  describe(): Promise<ConnectorDescription>;
+/** @deprecated Removed in 0.4 step 4. Use `Connector`. */
+export interface LegacyConnector {
+  describe(): Promise<LegacyConnectorDescription>;
   open(settings: ConnectorSettings): Promise<void>;
   prepare(initialState: EffectiveState, config: ConnectorConfig): Promise<void>;
   start(sink: AudioSink, timing: ConnectorTiming, runId: string): Promise<void>;
@@ -196,7 +118,7 @@ export interface RendererUpdateResult {
 export interface RendererEventMap {
   readonly status: RendererStatusEvent;
   readonly position: RendererPositionEvent;
-  readonly audio: AudioChunk;
+  readonly audio: LegacyAudioChunk;
   readonly warning: RendererWarning;
   readonly failure: RendererFailure;
 }
@@ -213,8 +135,8 @@ export interface Renderer {
   ): () => void;
   getCapabilities(): CapabilitiesTable;
   getModelInfo(): ModelInfo;
-  getDefaults(): RendererDefaults;
-  updateDefaults(patch: Partial<RendererDefaults>): Promise<RendererDefaults>;
+  getDefaults(): DocumentDefaults;
+  updateDefaults(patch: Partial<DocumentDefaults>): Promise<DocumentDefaults>;
   getConnectorConfig(): ConnectorConfig;
   updateConnectorConfig(patch: ConnectorConfig): Promise<ConnectorConfig>;
   getConfigSchema(): ConnectorConfigSchema;

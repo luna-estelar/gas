@@ -1,6 +1,6 @@
 // PCM decoding and WAV encoding for captured renderer audio. Pure byte work: no
 // AudioContext, no DOM. Scheduling and playback live in ./audio/.
-import type { AudioChunk } from '../protocol/index.js';
+import type { LegacyAudioChunk } from '../protocol/index.js';
 
 export interface DecodedPcm {
   readonly channels: readonly Float32Array[];
@@ -9,7 +9,7 @@ export interface DecodedPcm {
   readonly durationSeconds: number;
 }
 
-export function decodeS16lePcm(chunk: AudioChunk): DecodedPcm {
+export function decodeS16lePcm(chunk: LegacyAudioChunk): DecodedPcm {
   if (chunk.codec !== 'pcm' || chunk.sampleFormat !== 's16le') {
     throw new Error('Only signed 16-bit PCM audio is supported.');
   }
@@ -40,7 +40,7 @@ export function decodeS16lePcm(chunk: AudioChunk): DecodedPcm {
   };
 }
 
-export function encodeWave(chunks: readonly AudioChunk[]): Uint8Array {
+export function encodeWave(chunks: readonly LegacyAudioChunk[]): Uint8Array {
   if (chunks.length === 0) throw new Error('No audio has been captured yet.');
   const first = chunks[0]!;
   for (const chunk of chunks) {
@@ -90,13 +90,13 @@ export interface CaptureSnapshot {
 
 /** Opt-in per-run recording, so a surface can offer the audio it just played as a download. */
 export class PcmCapture {
-  private chunks: AudioChunk[] = [];
+  private chunks: LegacyAudioChunk[] = [];
 
   reset(): void {
     this.chunks = [];
   }
 
-  append(chunk: AudioChunk): void {
+  append(chunk: LegacyAudioChunk): void {
     this.chunks.push({ ...chunk, bytes: new Uint8Array(chunk.bytes) });
   }
 

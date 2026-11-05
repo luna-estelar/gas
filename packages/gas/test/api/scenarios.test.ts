@@ -80,7 +80,7 @@ describe('live commands', () => {
     const { wiring, session } = await loaded();
     const failed = session.submitLiveCommands('track echo "spacey"\necho.play\nghost.play');
     await expect(failed).rejects.toMatchObject({
-      kind: 'live',
+      kind: 'command',
       failure: { code: 'unknown-track' }
     });
     expect(session.getTracks().some((t) => t.id === 'track.echo')).toBe(false);
@@ -133,9 +133,7 @@ describe('session validation scenarios', () => {
   it('programmatic track lifecycle', async () => {
     const { wiring, session } = await loaded();
     await session.defineTrack({ id: 'track.bass', name: 'bass', description: 'deep bass' });
-    expect(session.getTracks().some((t) => t.id === 'track.bass' && t.source === 'host')).toBe(
-      true
-    );
+    expect(session.getTracks().some((t) => t.id === 'track.bass' && t.source === 'app')).toBe(true);
     await session.playTrack('track.bass');
     await session.stopTrack('track.bass');
     const forwarded = wiring.current().updates.at(-1);

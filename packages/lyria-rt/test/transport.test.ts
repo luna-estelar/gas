@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type {
   AudioSink,
-  Connector,
-  ConnectorAudioChunk,
+  LegacyConnector,
+  LegacyConnectorAudioChunk,
   ConnectorConfig,
   ConnectorTiming,
   EffectiveState,
@@ -41,6 +41,7 @@ const EMPTY_STATE: EffectiveState = {
 
 const TIMING: ConnectorTiming = {
   tempo: 96,
+  quarterNoteTempo: 96,
   timeSignature: { beatsPerBar: 4, beatUnit: 4 },
   key: 'C major',
   secondsPerBar: 2.5
@@ -56,7 +57,7 @@ const IMMEDIATE_CONFIG: ConnectorConfig = {
 };
 
 function recordingSink() {
-  const chunks: ConnectorAudioChunk[] = [];
+  const chunks: LegacyConnectorAudioChunk[] = [];
   const warnings: RendererWarning[] = [];
   const failures: RendererFailure[] = [];
   const statuses: string[] = [];
@@ -82,8 +83,8 @@ function setup() {
 }
 
 async function prepare(
-  connector: Connector,
-  settings: Parameters<Connector['open']>[0] = { apiKey: 'test-key' },
+  connector: LegacyConnector,
+  settings: Parameters<LegacyConnector['open']>[0] = { apiKey: 'test-key' },
   state: EffectiveState = INITIAL_STATE,
   config: ConnectorConfig = IMMEDIATE_CONFIG
 ): Promise<void> {
@@ -92,7 +93,7 @@ async function prepare(
 }
 
 async function beginStart(
-  connector: Connector,
+  connector: LegacyConnector,
   sink: AudioSink,
   sdk: FakeLiveMusic,
   runId = 'run-1',
@@ -109,7 +110,7 @@ async function beginStart(
 }
 
 async function completeStart(
-  connector: Connector,
+  connector: LegacyConnector,
   sink: AudioSink,
   sdk: FakeLiveMusic,
   runId = 'run-1',
@@ -125,6 +126,7 @@ function timingIn(beatsPerBar: number, beatUnit: number, tempo: number): Connect
   return {
     ...TIMING,
     tempo,
+    quarterNoteTempo: (tempo * 4) / beatUnit,
     timeSignature: { beatsPerBar, beatUnit },
     secondsPerBar: (60 / tempo) * beatsPerBar
   };

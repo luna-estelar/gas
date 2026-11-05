@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { applyCommand, createInputState } from '../packages/gas/src/core/index.js';
 import type {
   CapabilitiesTable,
-  Connector,
+  LegacyConnector,
   InputState,
   Renderer,
   Timeline

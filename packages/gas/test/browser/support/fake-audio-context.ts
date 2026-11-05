@@ -1,7 +1,7 @@
 // A scripted AudioContext: device time is a virtual clock the test moves, and
 // every node records what the engine asked of it. A source "plays" by firing
 // `onended` when the clock passes its end, or its stop time if that is earlier.
-import type { AudioChunk } from '../../../src/protocol/index.js';
+import type { LegacyAudioChunk } from '../../../src/protocol/index.js';
 import { VirtualClock } from '../../../../../test/support/virtual-clock.js';
 
 export class FakeAudioParam {
@@ -163,7 +163,7 @@ export interface ChunkOptions {
 }
 
 /** Silent s16le PCM whose byte length matches its stated duration. */
-export function pcmChunk(sequence: number, options: ChunkOptions = {}): AudioChunk {
+export function pcmChunk(sequence: number, options: ChunkOptions = {}): LegacyAudioChunk {
   const sampleRate = options.sampleRate ?? 48_000;
   const channels = options.channels ?? 2;
   const seconds = options.seconds ?? 2;

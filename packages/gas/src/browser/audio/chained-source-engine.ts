@@ -6,7 +6,7 @@
 // waits after the first one arrives. The engine therefore holds the first chunk
 // for `prebufferSeconds` before starting. Counting queued audio instead would
 // let one long chunk "fill" the buffer while buying no margin at all.
-import type { AudioChunk, ClockTimer, MonotonicClock } from '../../protocol/index.js';
+import type { LegacyAudioChunk, ClockTimer, MonotonicClock } from '../../protocol/index.js';
 import { decodeS16lePcm, type PcmCapture } from '../capture.js';
 import { AudioClock } from './clock.js';
 import type {
@@ -90,7 +90,7 @@ export class ChainedSourceEngine implements PlaybackEngine {
     this.master.connect(context.destination);
   }
 
-  push(chunk: AudioChunk): void {
+  push(chunk: LegacyAudioChunk): void {
     if (this.closed) return;
     if (chunk.runId !== this.runId) {
       if (this.runId !== undefined) this.flush();

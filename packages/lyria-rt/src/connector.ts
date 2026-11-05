@@ -4,10 +4,10 @@ import type {
   AudioSink,
   CapabilitiesTable,
   ClockTimer,
-  Connector,
+  LegacyConnector,
   ConnectorConfig,
   ConnectorConfigValidation,
-  ConnectorDescription,
+  LegacyConnectorDescription,
   ConnectorSettings,
   ConnectorTiming,
   ConnectorUpdate,
@@ -122,7 +122,7 @@ export const LYRIA_RT_CAPABILITIES: CapabilitiesTable = deepFreeze({
   }
 });
 
-const LYRIA_RT_DESCRIPTION: ConnectorDescription = deepFreeze({
+const LYRIA_RT_DESCRIPTION: LegacyConnectorDescription = deepFreeze({
   id: 'lyria-rt',
   displayName: 'Lyria RealTime',
   capabilities: LYRIA_RT_CAPABILITIES,
@@ -301,7 +301,7 @@ function closeQuietly(session: LyriaRtMusicSession): void {
   }
 }
 
-export class LyriaRtConnector implements Connector {
+export class LyriaRtConnector implements LegacyConnector {
   private state: ConnectorState = 'new';
   private settings: LyriaRtConnectorSettings | undefined;
   private preparedState: EffectiveState | undefined;
@@ -311,7 +311,7 @@ export class LyriaRtConnector implements Connector {
 
   constructor(private readonly dependencies: LyriaRtConnectorDependencies = DEFAULT_DEPENDENCIES) {}
 
-  async describe(): Promise<ConnectorDescription> {
+  async describe(): Promise<LegacyConnectorDescription> {
     return LYRIA_RT_DESCRIPTION;
   }
 
@@ -677,12 +677,12 @@ export class LyriaRtConnector implements Connector {
   }
 }
 
-export function createLyriaRtConnector(): Connector {
+export function createLyriaRtConnector(): LegacyConnector {
   return new LyriaRtConnector();
 }
 
 export function createLyriaRtConnectorWithDependencies(
   dependencies: LyriaRtConnectorDependencies
-): Connector {
+): LegacyConnector {
   return new LyriaRtConnector(dependencies);
 }

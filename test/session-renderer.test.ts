@@ -104,7 +104,7 @@ describe('a session playing a finite document through the real renderer', () => 
     await flushAsync();
 
     expect(errors.at(-1)).toMatchObject({
-      kind: 'renderer',
+      kind: 'provider',
       code: 'lyria-rt-network-failure',
       reason: 'network',
       retryable: true,

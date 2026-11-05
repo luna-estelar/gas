@@ -1,4 +1,4 @@
-import type { ConnectorFailureReason } from './renderer.js';
+import type { ConnectorFailureReason } from './connector.js';
 
 const CONNECTOR_FAILURE_REASONS: readonly ConnectorFailureReason[] = [
   'network',

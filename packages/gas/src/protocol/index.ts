@@ -89,13 +89,18 @@ export type {
   CommandResult,
   CompileResult,
   DiagnosticEvent,
+  DocumentDefaults,
+  GenerationPositionEvent,
+  LegacySessionState,
   LifecycleEvent,
   LoadResult,
   LiveCommandResult,
   LiveCommandSuccess,
   PlaybackPhase,
   PlaybackWarning,
+  SessionEnded,
   SessionState,
+  SessionStatus,
   SessionWarning,
   TrackView,
   WarningEvent
@@ -104,8 +109,9 @@ export type {
 export type {
   AudioChunk,
   AudioFormat,
-  AudioSink,
   ClockTimer,
+  Connection,
+  ConnectOptions,
   Connector,
   ConnectorAudioChunk,
   ConnectorConfig,
@@ -116,25 +122,33 @@ export type {
   ConnectorFailureReason,
   ConnectorNotation,
   ConnectorSettings,
-  ConnectorStreamStatus,
   ConnectorTiming,
   ConnectorUpdate,
+  ConnectorWarning,
   JsonObject,
   JsonPrimitive,
   JsonValue,
   ModelInfo,
   MonotonicClock,
+  SampleFormat
+} from './connector.js';
+
+export type {
+  AudioSink,
+  ConnectorStreamStatus,
+  LegacyAudioChunk,
+  LegacyConnector,
+  LegacyConnectorAudioChunk,
+  LegacyConnectorDescription,
   PlaybackStatus,
   Renderer,
-  RendererDefaults,
   RendererEventMap,
   RendererFailure,
   RendererLifecycle,
   RendererPositionEvent,
   RendererStatusEvent,
   RendererUpdateResult,
-  RendererWarning,
-  SampleFormat
+  RendererWarning
 } from './renderer.js';
 
 export type { ConnectorErrorOptions } from './errors.js';

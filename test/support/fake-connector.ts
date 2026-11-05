@@ -6,11 +6,11 @@
 import type {
   AudioSink,
   CapabilitiesTable,
-  Connector,
-  ConnectorAudioChunk,
+  LegacyConnector,
+  LegacyConnectorAudioChunk,
   ConnectorConfig,
   ConnectorConfigValidation,
-  ConnectorDescription,
+  LegacyConnectorDescription,
   ConnectorSettings,
   ConnectorTiming,
   ConnectorUpdate,
@@ -32,7 +32,7 @@ const ALL_SUPPORTED: CapabilitiesTable = {
 };
 
 /** Two seconds of silence, enough to anchor a run at the instant it is pushed. */
-export function anchorChunk(runId: string): ConnectorAudioChunk {
+export function anchorChunk(runId: string): LegacyConnectorAudioChunk {
   return {
     runId,
     bytes: new Uint8Array(4),
@@ -49,7 +49,7 @@ export interface FakeConnectorOptions {
   readonly openFailure?: Error;
   readonly prepareFailure?: Error;
   readonly startFailure?: Error;
-  readonly startChunks?: readonly ConnectorAudioChunk[];
+  readonly startChunks?: readonly LegacyConnectorAudioChunk[];
   /**
    * Push one chunk from inside `start()`, tagged with the run id the renderer
    * actually allocated. The renderer anchors musical time on first audio, so a
@@ -75,7 +75,7 @@ export interface FakeConnectorOptions {
   readonly closeFailure?: Error;
   readonly flowControlFailure?: Error;
   readonly appliedBoundary?: MusicalPosition;
-  readonly description?: Partial<ConnectorDescription>;
+  readonly description?: Partial<LegacyConnectorDescription>;
   /**
    * Answer `validateConfig` with this. Omitted, the connector accepts everything,
    * matching its permissive advertised schema. Set to `null` to leave the optional
@@ -84,7 +84,7 @@ export interface FakeConnectorOptions {
   readonly validateConfig?: ((config: ConnectorConfig) => ConnectorConfigValidation) | null;
 }
 
-export class FakeConnector implements Connector {
+export class FakeConnector implements LegacyConnector {
   readonly calls: string[] = [];
   readonly openedSettings: ConnectorSettings[] = [];
   readonly prepared: Array<{ state: EffectiveState; config: ConnectorConfig }> = [];
@@ -94,7 +94,7 @@ export class FakeConnector implements Connector {
   runId: string | undefined;
   paused = false;
 
-  private readonly description: ConnectorDescription;
+  private readonly description: LegacyConnectorDescription;
 
   /** Present unless `validateConfig: null` asked for a connector without it. */
   readonly validateConfig?: (config: ConnectorConfig) => ConnectorConfigValidation;
@@ -130,7 +130,7 @@ export class FakeConnector implements Connector {
     };
   }
 
-  async describe(): Promise<ConnectorDescription> {
+  async describe(): Promise<LegacyConnectorDescription> {
     this.calls.push('describe');
     if (this.options.describeFailure !== undefined) throw this.options.describeFailure;
     return this.description;

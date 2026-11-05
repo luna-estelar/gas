@@ -18,14 +18,24 @@ export type {
   LiveCommandSuccess,
   PlaybackPhase,
   PlaybackWarning,
+  DocumentDefaults,
+  GenerationPositionEvent,
+  LegacySessionState,
+  SessionEnded,
   SessionState,
+  SessionStatus,
   SessionWarning,
   TrackView,
   WarningEvent
 } from '../protocol/index.js';
 
-export type OperationErrorKind =
-  'compile' | 'validate' | 'command' | 'live' | 'playback' | 'renderer' | 'lifecycle';
+// What went wrong, so an app can react without reading messages:
+// - `document`: the document doesn't compile or isn't a valid timeline
+// - `command`: a bad value or an unknown track
+// - `state`: the wrong time, such as already playing, nothing loaded, or closed
+// - `provider`: the provider failed; `reason`, `retryable` and `closeCode` say how
+// - `cancelled`: Stop or Close came before Play resolved
+export type OperationErrorKind = 'document' | 'command' | 'state' | 'provider' | 'cancelled';
 
 export interface OperationErrorInit {
   readonly kind: OperationErrorKind;
@@ -41,8 +51,8 @@ export interface OperationErrorInit {
 }
 
 // The single structured error every rejecting operation throws. Carries the
-// underlying Core failure, compile/validation diagnostics, any warnings already
-// produced, and safe connector classification when one is known. It never
+// underlying Core failure, document diagnostics, any warnings already produced,
+// and the connector's safe failure classification when one is known. It never
 // derives its public message or fields from raw provider output.
 export class GasOperationError extends Error {
   readonly kind: OperationErrorKind;
