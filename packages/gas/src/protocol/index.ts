@@ -88,15 +88,11 @@ export type {
   AppliedPosition,
   CommandResult,
   CompileResult,
-  DiagnosticEvent,
   DocumentDefaults,
   GenerationPositionEvent,
-  LegacySessionState,
-  LifecycleEvent,
   LoadResult,
   LiveCommandResult,
   LiveCommandSuccess,
-  PlaybackPhase,
   PlaybackWarning,
   SessionEnded,
   SessionState,
@@ -132,24 +128,6 @@ export type {
   MonotonicClock,
   SampleFormat
 } from './connector.js';
-
-export type {
-  AudioSink,
-  ConnectorStreamStatus,
-  LegacyAudioChunk,
-  LegacyConnector,
-  LegacyConnectorAudioChunk,
-  LegacyConnectorDescription,
-  PlaybackStatus,
-  Renderer,
-  RendererEventMap,
-  RendererFailure,
-  RendererLifecycle,
-  RendererPositionEvent,
-  RendererStatusEvent,
-  RendererUpdateResult,
-  RendererWarning
-} from './renderer.js';
 
 export type { ConnectorErrorOptions } from './errors.js';
 export { ConnectorError, isCloseCode } from './errors.js';

@@ -1,9 +1,6 @@
 import type { Command } from './commands.js';
 import type { AppValueDroppedWarning, CommandWarning, GasDiagnostic } from './diagnostics.js';
 import type { MusicalPosition, Timeline, TimeSignature } from './timeline.js';
-import type { ConnectorStreamStatus, PlaybackStatus, RendererLifecycle } from './renderer.js';
-
-export type PlaybackPhase = 'stopped' | 'active';
 
 export interface CompileResult {
   readonly timeline: Timeline;
@@ -22,7 +19,6 @@ export interface PlaybackWarning {
   readonly warningId: string;
   readonly code: string;
   readonly message: string;
-  readonly runId?: string;
 }
 
 export type WarningEvent = SessionWarning | PlaybackWarning;
@@ -83,33 +79,4 @@ export interface GenerationPositionEvent {
   readonly position: MusicalPosition;
   readonly seconds: number;
   readonly loopIteration: number;
-}
-
-/** @deprecated Removed in 0.4 step 4. Use `SessionState`. */
-export interface LegacySessionState {
-  readonly lifecycle: RendererLifecycle;
-  readonly playback: PlaybackPhase;
-  readonly timelineLoaded: boolean;
-  readonly runId?: string;
-  readonly tracks: readonly TrackView[];
-  // A `defineTrack` for each app track, then the app values. Applying it again gives the same
-  // state.
-  readonly appValues: readonly Command[];
-}
-
-export interface LifecycleEvent {
-  readonly lifecycle: RendererLifecycle;
-  readonly playback: PlaybackPhase;
-  readonly rendererPlayback: PlaybackStatus;
-  readonly runId?: string;
-  readonly stream?: ConnectorStreamStatus;
-  readonly throttled?: boolean;
-  // Set on the event that ends a finite piece, so a host can tell a piece that
-  // finished from one the host stopped.
-  readonly completed?: true;
-}
-
-export interface DiagnosticEvent {
-  readonly source: 'compile';
-  readonly diagnostics: readonly GasDiagnostic[];
 }

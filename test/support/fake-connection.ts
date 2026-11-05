@@ -1,6 +1,5 @@
-// A scriptable 0.4 Connector and Connection for the session tests. The legacy
-// `fake-connector.ts` stays until GAS 0.4 step 4 ports the tests that use it.
-// Protocol-only, like the other shared fixtures.
+// A scriptable Connector and Connection, shared by the renderer, session,
+// browser and root tests. Protocol-only, like the other shared fixtures.
 import type {
   CapabilitiesTable,
   ConnectOptions,

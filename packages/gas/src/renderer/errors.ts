@@ -2,16 +2,17 @@ import { ConnectorError } from '../protocol/index.js';
 import type {
   ConnectorConfigProblem,
   ConnectorFailureReason,
-  RendererFailure,
   TimelineProblem
 } from '../protocol/index.js';
+import type { RendererFailure } from './types.js';
 
 export type RendererErrorCode =
   | 'renderer-state-conflict'
   | 'invalid-timeline'
   | 'invalid-configuration'
   | 'connector-unavailable'
-  | 'renderer-closed';
+  | 'renderer-closed'
+  | 'cancelled';
 
 export type RendererProblem = ConnectorConfigProblem | TimelineProblem;
 
@@ -42,7 +43,6 @@ export interface ConnectorFailureFallback {
   readonly message: string;
   readonly reason: ConnectorFailureReason;
   readonly retryable: boolean;
-  readonly runId?: string;
   readonly closeCode?: number;
 }
 
@@ -58,14 +58,12 @@ export function classifyConnectorFailure(
   thrown: unknown,
   fallback: ConnectorFailureFallback
 ): RendererFailure {
-  const runId = fallback.runId !== undefined ? { runId: fallback.runId } : {};
   if (ConnectorError.isConnectorError(thrown)) {
     return Object.freeze({
       code: thrown.code,
       message: fallback.message,
       reason: thrown.reason,
       retryable: thrown.retryable,
-      ...runId,
       ...(thrown.closeCode !== undefined ? { closeCode: thrown.closeCode } : {})
     });
   }
@@ -74,7 +72,6 @@ export function classifyConnectorFailure(
     message: fallback.message,
     reason: fallback.reason,
     retryable: fallback.retryable,
-    ...runId,
     ...(fallback.closeCode !== undefined ? { closeCode: fallback.closeCode } : {})
   });
 }

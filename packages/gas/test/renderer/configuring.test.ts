@@ -1,42 +1,33 @@
 import { createInputState } from '../../src/core/index.js';
 import { describe, expect, it } from 'vitest';
 import { createRenderer } from '../../src/renderer/index.js';
-import { FakeConnector } from '../../../../test/support/fake-connector.js';
+import { FakeConnector } from '../../../../test/support/fake-connection.js';
 import { testTimeline } from '../../../../test/support/timeline.js';
 import { VirtualClock } from '../../../../test/support/virtual-clock.js';
 
 describe('renderer configuration', () => {
-  it('keeps editable defaults separate from built-in timing fallbacks', async () => {
-    const renderer = await createRenderer({
-      clock: new VirtualClock(),
-      connector: new FakeConnector()
-    });
+  it('keeps editable defaults separate from built-in timing fallbacks', () => {
+    const renderer = createRenderer({ clock: new VirtualClock(), connector: new FakeConnector() });
     expect(renderer.getDefaults()).toEqual({});
     expect(
-      await renderer.updateDefaults({
-        tempo: 96,
-        timeSignature: { beatsPerBar: 3, beatUnit: 4 }
-      })
+      renderer.updateDefaults({ tempo: 96, timeSignature: { beatsPerBar: 3, beatUnit: 4 } })
     ).toEqual({ tempo: 96, timeSignature: { beatsPerBar: 3, beatUnit: 4 } });
-    expect(await renderer.updateDefaults({ tempo: undefined })).toEqual({
+    expect(renderer.updateDefaults({ tempo: undefined })).toEqual({
       timeSignature: { beatsPerBar: 3, beatUnit: 4 }
     });
   });
 
-  it('validates default timing and rebuilds a loaded stopped context', async () => {
-    const renderer = await createRenderer({
-      clock: new VirtualClock(),
-      connector: new FakeConnector()
-    });
+  it('validates default timing and rebuilds a loaded stopped context', () => {
+    const renderer = createRenderer({ clock: new VirtualClock(), connector: new FakeConnector() });
     const timeline = testTimeline({ musicalContext: undefined });
-    await renderer.load(timeline, createInputState(timeline));
-    await expect(renderer.updateDefaults({ tempo: 0 })).rejects.toThrow(/greater than zero/);
-    await expect(renderer.updateDefaults({ tempo: 80 })).resolves.toEqual({ tempo: 80 });
+    renderer.load(timeline, createInputState(timeline));
+    expect(() => renderer.updateDefaults({ tempo: 0 })).toThrow(/greater than zero/);
+    expect(renderer.updateDefaults({ tempo: 80 })).toEqual({ tempo: 80 });
   });
 
-  it('merges connector config and exposes its schema', async () => {
+  it('merges connector config and exposes its schema', () => {
     const initialConfig = { prompt: { weight: 0.5, tags: ['warm'] } };
-    const renderer = await createRenderer({
+    const renderer = createRenderer({
       clock: new VirtualClock(),
       connector: new FakeConnector(),
       connectorConfig: initialConfig
@@ -53,7 +44,7 @@ describe('renderer configuration', () => {
     );
 
     const patch = { mapping: { weights: [1, 2] } };
-    const updated = await renderer.updateConnectorConfig({ mode: 'ambient', ...patch });
+    const updated = renderer.updateConnectorConfig({ mode: 'ambient', ...patch });
     patch.mapping.weights.push(3);
     expect(updated).toEqual({
       prompt: { weight: 0.5, tags: ['warm'] },
