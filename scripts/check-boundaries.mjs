@@ -14,16 +14,17 @@ export const ALLOW_MAP = {
   highlight: [],
   notation: ['protocol'],
   core: ['protocol'],
-  api: ['protocol', 'language', 'core'],
+  // The renderer is internal to the session, which builds it.
+  api: ['protocol', 'language', 'core', 'renderer'],
   renderer: ['protocol', 'core', 'notation'],
   cli: ['language'],
   editor: ['protocol', 'language'],
-  browser: ['protocol', 'core', 'api', 'renderer']
+  browser: ['protocol', 'core', 'api']
 };
 
 // The entry files behind the export map, and the modules each re-exports.
 export const FACADES = {
-  'index.ts': ['api', 'renderer', 'version'],
+  'index.ts': ['api', 'version'],
   'language.ts': ['language', 'editor'],
   'browser.ts': ['browser'],
   'protocol.ts': ['protocol'],
@@ -41,10 +42,10 @@ const VERSION_UNIT = 'version';
 // the renderer would quietly couple one module's tests to another's code.
 const FIXTURE_ALLOW = ['protocol'];
 
-// The renderer is the concrete runtime. Only these files outside it may import
-// it: the browser session wires it up, and the root entry re-exports it.
+// The renderer is the concrete runtime, internal to the session. Only the
+// session builds it. The api's tests may still read its constants.
 const RUNTIME_MODULE = 'renderer';
-const RUNTIME_WIRING = ['browser/session.ts', 'index.ts'];
+const RUNTIME_WIRING = ['api/session.ts'];
 
 // The only package specifier a connector package may use: each peers on gas for
 // the protocol, and nothing else.
@@ -217,7 +218,11 @@ export function findViolations(files, srcRoot = path.join(ROOT, 'packages', 'gas
         report(file, `${target.unit}/${target.file}`, specifier);
         continue;
       }
-      if (target.unit === RUNTIME_MODULE && !RUNTIME_WIRING.includes(file.wiring)) {
+      if (
+        target.unit === RUNTIME_MODULE &&
+        file.testDirectory === undefined &&
+        !RUNTIME_WIRING.includes(file.wiring)
+      ) {
         report(file, target.unit, specifier);
       }
     }

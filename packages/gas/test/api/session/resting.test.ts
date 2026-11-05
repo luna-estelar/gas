@@ -1,7 +1,6 @@
 // Rule 4: musical time runs through silence. GAS writes silence while no track
 // plays, pauses the model, and resumes it one start-up delay before the next
 // track comes in. The missing-audio timeout runs only while a track plays.
-// Skipped until GAS 0.4 step 4 implements the session these describe.
 import { describe, expect, it } from 'vitest';
 import type { AudioChunk } from '../../../src/protocol/index.js';
 import {
@@ -49,7 +48,7 @@ function expectSilenceUpTo(chunks: readonly AudioChunk[], seconds: number): void
   expect(totalSeconds(chunks)).toBeLessThanOrEqual(seconds + MAX_LOOKAHEAD_SECONDS + 1e-9);
 }
 
-describe.skip('resting', () => {
+describe('resting', () => {
   describe('an opening rest', () => {
     it('writes silence in the model format from the moment the connection opens', async () => {
       const h = await harness({ source: OPENING_REST });

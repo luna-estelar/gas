@@ -1,6 +1,5 @@
 // Rule 5 at session level: app values last through Stop, a finished piece and a
 // failure, and each new connection starts from them.
-// Skipped until GAS 0.4 step 4 implements the session these describe.
 import { describe, expect, it } from 'vitest';
 import type { Command, EffectiveState } from '../../../src/protocol/index.js';
 import { ConnectorError } from '../../../src/protocol/index.js';
@@ -19,7 +18,7 @@ async function expectKept(h: Harness): Promise<void> {
   await h.session.play();
   const pad = padIn(h.connector.connects.at(-1)!.state);
   expect(pad?.level).toEqual({ kind: 'level', value: 0.3 });
-  expect(pad?.flavor).toMatchObject({ value: 'brighter' });
+  expect(pad?.flavor).toEqual({ kind: 'text', text: 'brighter' });
 }
 
 async function withValues(source?: string): Promise<Harness> {
@@ -31,7 +30,7 @@ async function withValues(source?: string): Promise<Harness> {
   return h;
 }
 
-describe.skip('app values', () => {
+describe('app values', () => {
   it('reach the first connection', async () => {
     const h = await harness();
     await h.session.apply([BEFORE]);

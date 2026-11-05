@@ -1,6 +1,5 @@
 // Rule 6: GAS pauses the model for a rest and for a backlog, and resumes it only
 // when neither applies. Pausing is one state, so one `pause()` covers both.
-// Skipped until GAS 0.4 step 4 implements the session these describe.
 import { describe, expect, it } from 'vitest';
 import {
   BUFFER_HARD_LIMIT_SECONDS,
@@ -21,7 +20,7 @@ const WARNING = BUFFER_WARNING_SECONDS;
 /** A rest from bar 3 to bar 30, longer than any backlog takes to drain. */
 const LONG_REST = MIDDLE_REST.replace(/14/g, '34').replace('bar 11:', 'bar 31:');
 
-describe.skip('pausing', () => {
+describe('pausing', () => {
   it('pauses for a rest', async () => {
     const h = await harness({ source: MIDDLE_REST });
     await h.session.play();

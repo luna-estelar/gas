@@ -1,7 +1,7 @@
 // The contract between a browser session and whatever turns renderer chunks into
 // sound. The session drives it and never reaches past it, so an AudioWorklet
 // engine can replace the buffer-source one without the session changing.
-import type { LegacyAudioChunk, MonotonicClock } from '../../protocol/index.js';
+import type { AudioChunk, MonotonicClock } from '../../protocol/index.js';
 import type { PcmCapture } from '../capture.js';
 
 export type AudioState = 'idle' | 'buffering' | 'playing' | 'underrun' | 'stopped';
@@ -33,7 +33,7 @@ export interface EngineOptions {
 }
 
 export interface PlaybackEngine {
-  push(chunk: LegacyAudioChunk): void;
+  push(chunk: AudioChunk): void;
   /** Drop everything, ramping the gain to 0 over about 20 ms first. */
   flush(): void;
   status(): AudioStatus;

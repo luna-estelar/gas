@@ -6,7 +6,7 @@
 // waits after the first one arrives. The engine therefore holds the first chunk
 // for `prebufferSeconds` before starting. Counting queued audio instead would
 // let one long chunk "fill" the buffer while buying no margin at all.
-import type { LegacyAudioChunk, ClockTimer, MonotonicClock } from '../../protocol/index.js';
+import type { AudioChunk, ClockTimer, MonotonicClock } from '../../protocol/index.js';
 import { decodeS16lePcm, type PcmCapture } from '../capture.js';
 import { AudioClock } from './clock.js';
 import type {
@@ -61,7 +61,8 @@ export class ChainedSourceEngine implements PlaybackEngine {
   private state: AudioState = 'idle';
   private closed = false;
 
-  private runId: string | undefined;
+  // Whether a Play's audio is in hand. Each Play numbers its audio from 0.
+  private inRun = false;
   private format: { readonly sampleRate: number; readonly channels: number } | undefined;
   private queue: Pending[] = [];
   private prebufferTimer: ClockTimer | undefined;
@@ -90,11 +91,11 @@ export class ChainedSourceEngine implements PlaybackEngine {
     this.master.connect(context.destination);
   }
 
-  push(chunk: LegacyAudioChunk): void {
+  push(chunk: AudioChunk): void {
     if (this.closed) return;
-    if (chunk.runId !== this.runId) {
-      if (this.runId !== undefined) this.flush();
-      this.beginRun(chunk.runId);
+    if (!this.inRun || chunk.sequence === 0) {
+      if (this.inRun) this.flush();
+      this.beginRun();
     }
 
     let decoded;
@@ -164,7 +165,7 @@ export class ChainedSourceEngine implements PlaybackEngine {
         // A source that already ended is harmless.
       }
     }
-    this.resetRun(undefined);
+    this.resetRun(false);
     // A session flushes on every renderer stop, including one before any audio.
     if (this.state !== 'idle') this.setState('stopped');
   }
@@ -228,7 +229,7 @@ export class ChainedSourceEngine implements PlaybackEngine {
       }
     }
     this.active.clear();
-    this.resetRun(undefined);
+    this.resetRun(false);
     this.setState('stopped');
     this.master.disconnect();
     this.ownedClock?.dispose();
@@ -260,14 +261,14 @@ export class ChainedSourceEngine implements PlaybackEngine {
     return Math.min(this.sourceSeconds(endFrames), heard);
   }
 
-  private beginRun(runId: string): void {
-    this.resetRun(runId);
+  private beginRun(): void {
+    this.resetRun(true);
     this.capture?.reset();
     this.state = 'idle';
   }
 
-  private resetRun(runId: string | undefined): void {
-    this.runId = runId;
+  private resetRun(inRun: boolean): void {
+    this.inRun = inRun;
     this.format = undefined;
     this.queue = [];
     this.segment = undefined;

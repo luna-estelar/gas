@@ -1,7 +1,6 @@
 // Rule 2: Stop and Close silence queued audio and return without waiting on the
 // provider. Cleanup runs in the background with a time limit and never delays the
 // next Play.
-// Skipped until GAS 0.4 step 4 implements the session these describe.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CONNECTOR_CLEANUP_TIMEOUT_SECONDS } from '../../../src/renderer/constants.js';
 import { flushAsync } from '../../../../../test/support/deferred.js';
@@ -19,7 +18,7 @@ afterEach(() => {
 const closeTimeouts = (warnings: readonly { code: string }[]) =>
   warnings.filter((warning) => warning.code === 'connection-close-timeout');
 
-describe.skip('stopping', () => {
+describe('stopping', () => {
   it('returns from Stop while close() hangs', async () => {
     const h = await playing({ connector: { closeHangs: true } });
     await h.session.stop();

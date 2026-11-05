@@ -100,11 +100,14 @@ export async function harness(options: HarnessOptions = {}) {
   const source = options.source === undefined ? LOOPS : options.source;
   if (source !== null) await session.loadSource(source);
 
-  /** Moves the clock and lets the session's promises settle. */
+  /**
+   * Moves the clock and lets the session's promises settle. Provider calls run
+   * one at a time, so after a long jump several are queued; 50 rounds drains them.
+   */
   async function advanceTo(time: number): Promise<void> {
-    await flushAsync();
+    await flushAsync(50);
     clock.advanceTo(time);
-    await flushAsync();
+    await flushAsync(50);
   }
 
   return {

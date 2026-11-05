@@ -1,31 +1,27 @@
-// Allocate warning IDs and emit session events. The session filters stale runs
-// before forwarding renderer position and audio events.
+// Allocate warning IDs and emit session events. The renderer only reports the
+// current Play, so nothing from an old connection reaches here.
 
 import type {
   AppValueDroppedWarning,
-  LegacyAudioChunk,
+  AudioChunk,
   CommandWarning,
-  DiagnosticEvent,
-  LifecycleEvent,
+  GenerationPositionEvent,
   PlaybackWarning,
-  RendererPositionEvent,
-  RendererWarning,
-  LegacySessionState,
+  SessionState,
   SessionWarning,
   WarningEvent
 } from '../protocol/index.js';
 import type { GasOperationError } from './types.js';
 
-export type { DiagnosticEvent, LifecycleEvent } from '../protocol/index.js';
-
 export interface SessionEventMap {
-  readonly state: LegacySessionState;
-  readonly lifecycle: LifecycleEvent;
-  readonly position: RendererPositionEvent;
-  readonly audio: LegacyAudioChunk;
+  /** Every change to `SessionState`, once. */
+  readonly state: SessionState;
+  /** Where the model has generated up to. */
+  readonly generationPosition: GenerationPositionEvent;
+  readonly audio: AudioChunk;
   readonly warning: WarningEvent;
+  /** A provider failure after Play resolved. Every other failure is a rejection. */
   readonly error: GasOperationError;
-  readonly diagnostic: DiagnosticEvent;
 }
 
 export type SessionEvent = keyof SessionEventMap;
@@ -34,12 +30,10 @@ type Listener<T> = (payload: T) => void;
 export class EventHub {
   private readonly channels: { [K in SessionEvent]: Set<Listener<SessionEventMap[K]>> } = {
     state: new Set(),
-    lifecycle: new Set(),
-    position: new Set(),
+    generationPosition: new Set(),
     audio: new Set(),
     warning: new Set(),
-    error: new Set(),
-    diagnostic: new Set()
+    error: new Set()
   };
   private warningCounter = 0;
 
@@ -75,12 +69,11 @@ export class EventHub {
 
   // Renderer warning: same channel, its own id, event only (no result carries
   // it, since no command produced it).
-  warnRenderer(warning: RendererWarning): PlaybackWarning {
+  warnRenderer(warning: { readonly code: string; readonly message: string }): PlaybackWarning {
     const playbackWarning: PlaybackWarning = {
       warningId: this.nextWarningId(),
       code: warning.code,
-      message: warning.message,
-      ...(warning.runId !== undefined ? { runId: warning.runId } : {})
+      message: warning.message
     };
     this.emit('warning', playbackWarning);
     return playbackWarning;

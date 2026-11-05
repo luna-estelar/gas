@@ -1,12 +1,11 @@
 // `SessionState`: one `status`, `ended` saying how the last Play finished, and
 // one `state` event per change. Plus the `generationPosition` events.
-// Skipped until GAS 0.4 step 4 implements the session these describe.
 import { describe, expect, it } from 'vitest';
 import { ConnectorError } from '../../../src/protocol/index.js';
 import { flushAsync } from '../../../../../test/support/deferred.js';
 import { PLAYS_AT_ONCE, barTime, harness, playing } from './support/harness.js';
 
-describe.skip('session state', () => {
+describe('session state', () => {
   it('starts stopped, with nothing loaded and no ended', async () => {
     const h = await harness({ source: null });
     const state = h.session.getState();
@@ -112,14 +111,14 @@ describe.skip('session state', () => {
 
   it('reports where the model has generated to, with no run id', async () => {
     const h = await playing();
-    h.connector.latest().pushAudio(4);
-    await h.advanceTo(barTime(3));
+    h.connector.latest().pushAudio(barTime(5));
+    // LOOPS has no boundary inside its four bars, so the next position is the loop.
+    await h.advanceTo(barTime(5));
 
-    expect(h.positions.length).toBeGreaterThan(1);
-    for (const position of h.positions) {
-      expect(Object.keys(position).sort()).toEqual(['loopIteration', 'position', 'seconds']);
-    }
-    expect(h.positions[0]).toEqual({ position: { bar: 1 }, seconds: 0, loopIteration: 1 });
+    expect(h.positions).toEqual([
+      { position: { bar: 1 }, seconds: 0, loopIteration: 1 },
+      { position: { bar: 1 }, seconds: barTime(5), loopIteration: 2 }
+    ]);
   });
 
   it('emits no generation position from an old connection', async () => {

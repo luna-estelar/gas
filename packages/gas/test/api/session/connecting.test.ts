@@ -1,12 +1,11 @@
 // Rule 1: each Play has its own connection. GAS ignores an old connection and
 // closes one that arrives after Play was cancelled.
-// Skipped until GAS 0.4 step 4 implements the session these describe.
 import { describe, expect, it } from 'vitest';
 import { ConnectorError } from '../../../src/protocol/index.js';
 import { flushAsync } from '../../../../../test/support/deferred.js';
 import { harness, playing, rejectionOf } from './support/harness.js';
 
-describe.skip('connecting', () => {
+describe('connecting', () => {
   it('opens a new connection for each Play', async () => {
     const h = await harness();
     await h.session.play();

@@ -3,7 +3,6 @@
 import { describe, expect, it } from 'vitest';
 import { compileSource, type Timeline } from '../packages/gas/src/language/index.js';
 import { createSession, GasOperationError } from '../packages/gas/src/api/index.js';
-import { createRenderer } from '../packages/gas/src/renderer/index.js';
 import {
   applyCommand,
   applyLoopBoundary,
@@ -13,7 +12,7 @@ import {
   sectionInstanceAt,
   type EffectiveState
 } from '../packages/gas/src/core/index.js';
-import { FakeConnector } from './support/fake-connector.js';
+import { FakeConnector } from './support/fake-connection.js';
 import { VirtualClock } from './support/virtual-clock.js';
 import { readExample } from '../examples/support.js';
 
@@ -50,15 +49,12 @@ function trackOf(snapshot: EffectiveState, trackId: string) {
 // The API path runs through a real session and Renderer rather than a copy of
 // the API's command mapping: a copy once declared live tracks as `pad` while the
 // API declares `track.pad`, and the test passed while asserting behaviour the
-// API did not have. Capability warnings come from the connector's `describe()`,
+// API did not have. Capability warnings come from the connector's description,
 // whose table marks notes and motif unsupported.
 async function apiSession(timeline: Timeline) {
   const clock = new VirtualClock();
-  // Musical time starts with the first chunk, so a run needs audio to begin.
-  const connector = new FakeConnector({ anchorOnStart: true });
-  const session = await createSession({
-    createRenderer: () => createRenderer({ clock, connector })
-  });
+  const connector = new FakeConnector();
+  const session = await createSession({ connector, clock });
   await session.loadTimeline(timeline);
   return { connector, session };
 }
@@ -67,6 +63,8 @@ describe('consumer: the GAS API command path', () => {
   it('parses live statements, maps them onto canonical commands, and applies them', async () => {
     const { connector, session } = await apiSession(corpusTimeline('spec-example')); // authored guitar / drums / keys
     await session.play();
+    // A track plays at bar 1, so musical time starts with the first audio.
+    connector.latest().pushAudio(2);
 
     const result = await session.submitLiveCommands(
       ['track pad "warm background"', 'pad.play', 'guitar.flavor "brighter"', 'tempo 120'].join(
@@ -85,7 +83,7 @@ describe('consumer: the GAS API command path', () => {
     });
 
     // The Renderer forwarded the derived state, which reflects every command.
-    const forwarded = connector.updates.at(-1)?.update.state;
+    const forwarded = connector.latest().updates.at(-1)?.update.state;
     expect(forwarded).toBeDefined();
     expect(forwarded!.globals.tempo).toBe(120);
     expect(trackOf(forwarded!, 'track.pad').active).toBe(true);
@@ -107,9 +105,9 @@ describe('consumer: the GAS API command path', () => {
     });
 
     // Kept rather than dropped: the run starts with it.
-    expect(connector.prepared).toEqual([]);
+    expect(connector.connects).toEqual([]);
     await session.play();
-    expect(trackOf(connector.prepared[0]!.state, 'track.guitar').motif).toBeDefined();
+    expect(trackOf(connector.connects[0]!.state, 'track.guitar').motif).toBeDefined();
     await session.close();
   });
 

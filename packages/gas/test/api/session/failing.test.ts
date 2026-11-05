@@ -1,6 +1,5 @@
 // Rule 3: a failure during playback ends that connection only. One `error`, the
 // session stopped with `ended: 'failed'`, and Play works again.
-// Skipped until GAS 0.4 step 4 implements the session these describe.
 import { describe, expect, it } from 'vitest';
 import { ConnectorError } from '../../../src/protocol/index.js';
 import { MAX_FIRST_AUDIO_TIMEOUT_SECONDS } from '../../../src/renderer/constants.js';
@@ -15,7 +14,7 @@ const dropped = () =>
     closeCode: 1006
   });
 
-describe.skip('failing', () => {
+describe('failing', () => {
   it('emits one error and stops', async () => {
     const h = await playing();
     h.connector.latest().fail(dropped());

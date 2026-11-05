@@ -56,15 +56,15 @@ npm install @luna-estelar/gas-lyria-rt
 ```
 
 ```ts
-import { createRenderer, createSession, sourceText } from '@luna-estelar/gas';
+import { createSession, sourceText } from '@luna-estelar/gas';
 import { compileSource } from '@luna-estelar/gas/language';
 import { createLyriaRtConnector } from '@luna-estelar/gas-lyria-rt';
 ```
 
-| Package                                                       | What it is                                                 |
-| ------------------------------------------------------------- | ---------------------------------------------------------- |
-| [`@luna-estelar/gas`](./packages/gas/README.md)               | The language, sessions, renderer, browser playback and CLI |
-| [`@luna-estelar/gas-lyria-rt`](./packages/lyria-rt/README.md) | The Lyria RealTime connector                               |
+| Package                                                       | What it is                                       |
+| ------------------------------------------------------------- | ------------------------------------------------ |
+| [`@luna-estelar/gas`](./packages/gas/README.md)               | The language, sessions, browser playback and CLI |
+| [`@luna-estelar/gas-lyria-rt`](./packages/lyria-rt/README.md) | The Lyria RealTime connector                     |
 
 ## How it works
 
