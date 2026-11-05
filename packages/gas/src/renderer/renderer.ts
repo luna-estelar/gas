@@ -48,12 +48,13 @@ import {
   BUFFER_WARNING_SECONDS,
   CONNECTION_CLOSE_TIMEOUT_SECONDS,
   DEFAULT_FIRST_AUDIO_CHUNKS,
+  DEFAULT_STARTUP_DELAY_SECONDS,
   FADE_OUT_SECONDS,
   LOOKAHEAD_CHUNKS,
   MAX_FIRST_AUDIO_TIMEOUT_SECONDS,
   MAX_LOOKAHEAD_SECONDS,
-  MIN_FIRST_AUDIO_TIMEOUT_SECONDS,
-  RESUME_LEAD_SECONDS
+  MAX_STARTUP_DELAY_SECONDS,
+  MIN_FIRST_AUDIO_TIMEOUT_SECONDS
 } from './constants.js';
 import {
   applyMergePatch,
@@ -150,6 +151,11 @@ interface Run {
   entryTime: number | undefined;
   /** The model was resumed for the entry, so its audio is for the track coming in. */
   resumedForEntry: boolean;
+  /**
+   * The clock time of an authored entry whose update went out with the resume,
+   * so its boundary doesn't send it again.
+   */
+  entryUpdateSent: number | undefined;
   readonly pauseReasons: Set<PauseReason>;
   paused: boolean;
   /** Set once, by Stop, Close, a failure or the end of the piece. Everything checks it. */
@@ -309,6 +315,7 @@ class RendererImpl implements Renderer {
       silentFrom: undefined,
       entryTime: undefined,
       resumedForEntry: false,
+      entryUpdateSent: undefined,
       pauseReasons: new Set(),
       paused: false,
       ended: false,
@@ -716,6 +723,13 @@ class RendererImpl implements Renderer {
           );
         }
         this.reconcileRest(loaded, run, state, positionToTime(loaded.tempoMap, position));
+        if (
+          run.entryUpdateSent !== undefined &&
+          Math.abs(run.entryUpdateSent - boundaryTime) < EPSILON
+        ) {
+          run.entryUpdateSent = undefined;
+          return;
+        }
         const update = this.buildConnectorUpdate(state);
         this.enqueue(run, async () => {
           await this.requireConnection(run).update(update, position);
@@ -1089,7 +1103,10 @@ class RendererImpl implements Renderer {
       return timeToPosition(loaded.tempoMap, restTime);
     }
     if (!plays || run.entryTime !== undefined) return undefined;
-    const earliest = Math.max(this.options.clock.now() + RESUME_LEAD_SECONDS, run.deliveredEnd);
+    const earliest = Math.max(
+      this.options.clock.now() + this.resumeLeadSeconds(),
+      run.deliveredEnd
+    );
     let bar = Math.max(1, Math.floor(timeToBarFraction(loaded.tempoMap, earliest)));
     while (barToTime(loaded.tempoMap, bar) < earliest - EPSILON) bar += 1;
     this.planEntry(run, barToTime(loaded.tempoMap, bar));
@@ -1106,21 +1123,35 @@ class RendererImpl implements Renderer {
     run.silentFrom = time;
     run.entryTime = undefined;
     run.resumedForEntry = false;
+    run.entryUpdateSent = undefined;
     this.dropHeldFrom(run, time, (held) => !held.silent);
     run.audioCursor = Math.min(run.audioCursor, time);
-    this.schedule(run, time, () => this.setPauseReason(run, 'rest', true), run.restTimers);
     const entry = this.nextEntry(loaded, run, time);
-    if (entry !== undefined) this.planEntry(run, entry);
+    // A rest too short to pause in keeps the model going: it would resume
+    // almost at once, which saves nothing and risks a late entry. Its audio is
+    // dropped until the resume time all the same.
+    const minimumPause =
+      this.resumeLeadSeconds() + this.connector.description.model.chunkDurationSeconds;
+    if (entry === undefined || entry.time - time > minimumPause) {
+      this.schedule(run, time, () => this.setPauseReason(run, 'rest', true), run.restTimers);
+    }
+    if (entry !== undefined) this.planEntry(run, entry.time, { loaded, position: entry.position });
     this.fillSilence(run);
     this.releaseBacklog(run);
   }
 
   /** The first authored boundary after `time` where a track plays. */
-  private nextEntry(loaded: LoadedDocument, run: Run, time: number): number | undefined {
+  private nextEntry(
+    loaded: LoadedDocument,
+    run: Run,
+    time: number
+  ): { time: number; position: MusicalPosition } | undefined {
     for (const position of loaded.schedule) {
       const boundaryTime = positionToTime(loaded.tempoMap, position);
       if (boundaryTime <= time + EPSILON) continue;
-      if (tracksPlay(this.deriveAt(loaded, position, run.loopIteration))) return boundaryTime;
+      if (tracksPlay(this.deriveAt(loaded, position, run.loopIteration))) {
+        return { time: boundaryTime, position };
+      }
     }
     return undefined;
   }
@@ -1128,16 +1159,35 @@ class RendererImpl implements Renderer {
   /**
    * A track comes in at `entry`. Silence runs up to it exactly, the model
    * resumes one lead before it, and from `entry` the track must get audio.
+   * For an authored entry the resume also sends the entry's update, which its
+   * boundary would send only one lookahead before: a model can't start on
+   * what it hasn't been told, so waiting would make the track late by the
+   * model's start-up delay. An app's entry has sent its update already.
    */
-  private planEntry(run: Run, entry: number): void {
+  private planEntry(
+    run: Run,
+    entry: number,
+    authored?: { loaded: LoadedDocument; position: MusicalPosition }
+  ): void {
     run.entryTime = entry;
     this.dropHeldFrom(run, entry, (held) => held.silent);
     run.audioCursor = Math.min(run.audioCursor, entry);
     this.schedule(
       run,
-      Math.max(run.silentFrom ?? entry, entry - RESUME_LEAD_SECONDS),
+      Math.max(run.silentFrom ?? entry, entry - this.resumeLeadSeconds()),
       () => {
         run.resumedForEntry = true;
+        const boundaryPending =
+          entry - this.lookaheadSeconds() > this.options.clock.now() + EPSILON;
+        if (authored !== undefined && boundaryPending) {
+          const update = this.buildConnectorUpdate(
+            this.deriveAt(authored.loaded, authored.position, run.loopIteration)
+          );
+          run.entryUpdateSent = entry;
+          this.enqueue(run, async () => {
+            await this.requireConnection(run).update(update, authored.position);
+          });
+        }
         this.setPauseReason(run, 'rest', false);
       },
       run.restTimers
@@ -1473,6 +1523,20 @@ class RendererImpl implements Renderer {
         message: `${intent} notation for track "${trackId}" could not be converted.`
       });
     }
+  }
+
+  /**
+   * How long before an entry the model resumes: one lookahead, because the
+   * entry's audio is handed to the player that early, plus the model's
+   * start-up delay (rule 4).
+   */
+  private resumeLeadSeconds(): number {
+    const reported = this.connector.description.model.startupDelaySeconds;
+    const delay =
+      typeof reported === 'number' && Number.isFinite(reported)
+        ? Math.min(Math.max(reported, 0), MAX_STARTUP_DELAY_SECONDS)
+        : DEFAULT_STARTUP_DELAY_SECONDS;
+    return this.lookaheadSeconds() + delay;
   }
 
   private lookaheadSeconds(): number {

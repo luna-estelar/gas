@@ -141,7 +141,9 @@ describe('Lyria RealTime connector description and options', () => {
       sampleFormat: 's16le',
       sampleRate: 48_000,
       channels: 2,
-      chunkDurationSeconds: 2
+      chunkDurationSeconds: 2,
+      // Measured in manual/startup.mjs: p95 1.0 s, max 1.17 s.
+      startupDelaySeconds: 1.2
     });
     expect(description.capabilities.intents).toEqual({
       flavor: 'supported',

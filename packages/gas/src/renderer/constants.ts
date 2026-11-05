@@ -18,12 +18,16 @@ export const MAX_FIRST_AUDIO_TIMEOUT_SECONDS = 15;
 export const CONNECTION_CLOSE_TIMEOUT_SECONDS = 5;
 
 /**
- * How long before a track comes in after a rest GAS resumes the model, so its
- * start-up delay doesn't make the track late. A placeholder until the start-up
- * delay is measured. It is at least one lookahead, because silence already handed to
- * the player can't be taken back, so an entry can't be closer than that.
+ * The start-up delay GAS assumes for a model that doesn't report
+ * `startupDelaySeconds`. GAS resumes the model this much plus one lookahead
+ * before a track comes in after a rest: audio for the entry has to arrive a
+ * lookahead early to be handed to the player in time. See
+ * plans/gas-0.4/gas-0.4-startup-delay.md for the measurements.
  */
-export const RESUME_LEAD_SECONDS = 2;
+export const DEFAULT_STARTUP_DELAY_SECONDS = 2;
+
+/** The most a model's reported start-up delay may add to the resume lead. */
+export const MAX_STARTUP_DELAY_SECONDS = 10;
 
 /** The fade at a cut, where model audio runs into a rest, so the cut doesn't click. */
 export const FADE_OUT_SECONDS = 0.01;

@@ -112,6 +112,9 @@ runs the endpoint.
 
 Unsupported intents still compile and stay in session state, and GAS warns about them.
 
+Lyria takes about a second to send audio after a pause, so the connector reports
+`startupDelaySeconds: 1.2`, and GAS allows for it when a track comes in after a rest.
+
 Checks against the real service are in the
 [manual guide](https://github.com/luna-estelar/gas/tree/main/packages/lyria-rt/manual).
 

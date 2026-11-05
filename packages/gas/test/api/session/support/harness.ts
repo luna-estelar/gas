@@ -15,8 +15,22 @@ import {
 } from '../../../../../../test/support/fake-connection.js';
 import { flushAsync } from '../../../../../../test/support/deferred.js';
 import { VirtualClock } from '../../../../../../test/support/virtual-clock.js';
+import { DEFAULT_STARTUP_DELAY_SECONDS } from '../../../../src/renderer/constants.js';
 
 const SECONDS_PER_BAR = 2;
+
+/**
+ * How long before an entry GAS resumes the model: one chunk of lookahead plus
+ * the start-up delay. The fake model reports none, so it gets the default.
+ */
+export function resumeLead(
+  chunkDurationSeconds = 2,
+  startupDelaySeconds = DEFAULT_STARTUP_DELAY_SECONDS
+): number {
+  return chunkDurationSeconds + startupDelaySeconds;
+}
+
+export const RESUME_LEAD_SECONDS = resumeLead();
 
 /** The clock time of `bar` when bar 1 started at `barOne`. */
 export function barTime(bar: number, barOne = 0): number {
@@ -50,6 +64,12 @@ export const OPENING_REST = document(12, '    bar 9:\n        pad.play\n');
 export const MIDDLE_REST = document(
   14,
   '    bar 1:\n        pad.play\n    bar 3:\n        pad.stop\n    bar 11:\n        pad.play\n'
+);
+
+/** Bars 1 to 2 play, bars 3 to 4 rest (4 s), bar 5 plays again. */
+export const SHORT_REST = document(
+  8,
+  '    bar 1:\n        pad.play\n    bar 3:\n        pad.stop\n    bar 5:\n        pad.play\n'
 );
 
 /** No track ever plays unless the app starts one. */

@@ -39,6 +39,12 @@ export interface ModelInfo extends AudioFormat {
   readonly modelId: string;
   readonly displayName: string;
   readonly chunkDurationSeconds: number;
+  /**
+   * Seconds from `resume()` to the first audio, at the 95th percentile. GAS
+   * resumes this much plus one chunk before a track comes in after a rest, so
+   * the track starts on its bar (rule 4). Leave it out for GAS's default.
+   */
+  readonly startupDelaySeconds?: number;
 }
 
 export type ConnectorConfig = JsonObject;

@@ -3,12 +3,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   BUFFER_HARD_LIMIT_SECONDS,
-  BUFFER_WARNING_SECONDS,
-  RESUME_LEAD_SECONDS
+  BUFFER_WARNING_SECONDS
 } from '../../../src/renderer/constants.js';
 import { flushAsync } from '../../../../../test/support/deferred.js';
 import { fakeDescription } from '../../../../../test/support/fake-connection.js';
-import { MIDDLE_REST, barTime, harness } from './support/harness.js';
+import { MIDDLE_REST, RESUME_LEAD_SECONDS, barTime, harness } from './support/harness.js';
 
 // The fake sends audio in chunks of this length. A chunk is released one chunk
 // before it is due, so right after bar 1 the first two go out at once and the

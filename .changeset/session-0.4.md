@@ -16,7 +16,8 @@ GAS owns the connection lifecycle, and the session is the only public object.
   every change. The events are `state`, `generationPosition`, `audio`, `warning` and `error`.
   `lifecycle`, `position` and `diagnostic` are gone, and no payload carries a `runId`.
 - While no track plays, GAS writes silence and musical time keeps going. It pauses the model
-  during a rest and resumes it just before the next track comes in.
+  during a rest and resumes it, with the next track's update, one chunk plus the model's start-up
+  delay before that track comes in. A rest too short to be worth it doesn't pause the model.
 - New session methods: `getCapabilities`, `getModelInfo`, `getConnectorConfig`,
   `updateConnectorConfig`, `getConfigSchema`, `getDocumentDefaults`, `updateDocumentDefaults` and
   `setConnector`.

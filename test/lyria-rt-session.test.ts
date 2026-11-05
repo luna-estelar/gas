@@ -3,12 +3,15 @@
 // the entry's prompts. Lyria must play from then on, not wait for the entry.
 import { describe, expect, it } from 'vitest';
 import { createSession, sourceText } from '../packages/gas/src/api/index.js';
-import { RESUME_LEAD_SECONDS } from '../packages/gas/src/renderer/constants.js';
-import { DEFAULT_LYRIA_RT_CONFIG } from '../packages/lyria-rt/src/index.js';
+import { DEFAULT_LYRIA_RT_CONFIG, LYRIA_RT_DESCRIPTION } from '../packages/lyria-rt/src/index.js';
 import { createLyriaRtConnectorWithDependencies } from '../packages/lyria-rt/src/connector.js';
 import { FakeLiveMusic } from '../packages/lyria-rt/test/support/fake-sdk.js';
 import { flushAsync } from './support/deferred.js';
 import { VirtualClock } from './support/virtual-clock.js';
+
+// One chunk of lookahead plus Lyria's reported start-up delay.
+const { chunkDurationSeconds, startupDelaySeconds } = LYRIA_RT_DESCRIPTION.model;
+const RESUME_LEAD_SECONDS = chunkDurationSeconds + startupDelaySeconds!;
 
 const SECONDS_PER_BAR = 2;
 const CHUNK_BYTES = 2 * 192_000;

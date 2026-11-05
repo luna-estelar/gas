@@ -15,3 +15,4 @@ socket.
 - New exports: `LYRIA_RT_DESCRIPTION` and `openLyriaRtSession`, for building your own connector.
 - `PromptTransition` loses `beginRun` and `endRun`, and gains `cancel()`.
 - The connector reads `quarterNoteTempo` instead of converting the tempo itself.
+- The description reports Lyria's measured `startupDelaySeconds`.

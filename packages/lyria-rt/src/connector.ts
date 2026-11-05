@@ -59,7 +59,8 @@ export const LYRIA_RT_DESCRIPTION: ConnectorDescription = deepFreeze({
     sampleFormat: 's16le',
     sampleRate: PCM_SAMPLE_RATE,
     channels: PCM_CHANNELS,
-    chunkDurationSeconds: 2
+    chunkDurationSeconds: 2,
+    startupDelaySeconds: 1.2
   },
   configSchema: LYRIA_RT_CONFIG_SCHEMA,
   defaultConfig: DEFAULT_LYRIA_RT_CONFIG

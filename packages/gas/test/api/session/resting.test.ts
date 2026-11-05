@@ -5,8 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type { AudioChunk } from '../../../src/protocol/index.js';
 import {
   MAX_FIRST_AUDIO_TIMEOUT_SECONDS,
-  MAX_LOOKAHEAD_SECONDS,
-  RESUME_LEAD_SECONDS
+  MAX_LOOKAHEAD_SECONDS
 } from '../../../src/renderer/constants.js';
 import { flushAsync } from '../../../../../test/support/deferred.js';
 import {
@@ -19,9 +18,12 @@ import {
   NO_PLAYS,
   OPENING_REST,
   PAD,
+  SHORT_REST,
   barTime,
   harness,
   isSilent,
+  RESUME_LEAD_SECONDS,
+  resumeLead,
   totalSeconds
 } from './support/harness.js';
 
@@ -89,6 +91,20 @@ describe('resting', () => {
       await h.advanceTo(barTime(9) - RESUME_LEAD_SECONDS - 0.01);
       expect(connection.flow).toEqual(['pause']);
       await h.advanceTo(barTime(9) - RESUME_LEAD_SECONDS);
+      expect(connection.flow).toEqual(['pause', 'resume']);
+    });
+
+    it('resumes earlier for a model that reports a longer start-up delay', async () => {
+      const model = { ...fakeDescription().model, startupDelaySeconds: 3 };
+      const h = await harness({ source: OPENING_REST, connector: { description: { model } } });
+      await h.session.play();
+      const connection = h.connector.latest();
+      const lead = resumeLead(2, 3);
+      expect(lead).toBeGreaterThan(RESUME_LEAD_SECONDS);
+
+      await h.advanceTo(barTime(9) - lead - 0.01);
+      expect(connection.flow).toEqual(['pause']);
+      await h.advanceTo(barTime(9) - lead);
       expect(connection.flow).toEqual(['pause', 'resume']);
     });
 
@@ -249,7 +265,8 @@ describe('resting', () => {
     // line at least one resume lead away. It starts on time and on a bar line.
     describe.each([
       { before: RESUME_LEAD_SECONDS + 0.01, label: 'a lead and a bit', late: false },
-      { before: RESUME_LEAD_SECONDS / 2, label: 'half a lead', late: true }
+      // Not a whole bar short, so the resume is still ahead of the request.
+      { before: RESUME_LEAD_SECONDS - 1.5, label: 'under a lead', late: true }
     ])('when the app starts a track $label before bar 5', ({ before, late }) => {
       const now = barTime(5) - before;
       let entry = 1;
@@ -278,6 +295,47 @@ describe('resting', () => {
         await h.advanceTo(barTime(entry + 1));
         expect(secondsBeforeModelAudio(h.audio)).toBeCloseTo(barTime(entry), 6);
       });
+    });
+  });
+
+  // The model can't start on what it hasn't been told, so the entry's update
+  // goes out with the resume, not one lookahead before the entry.
+  it('sends an authored entry update with the resume, once', async () => {
+    const h = await harness({ source: OPENING_REST });
+    await h.session.play();
+    await flushAsync();
+    const connection = h.connector.latest();
+    const toEntry = () => connection.updates.filter((u) => u.requested.bar === 9);
+
+    await h.advanceTo(barTime(9) - RESUME_LEAD_SECONDS - 0.01);
+    expect(toEntry()).toEqual([]);
+    await h.advanceTo(barTime(9) - RESUME_LEAD_SECONDS);
+    expect(connection.calls.slice(-2)).toEqual(['update', 'resume']);
+    expect(toEntry()).toHaveLength(1);
+
+    connection.pushAudio(2);
+    await h.advanceTo(barTime(10));
+    expect(toEntry()).toHaveLength(1);
+  });
+
+  // A rest no longer than one lead and one chunk isn't worth pausing for: the
+  // model would resume almost at once.
+  describe('a short rest', () => {
+    it('never pauses the model, and the next track still starts on its bar', async () => {
+      expect(barTime(5) - barTime(3)).toBeLessThanOrEqual(RESUME_LEAD_SECONDS + 2);
+      const h = await harness({ source: SHORT_REST });
+      await h.session.play();
+      const connection = h.connector.latest();
+      connection.pushAudio(barTime(3));
+      await h.advanceTo(barTime(5) - RESUME_LEAD_SECONDS);
+
+      connection.pushAudio(2);
+      await h.advanceTo(barTime(6));
+      expect(connection.flow).toEqual([]);
+      // Bars 1 and 2, silence through bars 3 and 4, then the track at bar 5.
+      const restStart = h.audio.findIndex(isSilent);
+      expect(totalSeconds(h.audio.slice(0, restStart))).toBeCloseTo(barTime(3), 6);
+      expect(secondsBeforeModelAudio(h.audio, restStart)).toBeCloseTo(barTime(5), 6);
     });
   });
 
