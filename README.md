@@ -61,10 +61,11 @@ import { compileSource } from '@luna-estelar/gas/language';
 import { createLyriaRtConnector } from '@luna-estelar/gas-lyria-rt';
 ```
 
-| Package                                                       | What it is                                       |
-| ------------------------------------------------------------- | ------------------------------------------------ |
-| [`@luna-estelar/gas`](./packages/gas/README.md)               | The language, sessions, browser playback and CLI |
-| [`@luna-estelar/gas-lyria-rt`](./packages/lyria-rt/README.md) | The Lyria RealTime connector                     |
+| Package                                                                   | What it is                                       |
+| ------------------------------------------------------------------------- | ------------------------------------------------ |
+| [`@luna-estelar/gas`](./packages/gas/README.md)                           | The language, sessions, browser playback and CLI |
+| [`@luna-estelar/gas-lyria-rt`](./packages/lyria-rt/README.md)             | The Lyria RealTime connector                     |
+| [`@luna-estelar/gas-connector-test`](./packages/connector-test/README.md) | Checks a connector against the contract          |
 
 ## How it works
 

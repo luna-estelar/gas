@@ -43,6 +43,8 @@ A connector implements the `Connector` interface from `@luna-estelar/gas/protoco
 - Report a failure as a `ConnectorError` with a `reason` and a stable `code`: throw it from
   `connect()`, or pass it to `onError` once the connection is open. Pass a closed connection's raw
   number as `closeCode`, and leave application codes (4000-4999) to the app.
+- Run [`@luna-estelar/gas-connector-test`](./packages/connector-test/README.md) in its tests.
+  `packages/lyria-rt/test/conformance.test.ts` is the reference.
 
 ## READMEs
 

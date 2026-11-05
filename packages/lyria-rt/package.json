@@ -52,7 +52,8 @@
     "@google/genai": "^2.23.0"
   },
   "devDependencies": {
-    "@luna-estelar/gas": "workspace:^"
+    "@luna-estelar/gas": "workspace:^",
+    "@luna-estelar/gas-connector-test": "workspace:^"
   },
   "peerDependencies": {
     "@luna-estelar/gas": ">=0.3.0 <1.0.0"

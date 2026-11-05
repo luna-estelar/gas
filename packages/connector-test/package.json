@@ -1,0 +1,55 @@
+{
+  "name": "@luna-estelar/gas-connector-test",
+  "version": "0.3.0",
+  "description": "Checks a GAS connector against the connector contract, in your own vitest suite.",
+  "keywords": [
+    "gas",
+    "connector",
+    "conformance",
+    "vitest",
+    "generative-music"
+  ],
+  "homepage": "https://gas.lunaestelar.com",
+  "bugs": {
+    "url": "https://github.com/luna-estelar/gas/issues"
+  },
+  "license": "MIT",
+  "author": "sathira10 (https://github.com/sathira10)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/luna-estelar/gas.git",
+    "directory": "packages/connector-test"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "main": "./out/index.js",
+  "module": "./out/index.js",
+  "types": "./out/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./out/index.d.ts",
+      "default": "./out/index.js"
+    }
+  },
+  "files": [
+    "out",
+    "src"
+  ],
+  "scripts": {
+    "clean": "tsc -b --clean"
+  },
+  "devDependencies": {
+    "@luna-estelar/gas": "workspace:^",
+    "vitest": "^5.0.2"
+  },
+  "peerDependencies": {
+    "@luna-estelar/gas": ">=0.3.0 <1.0.0",
+    "vitest": ">=5.0.0"
+  }
+}

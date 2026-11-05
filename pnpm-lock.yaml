@@ -228,6 +228,15 @@ importers:
         specifier: ^5.0.2
         version: 5.0.2(@types/node@22.20.4)(vite@6.4.3(@types/node@22.20.4)(yaml@2.9.1))
 
+  packages/connector-test:
+    devDependencies:
+      '@luna-estelar/gas':
+        specifier: workspace:^
+        version: link:../gas
+      vitest:
+        specifier: ^5.0.2
+        version: 5.0.2(@types/node@22.20.4)(vite@6.4.3(@types/node@22.20.4)(yaml@2.9.1))
+
   packages/gas:
     dependencies:
       ajv:
@@ -248,11 +257,14 @@ importers:
     dependencies:
       '@google/genai':
         specifier: ^2.23.0
-        version: 2.24.0
+        version: 2.24.0(supports-color@7.2.0)
     devDependencies:
       '@luna-estelar/gas':
         specifier: workspace:^
         version: link:../gas
+      '@luna-estelar/gas-connector-test':
+        specifier: workspace:^
+        version: link:../connector-test
 
 packages:
 
@@ -1671,9 +1683,9 @@ snapshots:
   '@esbuild/win32-x64@0.25.12':
     optional: true
 
-  '@google/genai@2.24.0':
+  '@google/genai@2.24.0(supports-color@7.2.0)':
     dependencies:
-      google-auth-library: 10.9.0
+      google-auth-library: 10.9.0(supports-color@7.2.0)
       p-retry: 4.6.2
       protobufjs: 7.6.5
       ws: 8.21.1
@@ -1942,9 +1954,11 @@ snapshots:
 
   dataloader@2.2.3: {}
 
-  debug@4.4.3:
+  debug@4.4.3(supports-color@7.2.0):
     dependencies:
       ms: 2.1.3
+    optionalDependencies:
+      supports-color: 7.2.0
 
   ecdsa-sig-formatter@1.0.11:
     dependencies:
@@ -2039,17 +2053,17 @@ snapshots:
   fsevents@2.3.3:
     optional: true
 
-  gaxios@7.2.0:
+  gaxios@7.2.0(supports-color@7.2.0):
     dependencies:
       extend: 3.0.2
-      https-proxy-agent: 7.0.6
+      https-proxy-agent: 7.0.6(supports-color@7.2.0)
       node-fetch: 3.3.2
     transitivePeerDependencies:
       - supports-color
 
-  gcp-metadata@8.1.2:
+  gcp-metadata@8.1.2(supports-color@7.2.0):
     dependencies:
-      gaxios: 7.2.0
+      gaxios: 7.2.0(supports-color@7.2.0)
       google-logging-utils: 1.1.3
       json-bigint: 1.0.0
     transitivePeerDependencies:
@@ -2057,12 +2071,12 @@ snapshots:
 
   get-caller-file@2.0.5: {}
 
-  google-auth-library@10.9.0:
+  google-auth-library@10.9.0(supports-color@7.2.0):
     dependencies:
       base64-js: 1.5.1
       ecdsa-sig-formatter: 1.0.11
-      gaxios: 7.2.0
-      gcp-metadata: 8.1.2
+      gaxios: 7.2.0(supports-color@7.2.0)
+      gcp-metadata: 8.1.2(supports-color@7.2.0)
       google-logging-utils: 1.1.3
       jws: 4.0.1
     transitivePeerDependencies:
@@ -2076,10 +2090,10 @@ snapshots:
 
   highlight.js@10.7.3: {}
 
-  https-proxy-agent@7.0.6:
+  https-proxy-agent@7.0.6(supports-color@7.2.0):
     dependencies:
       agent-base: 7.1.4
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 

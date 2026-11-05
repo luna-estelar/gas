@@ -57,6 +57,11 @@ export class FakeConnection {
     return this.calls.some((call) => call.kind === 'close');
   }
 
+  /** The close event has fired, from either side. */
+  get closed(): boolean {
+    return this.readyState === 'closed';
+  }
+
   kinds(): string[] {
     return this.calls.map((call) => call.kind);
   }

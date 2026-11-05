@@ -72,21 +72,27 @@ function exportTargets(node: unknown, out: string[] = []): string[] {
 // its private flag is removed.
 const CONNECTORS = ['lyria-rt'];
 
+// Packages for connector authors, published with gas.
+const TOOLS = ['connector-test'];
+
 describe('packages', () => {
-  test('there are exactly gas and the connectors', () => {
-    expect(packages.map((pkg) => pkg.dir)).toEqual(['gas', ...CONNECTORS]);
+  test('there are exactly gas, the connectors and the tools', () => {
+    expect(packages.map((pkg) => pkg.dir).sort()).toEqual(['gas', ...CONNECTORS, ...TOOLS].sort());
   });
 
-  test('gas publishes, and each connector publishes once it is no longer private', () => {
+  test('gas and the tools publish, and each connector publishes once it is no longer private', () => {
     const publishable = packages
       .filter((pkg) => pkg.manifest.private !== true)
       .map((pkg) => pkg.manifest.name);
-    expect(publishable).toEqual([
-      '@luna-estelar/gas',
-      ...packages
-        .filter((pkg) => CONNECTORS.includes(pkg.dir) && pkg.manifest.private !== true)
-        .map((pkg) => pkg.manifest.name)
-    ]);
+    expect(publishable.sort()).toEqual(
+      [
+        '@luna-estelar/gas',
+        ...TOOLS.map((dir) => packages.find((pkg) => pkg.dir === dir)!.manifest.name),
+        ...packages
+          .filter((pkg) => CONNECTORS.includes(pkg.dir) && pkg.manifest.private !== true)
+          .map((pkg) => pkg.manifest.name)
+      ].sort()
+    );
   });
 
   test.each(packages)('$manifest.name carries its own LICENSE', ({ root }) => {
@@ -161,7 +167,7 @@ describe('packages', () => {
     expect(internal).toEqual([]);
   });
 
-  test.each(['@luna-estelar/gas-lyria-rt'])(
+  test.each(['@luna-estelar/gas-lyria-rt', '@luna-estelar/gas-connector-test'])(
     '%s peers on gas and develops against the workspace copy',
     (name) => {
       // A peer, not a dependency: an app with two copies of gas would have two

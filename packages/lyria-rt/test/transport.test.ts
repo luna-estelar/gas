@@ -583,37 +583,8 @@ describe('Lyria RealTime connector hooks', () => {
   });
 });
 
+// Cancelling, close and failure reporting in general are in conformance.test.ts.
 describe('Lyria RealTime connector connections and cancelling', () => {
-  it('rejects at once when the signal aborts while the SDK connect hangs, and closes a late session', async () => {
-    const { sdk, connect } = setup();
-    const { connecting, controller } = connect();
-    await flushAsync();
-    controller.abort();
-    await expect(connecting).rejects.toMatchObject({ code: 'lyria-rt-start-cancelled' });
-
-    sdk.last.open();
-    await flushAsync();
-    expect(sdk.last.released).toBe(true);
-  });
-
-  it('rejects before building a client when the signal has already aborted', async () => {
-    const { sdk, connector } = setup();
-    const controller = new AbortController();
-    controller.abort();
-    await expect(
-      connector.connect({
-        config: IMMEDIATE_CONFIG,
-        state: INITIAL_STATE,
-        timing: TIMING,
-        signal: controller.signal,
-        onAudio: () => undefined,
-        onWarning: () => undefined,
-        onError: () => undefined
-      })
-    ).rejects.toMatchObject({ code: 'lyria-rt-start-cancelled' });
-    expect(sdk.options).toEqual([]);
-  });
-
   it('rejects at once when the signal aborts during the first sends', async () => {
     const { sdk, beginConnect } = setup();
     const { connecting, controller } = await beginConnect();
@@ -629,42 +600,7 @@ describe('Lyria RealTime connector connections and cancelling', () => {
     expect(sdk.last.released).toBe(true);
   });
 
-  it('sends nothing to the SDK after close', async () => {
-    const { clock, sdk, completeConnect } = setup();
-    const connection = await completeConnect({ config: DEFAULT_LYRIA_RT_CONFIG });
-    const socket = sdk.last;
-    await connection.close();
-    const sent = socket.calls.length;
-
-    await connection.pause();
-    await connection.resume();
-    await expect(
-      connection.update({ state: { ...INITIAL_STATE, globals: { tempo: 150 } } }, { bar: 2 })
-    ).rejects.toMatchObject({ code: 'lyria-rt-connection-closed' });
-    clock.advanceBy(10);
-    await flushAsync();
-    expect(socket.calls.length).toBe(sent);
-  });
-
-  it('gives each connect its own connection; closing one leaves the other playing', async () => {
-    const { sdk, chunks, completeConnect } = setup();
-    const first = await completeConnect();
-    const firstSocket = sdk.last;
-    const second = await completeConnect();
-    const secondSocket = sdk.last;
-    expect(first).not.toBe(second);
-
-    await first.close();
-    firstSocket.audio([9, 9, 9, 9]);
-    secondSocket.audio([1, 2, 3, 4]);
-    expect(chunks.map((chunk) => [...chunk.bytes])).toEqual([[1, 2, 3, 4]]);
-
-    await second.pause();
-    expect(secondSocket.kinds().at(-1)).toBe('pause');
-    expect(secondSocket.released).toBe(false);
-  });
-
-  it('reports a failure after connect once, and a failed update only as its rejection', async () => {
+  it('reports a failed update only as its rejection', async () => {
     const { sdk, errors, completeConnect } = setup();
     const connection = await completeConnect();
     sdk.last.session.setWeightedPrompts = () => Promise.reject(new Error('socket gone'));
@@ -680,10 +616,6 @@ describe('Lyria RealTime connector connections and cancelling', () => {
       )
     ).rejects.toMatchObject({ code: 'lyria-rt-network-failure' });
     expect(errors).toEqual([]);
-
-    sdk.last.serverClose(1011);
-    sdk.last.serverClose(1011);
-    expect(errors).toHaveLength(1);
   });
 });
 
