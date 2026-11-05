@@ -14,12 +14,57 @@ export interface LiveTempoCommand extends GasNode {
   readonly bpm: number;
 }
 
+export interface LiveGlobalFlavor extends GasNode {
+  readonly kind: 'GlobalFlavor';
+  readonly value: string;
+}
+
+export interface LiveGlobalLevel extends GasNode {
+  readonly kind: 'GlobalLevel';
+  readonly value: number;
+}
+
+/** `tempo clear`, `flavor clear` or `level clear`. */
+export interface LiveGlobalClear extends GasNode {
+  readonly kind: 'ClearGlobal';
+  readonly slot: 'tempo' | 'flavor' | 'level';
+}
+
+/** `<track>.<slot> clear`. */
+export interface LiveTrackClear extends GasNode {
+  readonly kind: 'ClearTrack';
+  readonly trackName: string;
+  readonly slot: 'flavor' | 'timbre' | 'level' | 'notes' | 'motif';
+}
+
+/** `<track>.release`: the score decides when the track plays again. */
+export interface LiveTrackRelease extends GasNode {
+  readonly kind: 'Release';
+  readonly trackName: string;
+}
+
+/** `track <name> clear`: removes an app track. */
+export interface LiveTrackRemoval extends GasNode {
+  readonly kind: 'RemoveTrack';
+  readonly name: string;
+}
+
 /**
- * A single parsed live statement. Track declarations and `tempo` are live-only shapes;
- * everything else reuses the same TrackCommand union authored documents compile to, so
- * Core applies live and authored track commands through one code path.
+ * A single parsed live statement. Declarations, globals, clears and `release` are
+ * live-only shapes; the track commands reuse the same TrackCommand union authored
+ * documents compile to, so Core applies live and authored track commands through one
+ * code path.
  */
-export type LiveStatement = LiveTrackDeclaration | LiveTempoCommand | TrackCommand;
+export type LiveStatement =
+  | LiveTrackDeclaration
+  | LiveTrackRemoval
+  | LiveTempoCommand
+  | LiveGlobalFlavor
+  | LiveGlobalLevel
+  | LiveGlobalClear
+  | LiveTrackClear
+  | LiveTrackRelease
+  | TrackCommand;
 
 export interface LiveBuildResult {
   readonly statements: readonly LiveStatement[];
@@ -30,8 +75,8 @@ export interface LiveBuildResult {
  * Projects a structurally-valid Model onto the live command surface. Unlike buildDocument,
  * this never resolves track names against a namespace — Core resolves live statements
  * against the running session's tracks, which this parser cannot see — and it rejects
- * document-only constructs (sections, arrangement calls, non-tempo globals) instead of
- * lowering them.
+ * document-only constructs (sections, arrangement calls, key, time signature and length)
+ * instead of lowering them.
  */
 export function buildLiveCommands(model: ast.Model): LiveBuildResult {
   const diagnostics: GasDiagnostic[] = [];
@@ -46,6 +91,36 @@ export function buildLiveCommands(model: ast.Model): LiveBuildResult {
         name: element.name,
         description: unquoteString(element.description)
       });
+      continue;
+    }
+
+    if (ast.isTrackRemoval(element)) {
+      statements.push({ ...lowering.base(element), kind: 'RemoveTrack', name: element.name });
+      continue;
+    }
+
+    if (ast.isGlobalClear(element)) {
+      statements.push({ ...lowering.base(element), kind: 'ClearGlobal', slot: element.slot });
+      continue;
+    }
+
+    if (ast.isFlavorDeclaration(element)) {
+      statements.push({
+        ...lowering.base(element),
+        kind: 'GlobalFlavor',
+        value: unquoteString(element.value)
+      });
+      continue;
+    }
+
+    if (ast.isLevelDeclaration(element)) {
+      const level: LiveGlobalLevel = {
+        ...lowering.base(element),
+        kind: 'GlobalLevel',
+        value: element.value
+      };
+      if (!isValidLevel(level.value)) diagnostics.push(invalidLevel(level.value, level.range));
+      statements.push(level);
       continue;
     }
 
@@ -70,16 +145,20 @@ export function buildLiveCommands(model: ast.Model): LiveBuildResult {
     }
 
     if (ast.isTrackStatement(element)) {
+      const trackName = element.track.$refText;
+      if (ast.isClearCommand(element.command)) {
+        // A clear without its slot is a syntax error, so it never reaches here.
+        const slot = element.command.slot ?? 'flavor';
+        statements.push({ ...lowering.base(element), kind: 'ClearTrack', trackName, slot });
+        continue;
+      }
+      if (ast.isReleaseCommand(element.command)) {
+        statements.push({ ...lowering.base(element), kind: 'Release', trackName });
+        continue;
+      }
       const command = lowering.trackCommand(element);
       if (command.kind === 'Level' && !isValidLevel(command.value)) {
-        diagnostics.push(
-          semanticDiagnostic(
-            'invalid-level',
-            'error',
-            `Level must be between 0 and 1, got ${command.value}.`,
-            command.range
-          )
-        );
+        diagnostics.push(invalidLevel(command.value, command.range));
       }
       statements.push(command);
       continue;
@@ -133,6 +212,16 @@ function isValidLevel(value: number): boolean {
   return Number.isFinite(value) && value >= 0 && value <= 1;
 }
 
+function invalidLevel(value: number, range: GasNode['range']): GasDiagnostic {
+  return semanticDiagnostic(
+    'invalid-level',
+    'error',
+    `Level must be between 0 and 1, got ${value}.`,
+    range
+  );
+}
+
+// Flavor, level and tempo are handled above, so only document-only globals reach here.
 function globalKeyword(declaration: ast.GlobalDeclaration): string {
   if (ast.isKeyDeclaration(declaration)) {
     return 'key';
@@ -140,11 +229,5 @@ function globalKeyword(declaration: ast.GlobalDeclaration): string {
   if (ast.isTimeSignatureDeclaration(declaration)) {
     return 'time_signature';
   }
-  if (ast.isGlobalLengthDeclaration(declaration)) {
-    return 'length';
-  }
-  if (ast.isLevelDeclaration(declaration)) {
-    return 'level';
-  }
-  return 'flavor';
+  return 'length';
 }

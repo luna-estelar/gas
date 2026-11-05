@@ -4,7 +4,8 @@ entry Model:
     elements+=TopLevelElement*;
 
 TopLevelElement:
-    GlobalDeclaration | ReservedStatement | TrackDeclaration | TrackStatement | SectionDeclaration | SectionCall;
+    GlobalDeclaration | GlobalClear | ReservedStatement | TrackDeclaration | TrackRemoval | TrackStatement |
+    SectionDeclaration | SectionCall;
 
 GlobalDeclaration:
     TempoDeclaration | KeyDeclaration | TimeSignatureDeclaration | GlobalLengthDeclaration | FlavorDeclaration | LevelDeclaration;
@@ -40,11 +41,19 @@ LevelDeclaration:
 TrackDeclaration:
     'track' name=Name description=STRING;
 
+// Live only: removes an app track.
+TrackRemoval:
+    'track' name=Name 'clear';
+
+// Live only: hands a global value back to the score.
+GlobalClear:
+    slot=('tempo' | 'flavor' | 'level') 'clear';
+
 SectionDeclaration:
     'section' name=Name ':' INDENT items+=SectionItem+ DEDENT;
 
 SectionItem:
-    SectionLengthDeclaration | FlavorDeclaration | ReservedStatement | TrackStatement | BarBlock;
+    SectionLengthDeclaration | FlavorDeclaration | GlobalClear | ReservedStatement | TrackStatement | BarBlock;
 
 BarBlock:
     'bar' number=INT ':' INDENT commands+=BarCommand+ DEDENT;
@@ -59,7 +68,8 @@ TrackStatement:
     track=[TrackDeclaration:Name] '.' command=TrackCommand;
 
 TrackCommand:
-    PlayCommand | StopCommand | FlavorCommand | TimbreCommand | LevelCommand | NotesCommand | MotifCommand;
+    PlayCommand | StopCommand | ReleaseCommand | ClearCommand | FlavorCommand | TimbreCommand | LevelCommand |
+    NotesCommand | MotifCommand;
 
 ReservedStatement:
     ReservedGlobalStatement | ReservedTrackStatement;
@@ -99,6 +109,14 @@ PlayCommand:
 StopCommand:
     {infer StopCommand} 'stop';
 
+// Live only: hands the track's play state back to the score.
+ReleaseCommand:
+    {infer ReleaseCommand} 'release';
+
+// Live only: hands one of the track's values back to the score.
+ClearCommand:
+    {infer ClearCommand} slot=('flavor' | 'timbre' | 'level' | 'notes' | 'motif') 'clear';
+
 FlavorCommand:
     {infer FlavorCommand} 'flavor' value=STRING;
 
@@ -118,8 +136,8 @@ AldaValue:
     {infer AldaValue} raw=ALDA;
 
 Name returns string:
-    ID | 'bar' | 'bars' | 'effect' | 'extend' | 'flavor' | 'infinite' | 'key' | 'length' |
-    'level' | 'loop' | 'lyrics' | 'motif' | 'notes' | 'play' | 'prompt' | 'section' |
+    ID | 'bar' | 'bars' | 'clear' | 'effect' | 'extend' | 'flavor' | 'infinite' | 'key' | 'length' |
+    'level' | 'loop' | 'lyrics' | 'motif' | 'notes' | 'play' | 'prompt' | 'release' | 'section' |
     'stop' | 'tempo' | 'theme' | 'time_signature' | 'timbre' | 'track';
 
 LevelNumber returns number:

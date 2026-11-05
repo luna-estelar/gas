@@ -56,6 +56,14 @@ restarting the music, and stay in effect until you clear them:
 
 ```gas-live
 strings.flavor "intense, full bow pressure"
+strings.stop
+```
+
+`clear` hands a value back to the score, and `release` does the same for whether a track plays:
+
+```gas-live
+strings.flavor clear
+strings.release
 ```
 
 GAS decides what plays, when, and in what style. The model writes the notes, so two renders of the

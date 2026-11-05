@@ -14,7 +14,7 @@ import type {
   TimbreCommand,
   TrackCommand
 } from './ast.js';
-import { deferredDiagnostic, type GasDiagnostic } from './diagnostics.js';
+import { deferredDiagnostic, semanticDiagnostic, type GasDiagnostic } from './diagnostics.js';
 
 const fallbackRange: GasSourceRange = {
   start: { line: 0, character: 0 },
@@ -106,8 +106,12 @@ export class NodeLowering {
     };
   }
 
+  /** Lowers a document track command. Callers handle the live-only forms first. */
   trackCommand(statement: ast.TrackStatement): TrackCommand {
     const command = statement.command;
+    if (isLiveOnlyCommand(command)) {
+      throw new Error(`${command.$type} is live only and has no document form.`);
+    }
     const base = {
       ...this.base(statement),
       trackName: statement.track.$refText
@@ -187,5 +191,24 @@ export function reservedDiagnostic(statement: ast.ReservedStatement): GasDiagnos
     `reserved-${feature.replace('.', '-')}`,
     reservedMessage(feature),
     rangeOf(statement)
+  );
+}
+
+/** A track command that only live text accepts: a slot clear or `release`. */
+export function isLiveOnlyCommand(
+  command: ast.TrackCommand | undefined
+): command is ast.ClearCommand | ast.ReleaseCommand {
+  return ast.isClearCommand(command) || ast.isReleaseCommand(command);
+}
+
+/** The error for a live-only form written in a document. */
+export function liveOnlyDiagnostic(node: AstNode): GasDiagnostic {
+  const keyword =
+    ast.isTrackStatement(node) && ast.isReleaseCommand(node.command) ? 'release' : 'clear';
+  return semanticDiagnostic(
+    'clear-not-allowed',
+    'error',
+    `\`${keyword}\` only works in live commands.`,
+    rangeOf(node)
   );
 }

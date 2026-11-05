@@ -109,6 +109,53 @@ describe('live commands', () => {
     );
   });
 
+  it('clears track and global values, and the score takes over again', async () => {
+    const h = await playingLoaded();
+    await h.session.submitLiveCommands('drums.flavor "punchy"\nflavor "dusk"\ntempo 132');
+    expect(lastSent(h)?.globals).toMatchObject({
+      flavor: { kind: 'text', text: 'dusk' },
+      tempo: 132
+    });
+
+    const result = await h.session.submitLiveCommands(
+      'drums.flavor clear\nflavor clear\ntempo clear'
+    );
+    expect(result.applied).toBe(3);
+    expect(h.session.getState().appValues).toEqual([]);
+    const sent = lastSent(h);
+    expect(track(sent, 'track.drums')?.flavor).toBeUndefined();
+    expect(sent?.globals.flavor).toBeUndefined();
+    expect(sent?.globals.tempo).toBe(120);
+  });
+
+  it('releases a stopped track back to the score', async () => {
+    const h = await playingLoaded();
+    await h.session.submitLiveCommands('lead.stop');
+    expect(track(lastSent(h), 'track.lead')?.active).toBe(false);
+    await h.session.submitLiveCommands('lead.release');
+    expect(h.session.getState().appValues).toEqual([]);
+    expect(track(lastSent(h), 'track.lead')?.active).toBe(true);
+  });
+
+  it('removes an app track', async () => {
+    const h = await playingLoaded();
+    await h.session.submitLiveCommands('track echo "spacey"\necho.play');
+    await h.session.submitLiveCommands('track echo clear');
+    expect(h.session.getTracks().some((t) => t.id === 'track.echo')).toBe(false);
+    expect(h.session.getState().appValues).toEqual([]);
+    expect(track(lastSent(h), 'track.echo')).toBeUndefined();
+  });
+
+  it('refuses to remove a document track and changes nothing', async () => {
+    const h = await playingLoaded();
+    await expect(h.session.submitLiveCommands('track drums clear')).rejects.toMatchObject({
+      kind: 'command',
+      failure: { code: 'not-app-track' }
+    });
+    expect(h.session.getTracks().some((t) => t.id === 'track.drums')).toBe(true);
+    expect(h.connector.latest().updates).toHaveLength(0);
+  });
+
   it('rejects the whole submission on a structural error before any statement runs', async () => {
     const h = await playingLoaded();
     await expect(h.session.submitLiveCommands('chorus()')).rejects.toMatchObject({

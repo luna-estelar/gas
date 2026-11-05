@@ -17,6 +17,32 @@ describe('GAS editor highlighting', () => {
     }
   });
 
+  test('classifies clears and release like the set forms they undo', () => {
+    const source =
+      'lead.level clear\nlead.flavor clear\nflavor clear\nlead.release\ntrack lead clear';
+    const spans = highlightSource(source).tokens.map(
+      (token) => `${source.slice(token.from, token.to)}:${token.kind}`
+    );
+    expect(spans).toEqual([
+      'lead:track',
+      '.:punct',
+      'level:action',
+      'clear:action',
+      'lead:track',
+      '.:punct',
+      'flavor:builtin',
+      'clear:action',
+      'flavor:builtin',
+      'clear:action',
+      'lead:track',
+      '.:punct',
+      'release:action',
+      'track:keyword',
+      'lead:track',
+      'clear:action'
+    ]);
+  });
+
   test('finds track and section declarations and references', () => {
     const source = readExample('spec-example');
     const symbols = highlightSource(source).symbols;

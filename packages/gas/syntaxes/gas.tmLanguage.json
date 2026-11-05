@@ -10,7 +10,7 @@
     },
     {
       "name": "keyword.control.gas",
-      "match": "\\b(bar|bars|effect|extend|flavor|infinite|key|length|level|loop|lyrics|motif|notes|play|prompt|section|stop|tempo|theme|timbre|time_signature|track)\\b"
+      "match": "\\b(bar|bars|clear|effect|extend|flavor|infinite|key|length|level|loop|lyrics|motif|notes|play|prompt|release|section|stop|tempo|theme|timbre|time_signature|track)\\b"
     },
     {
       "name": "string.quoted.double.gas",
