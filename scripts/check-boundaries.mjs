@@ -43,7 +43,7 @@ const VERSION_UNIT = 'version';
 const FIXTURE_ALLOW = ['protocol'];
 
 // The renderer is the concrete runtime, internal to the session. Only the
-// session builds it. The api's tests may still read its constants.
+// session builds it. Tests may import it.
 const RUNTIME_MODULE = 'renderer';
 const RUNTIME_WIRING = ['api/session.ts'];
 

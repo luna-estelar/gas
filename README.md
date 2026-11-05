@@ -69,12 +69,12 @@ import { createLyriaRtConnector } from '@luna-estelar/gas-lyria-rt';
 ## How it works
 
 ```text
-document → compiler → timeline → session → renderer → connector → model
+document → compiler → timeline → session → connector → connection → model
 ```
 
 The compiler turns a document into a model-independent timeline. The session is what your
-application talks to: it loads the timeline, takes changes and controls playback. The renderer
-schedules requests against a clock, and a connector translates them for one model. Each connector
+application talks to: it loads the timeline, takes changes and controls playback. For each Play
+it opens a connection through a connector, which translates the session's updates for one model. Each connector
 lists what its model supports; see [Lyria RealTime](./packages/lyria-rt/README.md#what-lyria-realtime-supports).
 
 ## Status

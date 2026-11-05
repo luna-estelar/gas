@@ -3,7 +3,7 @@
 ---
 
 App values now sit above the score however and whenever they were set, and they last until the
-app clears them. Stop, completion and `retryRenderer()` keep them. A value set before Play sounds
+app clears them. Stop, completion and a failure keep them. A value set before Play sounds
 the same as one set during Play.
 
 `submitLiveCommands` applies a submission fully or not at all. A failing statement rejects, and

@@ -22,4 +22,11 @@ GAS owns the connection lifecycle, and the session is the only public object.
   `setConnector`.
 - The `Legacy*` connector types are removed. `createBrowserSession` takes a `Connector`, with no
   factory, `settings` or `renderer` option.
-- `diagnostics.schema.json` no longer defines `RendererWarning` or `RendererFailure`.
+- `diagnostics.schema.json` no longer defines `RendererWarning` or `RendererFailure`. The
+  `session`, `renderer` and `state` schemas are no longer published. The data schemas stay at 1.0.
+- `OverrideCommand` is `AppValueCommand`, and `Override` is `AppValue`. The schema def in
+  `commands.schema.json` is renamed to match.
+- `PlaybackWarning` is `PlayWarning`.
+- `submitLiveCommands` returns `SubmitLiveCommandsResult`, which is `CommandResult` plus
+  `applied`. `LiveCommandSuccess`, `LiveCommandResult` and its `ok` field are gone.
+- `ConnectorSettings` and `ConnectorAudioChunk.final` are removed.
