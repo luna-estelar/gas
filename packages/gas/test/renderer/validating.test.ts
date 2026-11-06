@@ -3,12 +3,11 @@ import type {
   ConnectorConfig,
   ConnectorConfigProblem,
   ConnectorConfigSchema,
-  ConnectorConfigValidation,
-  RendererWarning
+  ConnectorConfigValidation
 } from '../../src/protocol/index.js';
 import { describe, expect, it } from 'vitest';
-import { createRenderer, RendererError } from '../../src/renderer/index.js';
-import { FakeConnector } from '../../../../test/support/fake-connector.js';
+import { createRenderer, RendererError, type RendererWarning } from '../../src/renderer/index.js';
+import { FakeConnector } from '../../../../test/support/fake-connection.js';
 import { testTimeline } from '../../../../test/support/timeline.js';
 import { VirtualClock } from '../../../../test/support/virtual-clock.js';
 import { flushAsync } from '../../../../test/support/deferred.js';
@@ -28,6 +27,8 @@ const CONFIG_SCHEMA: ConnectorConfigSchema = {
     mode: { type: 'string' }
   }
 };
+
+const DEFAULT_CONFIG = { prompt: { weight: 0.5, tags: ['warm'] }, mode: 'ambient' };
 
 /**
  * A hand-written validator for the fixture schema above, the way a real connector
@@ -72,24 +73,36 @@ function validateFixture(config: ConnectorConfig): ConnectorConfigValidation {
   return problems.length === 0 ? { ok: true } : { ok: false, problems };
 }
 
-function configuredConnector(): FakeConnector {
-  return new FakeConnector({
-    description: {
-      configSchema: CONFIG_SCHEMA,
-      defaultConfig: { prompt: { weight: 0.5, tags: ['warm'] }, mode: 'ambient' }
-    },
-    validateConfig: validateFixture
+/** A connector with the fixture schema, recording every config it is asked to check. */
+function configuredConnector(defaultConfig: ConnectorConfig = DEFAULT_CONFIG): {
+  connector: FakeConnector;
+  validated: ConnectorConfig[];
+} {
+  const validated: ConnectorConfig[] = [];
+  const connector = new FakeConnector({
+    description: { configSchema: CONFIG_SCHEMA, defaultConfig },
+    validateConfig: (config) => {
+      validated.push(config);
+      return validateFixture(config);
+    }
   });
+  return { connector, validated };
+}
+
+function thrown(run: () => unknown): RendererError {
+  try {
+    run();
+  } catch (error) {
+    return error as RendererError;
+  }
+  throw new Error('Expected the call to throw.');
 }
 
 describe('renderer connector configuration validation', () => {
-  it('resolves the connector default configuration when no caller patch is supplied', async () => {
+  it('resolves the connector default configuration when no caller patch is supplied', () => {
     const defaultConfig = { prompt: { weight: 0.5, tags: ['warm'] }, mode: 'ambient' };
-    const connector = new FakeConnector({
-      description: { configSchema: CONFIG_SCHEMA, defaultConfig },
-      validateConfig: validateFixture
-    });
-    const renderer = await createRenderer({ clock: new VirtualClock(), connector });
+    const { connector } = configuredConnector(defaultConfig);
+    const renderer = createRenderer({ clock: new VirtualClock(), connector });
 
     // Mutating the connector's own default object must not leak into the resolved value.
     defaultConfig.prompt.weight = 9;
@@ -104,10 +117,10 @@ describe('renderer connector configuration validation', () => {
     );
   });
 
-  it('recursively overlays a caller patch onto the connector defaults', async () => {
-    const renderer = await createRenderer({
+  it('recursively overlays a caller patch onto the connector defaults', () => {
+    const renderer = createRenderer({
       clock: new VirtualClock(),
-      connector: configuredConnector(),
+      connector: configuredConnector().connector,
       connectorConfig: { prompt: { weight: 0.9 } }
     });
     expect(renderer.getConnectorConfig()).toEqual({
@@ -116,84 +129,91 @@ describe('renderer connector configuration validation', () => {
     });
   });
 
-  it('replaces arrays wholesale and deletes members addressed by null', async () => {
-    const renderer = await createRenderer({
+  it('replaces arrays wholesale and deletes members addressed by null', () => {
+    const renderer = createRenderer({
       clock: new VirtualClock(),
-      connector: configuredConnector(),
+      connector: configuredConnector().connector,
       connectorConfig: { prompt: { tags: ['cold'] }, mode: null }
     });
     expect(renderer.getConnectorConfig()).toEqual({ prompt: { weight: 0.5, tags: ['cold'] } });
   });
 
-  it('rejects an invalid caller configuration before opening the connector', async () => {
-    const connector = configuredConnector();
-    await expect(
-      createRenderer({
-        clock: new VirtualClock(),
-        connector,
-        connectorConfig: { prompt: { weight: 'loud' } } as ConnectorConfig
-      })
-    ).rejects.toMatchObject({ code: 'invalid-configuration' });
-    expect(connector.calls).toEqual(['describe']);
+  it('rejects an invalid caller configuration before connecting', () => {
+    const { connector } = configuredConnector();
+    expect(
+      thrown(() =>
+        createRenderer({
+          clock: new VirtualClock(),
+          connector,
+          connectorConfig: { prompt: { weight: 'loud' } } as ConnectorConfig
+        })
+      )
+    ).toMatchObject({ code: 'invalid-configuration' });
+    expect(connector.connects).toEqual([]);
   });
 
-  it('rejects connector defaults that violate their own schema, even when a patch would fix them', async () => {
+  it('rejects connector defaults that violate their own schema, even when a patch would fix them', () => {
     const brokenDefault = { prompt: { weight: 'loud' } } as ConnectorConfig;
 
-    const connector = new FakeConnector({
-      description: { configSchema: CONFIG_SCHEMA, defaultConfig: brokenDefault },
-      validateConfig: validateFixture
+    const { connector, validated } = configuredConnector(brokenDefault);
+    expect(thrown(() => createRenderer({ clock: new VirtualClock(), connector }))).toMatchObject({
+      code: 'invalid-configuration',
+      problems: [expect.objectContaining({ path: '/prompt/weight' })]
     });
-    await expect(createRenderer({ clock: new VirtualClock(), connector })).rejects.toMatchObject({
-      code: 'connector-unavailable',
-      failure: { retryable: false }
-    });
-    expect(connector.calls).toEqual(['describe']);
-    expect(connector.validated).toEqual([brokenDefault]);
+    expect(connector.connects).toEqual([]);
+    expect(validated).toEqual([brokenDefault]);
 
-    const masked = new FakeConnector({
-      description: { configSchema: CONFIG_SCHEMA, defaultConfig: brokenDefault },
-      validateConfig: validateFixture
-    });
-    await expect(
-      createRenderer({
-        clock: new VirtualClock(),
-        connector: masked,
-        connectorConfig: { prompt: { weight: 0.9 } }
-      })
-    ).rejects.toMatchObject({ code: 'connector-unavailable', failure: { retryable: false } });
-    expect(masked.calls).toEqual(['describe']);
+    const masked = configuredConnector(brokenDefault).connector;
+    expect(
+      thrown(() =>
+        createRenderer({
+          clock: new VirtualClock(),
+          connector: masked,
+          connectorConfig: { prompt: { weight: 0.9 } }
+        })
+      )
+    ).toMatchObject({ code: 'invalid-configuration' });
+    expect(masked.connects).toEqual([]);
   });
 
-  it('skips validation with one warning when the connector cannot check its own config', async () => {
+  it('skips validation when the connector cannot check its own config', () => {
     // `validateConfig` is optional because `Connector` is published, so an older
-    // connector must still work — loudly, and only once.
+    // connector must still work.
     const connector = new FakeConnector({
       description: { configSchema: CONFIG_SCHEMA, defaultConfig: { mode: 'ambient' } },
       validateConfig: null
     });
-    const renderer = await createRenderer({ clock: new VirtualClock(), connector });
-    const warnings: RendererWarning[] = [];
-    renderer.on('warning', (warning) => warnings.push(warning));
+    const renderer = createRenderer({ clock: new VirtualClock(), connector });
 
     // Nonsense the fixture schema forbids, accepted because nobody can check it.
     expect(
-      await renderer.updateConnectorConfig({ prompt: { weight: 'loud' } } as ConnectorConfig)
+      renderer.updateConnectorConfig({ prompt: { weight: 'loud' } } as ConnectorConfig)
     ).toEqual({ mode: 'ambient', prompt: { weight: 'loud' } });
-    await renderer.updateConnectorConfig({ mode: 'bright' });
+  });
+
+  it('warns once that the config went unchecked', () => {
+    const connector = new FakeConnector({
+      description: { configSchema: CONFIG_SCHEMA, defaultConfig: { mode: 'ambient' } },
+      validateConfig: null
+    });
+    const renderer = createRenderer({ clock: new VirtualClock(), connector });
+    const warnings: RendererWarning[] = [];
+    renderer.on('warning', (warning) => warnings.push(warning));
+
+    renderer.updateConnectorConfig({ prompt: { weight: 'loud' } } as ConnectorConfig);
+    renderer.updateConnectorConfig({ mode: 'bright' });
 
     expect(warnings).toEqual([
       { code: 'connector-config-unvalidated', message: expect.any(String) }
     ]);
   });
 
-  it("surfaces the connector's own problems unchanged", async () => {
-    const renderer = await createRenderer({
+  it("surfaces the connector's own problems unchanged", () => {
+    const renderer = createRenderer({
       clock: new VirtualClock(),
       connector: new FakeConnector({
         description: { configSchema: CONFIG_SCHEMA, defaultConfig: {} },
-        // Only the offending patch, not the empty defaults the renderer checks
-        // at init.
+        // Only the offending patch, not the empty defaults checked at creation.
         validateConfig: (config) =>
           (config as { prompt?: { weight?: unknown } }).prompt?.weight === undefined
             ? { ok: true }
@@ -203,60 +223,40 @@ describe('renderer connector configuration validation', () => {
               }
       })
     });
-    let caught: RendererError | undefined;
-    try {
-      await renderer.updateConnectorConfig({ prompt: { weight: 99 } });
-    } catch (error) {
-      caught = error as RendererError;
-    }
-    expect(caught?.code).toBe('invalid-configuration');
-    expect(caught?.problems).toEqual([
+    const caught = thrown(() => renderer.updateConnectorConfig({ prompt: { weight: 99 } }));
+    expect(caught.code).toBe('invalid-configuration');
+    expect(caught.problems).toEqual([
       { path: '/prompt/weight', code: 'out-of-range', message: 'Too loud.' }
     ]);
   });
 
-  it('rejects non-JSON connector defaults as a contract failure', async () => {
-    const connector = new FakeConnector({
-      description: {
-        configSchema: { type: 'object' },
-        defaultConfig: { when: () => 1 } as unknown as ConnectorConfig
-      },
-      validateConfig: validateFixture
+  it('rejects non-JSON connector defaults as an invalid contract', () => {
+    const { connector } = configuredConnector({ when: () => 1 } as unknown as ConnectorConfig);
+    expect(thrown(() => createRenderer({ clock: new VirtualClock(), connector }))).toMatchObject({
+      code: 'invalid-configuration'
     });
-    await expect(createRenderer({ clock: new VirtualClock(), connector })).rejects.toMatchObject({
-      code: 'connector-unavailable',
-      failure: { retryable: false }
-    });
-    expect(connector.calls).toEqual(['describe']);
+    expect(connector.connects).toEqual([]);
   });
 
-  it('rejects a non-JSON caller patch as invalid configuration', async () => {
-    const undefinedMember = new FakeConnector({
-      description: { configSchema: { type: 'object' }, defaultConfig: {} }
-    });
-    await expect(
-      createRenderer({
-        clock: new VirtualClock(),
-        connector: undefinedMember,
-        connectorConfig: { prompt: undefined } as unknown as ConnectorConfig
-      })
-    ).rejects.toMatchObject({ code: 'invalid-configuration' });
-    expect(undefinedMember.calls).toEqual(['describe']);
-
-    const dateMember = new FakeConnector({
-      description: { configSchema: { type: 'object' }, defaultConfig: {} }
-    });
-    await expect(
-      createRenderer({
-        clock: new VirtualClock(),
-        connector: dateMember,
-        connectorConfig: { at: new Date() } as unknown as ConnectorConfig
-      })
-    ).rejects.toMatchObject({ code: 'invalid-configuration' });
-    expect(dateMember.calls).toEqual(['describe']);
+  it('rejects a non-JSON caller patch as invalid configuration', () => {
+    for (const connectorConfig of [{ prompt: undefined }, { at: new Date() }]) {
+      const connector = new FakeConnector({
+        description: { configSchema: { type: 'object' }, defaultConfig: {} }
+      });
+      expect(
+        thrown(() =>
+          createRenderer({
+            clock: new VirtualClock(),
+            connector,
+            connectorConfig: connectorConfig as unknown as ConnectorConfig
+          })
+        )
+      ).toMatchObject({ code: 'invalid-configuration' });
+      expect(connector.connects).toEqual([]);
+    }
   });
 
-  it('runs every configuration path without generating code', async () => {
+  it('runs every configuration path without generating code', () => {
     // A browser Content Security Policy without 'unsafe-eval' blocks code
     // generation, so no config path may reach for one. Making `Function` throw
     // rather than counting it means a regression fails here instead of drifting.
@@ -271,79 +271,77 @@ describe('renderer connector configuration validation', () => {
     }) as typeof Function;
     try {
       // Paths one and two: the contract self-check and the caller's own patch.
-      const renderer = await createRenderer({
+      const renderer = createRenderer({
         clock: new VirtualClock(),
-        connector: configuredConnector(),
+        connector: configuredConnector().connector,
         connectorConfig: { prompt: { weight: 0.9 } }
       });
-      await renderer.load(timeline, createInputState(timeline));
+      renderer.load(timeline, createInputState(timeline));
       // Paths three and four: an accepted edit and a rejected one.
-      expect(await renderer.updateConnectorConfig({ mode: 'bright' })).toMatchObject({
+      expect(renderer.updateConnectorConfig({ mode: 'bright' })).toMatchObject({
         mode: 'bright'
       });
-      await expect(
-        renderer.updateConnectorConfig({ prompt: { weight: 'loud' } } as ConnectorConfig)
-      ).rejects.toMatchObject({ code: 'invalid-configuration' });
-      await renderer.close();
+      expect(
+        thrown(() =>
+          renderer.updateConnectorConfig({ prompt: { weight: 'loud' } } as ConnectorConfig)
+        )
+      ).toMatchObject({ code: 'invalid-configuration' });
+      renderer.close();
     } finally {
       globalThis.Function = realFunction;
     }
   });
 
-  it('validates a configuration update through the connector', async () => {
-    const connector = configuredConnector();
-    const renderer = await createRenderer({ clock: new VirtualClock(), connector });
+  it('validates a configuration update through the connector', () => {
+    const { connector, validated } = configuredConnector();
+    const renderer = createRenderer({ clock: new VirtualClock(), connector });
 
-    await expect(
-      renderer.updateConnectorConfig({ prompt: { weight: 'loud' } } as unknown as ConnectorConfig)
-    ).rejects.toMatchObject({ code: 'invalid-configuration' });
-    expect(await renderer.updateConnectorConfig({ mode: 'bright' })).toMatchObject({
-      mode: 'bright'
-    });
-    // The connector's own defaults are checked first, at init. After that the
-    // merged candidate is what it sees, never the bare patch.
-    expect(connector.validated).toEqual([
+    expect(
+      thrown(() =>
+        renderer.updateConnectorConfig({ prompt: { weight: 'loud' } } as unknown as ConnectorConfig)
+      )
+    ).toMatchObject({ code: 'invalid-configuration' });
+    expect(renderer.updateConnectorConfig({ mode: 'bright' })).toMatchObject({ mode: 'bright' });
+    // The connector's own defaults are checked first, at creation. After that
+    // the merged candidate is what it sees, never the bare patch.
+    expect(validated).toEqual([
       { prompt: { weight: 0.5, tags: ['warm'] }, mode: 'ambient' },
       { prompt: { weight: 'loud', tags: ['warm'] }, mode: 'ambient' },
       { prompt: { weight: 0.5, tags: ['warm'] }, mode: 'bright' }
     ]);
   });
 
-  it('accepts a valid stopped-state update and rejects an invalid one atomically', async () => {
-    const connector = configuredConnector();
-    const renderer = await createRenderer({ clock: new VirtualClock(), connector });
+  it('accepts a valid stopped-state update and rejects an invalid one atomically', () => {
+    const { connector } = configuredConnector();
+    const renderer = createRenderer({ clock: new VirtualClock(), connector });
 
-    const updated = await renderer.updateConnectorConfig({
-      prompt: { tags: ['bright'] },
-      mode: null
-    });
+    const updated = renderer.updateConnectorConfig({ prompt: { tags: ['bright'] }, mode: null });
     expect(updated).toEqual({ prompt: { weight: 0.5, tags: ['bright'] } });
     expect(Object.isFrozen(updated)).toBe(true);
     expect(Object.isFrozen(updated.prompt)).toBe(true);
 
     const before = renderer.getConnectorConfig();
-    await expect(
-      renderer.updateConnectorConfig({ prompt: { weight: 'loud' } } as ConnectorConfig)
-    ).rejects.toMatchObject({ code: 'invalid-configuration' });
+    expect(
+      thrown(() =>
+        renderer.updateConnectorConfig({ prompt: { weight: 'loud' } } as ConnectorConfig)
+      )
+    ).toMatchObject({ code: 'invalid-configuration' });
     expect(renderer.getConnectorConfig()).toBe(before);
-    expect(connector.calls).toEqual(['describe', 'open']);
+    expect(connector.connects).toEqual([]);
   });
 
-  it('reports problems as a path, a code and safe text, and leaks no value', async () => {
-    const renderer = await createRenderer({
+  it('reports problems as a path, a code and safe text, and leaks no value', () => {
+    const renderer = createRenderer({
       clock: new VirtualClock(),
-      connector: configuredConnector()
+      connector: configuredConnector().connector
     });
-    let caught: RendererError | undefined;
-    try {
-      await renderer.updateConnectorConfig({
+    const caught = thrown(() =>
+      renderer.updateConnectorConfig({
         prompt: { weight: 'do-not-leak-rejected-value' }
-      } as ConnectorConfig);
-    } catch (error) {
-      caught = error as RendererError;
-    }
-    expect(caught?.code).toBe('invalid-configuration');
-    const problems = caught?.problems as ReadonlyArray<Record<string, unknown>>;
+      } as ConnectorConfig)
+    );
+    expect(caught.code).toBe('invalid-configuration');
+    const problems = (caught.problems ?? []) as ReadonlyArray<object>;
     expect(problems.length).toBeGreaterThan(0);
     for (const problem of problems) {
       expect(Object.keys(problem).sort()).toEqual(['code', 'message', 'path']);
@@ -352,74 +350,59 @@ describe('renderer connector configuration validation', () => {
     expect(JSON.stringify(caught)).not.toContain('do-not-leak-rejected-value');
   });
 
-  it('rejects connector-config updates while the renderer is running', async () => {
-    const clock = new VirtualClock();
-    const connector = new FakeConnector({
-      description: {
-        configSchema: CONFIG_SCHEMA,
-        defaultConfig: { prompt: { weight: 0.5, tags: ['warm'] }, mode: 'ambient' }
-      },
-      validateConfig: validateFixture,
-      anchorOnStart: true
+  it('rejects connector-config updates while playing', async () => {
+    const renderer = createRenderer({
+      clock: new VirtualClock(),
+      connector: configuredConnector().connector
     });
-    const renderer = await createRenderer({ clock, connector, runIdFactory: () => 'run-1' });
     const timeline = testTimeline();
-    await renderer.load(timeline, createInputState(timeline));
-    await renderer.start();
-    await expect(renderer.updateConnectorConfig({ mode: 'live' })).rejects.toMatchObject({
-      code: 'renderer-state-conflict'
+    renderer.load(timeline, createInputState(timeline));
+    await renderer.play();
+    expect(thrown(() => renderer.updateConnectorConfig({ mode: 'live' }))).toMatchObject({
+      code: 'wrong-state'
     });
-    await renderer.stop();
+    renderer.stop();
   });
 
-  it('rejects connector-config updates while the renderer is holding', async () => {
+  it('rejects connector-config updates while holding', async () => {
     const clock = new VirtualClock();
-    const connector = new FakeConnector({
-      description: {
-        configSchema: CONFIG_SCHEMA,
-        defaultConfig: { prompt: { weight: 0.5, tags: ['warm'] }, mode: 'ambient' }
-      },
-      validateConfig: validateFixture,
-      anchorOnStart: true
-    });
-    const renderer = await createRenderer({ clock, connector, runIdFactory: () => 'run-1' });
+    const { connector } = configuredConnector();
+    const renderer = createRenderer({ clock, connector });
     const timeline = testTimeline({ playback: { mode: 'infinite' } });
-    await renderer.load(timeline, createInputState(timeline));
-    await renderer.start();
+    renderer.load(timeline, createInputState(timeline));
+    await renderer.play();
+    connector.latest().pushAudio(2);
     clock.advanceTo(8);
     await flushAsync();
-    await expect(renderer.updateConnectorConfig({ mode: 'live' })).rejects.toMatchObject({
-      code: 'renderer-state-conflict'
+    expect(thrown(() => renderer.updateConnectorConfig({ mode: 'live' }))).toMatchObject({
+      code: 'wrong-state'
     });
-    await renderer.stop();
+    renderer.stop();
   });
 
-  it('prepares the connector with the resolved configuration across updates', async () => {
-    const clock = new VirtualClock();
-    const connector = configuredConnector();
-    let sequence = 0;
-    const renderer = await createRenderer({
-      clock,
+  it('connects with the resolved configuration across updates', async () => {
+    const { connector } = configuredConnector();
+    const renderer = createRenderer({
+      clock: new VirtualClock(),
       connector,
-      connectorConfig: { prompt: { weight: 0.9 } },
-      runIdFactory: () => `run-${++sequence}`
+      connectorConfig: { prompt: { weight: 0.9 } }
     });
     const timeline = testTimeline();
-    await renderer.load(timeline, createInputState(timeline));
+    renderer.load(timeline, createInputState(timeline));
 
-    await renderer.start();
-    expect(connector.prepared[0]?.config).toEqual({
+    await renderer.play();
+    expect(connector.connects[0]?.config).toEqual({
       prompt: { weight: 0.9, tags: ['warm'] },
       mode: 'ambient'
     });
-    await renderer.stop();
+    renderer.stop();
 
-    await renderer.updateConnectorConfig({ mode: 'live' });
-    await renderer.start();
-    expect(connector.prepared[1]?.config).toEqual({
+    renderer.updateConnectorConfig({ mode: 'live' });
+    await renderer.play();
+    expect(connector.connects[1]?.config).toEqual({
       prompt: { weight: 0.9, tags: ['warm'] },
       mode: 'live'
     });
-    await renderer.stop();
+    renderer.stop();
   });
 });

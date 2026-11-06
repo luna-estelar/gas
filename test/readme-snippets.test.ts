@@ -105,6 +105,12 @@ function typecheckSnippets(items: readonly Snippet[]): Map<number, string> {
   paths['@luna-estelar/gas-lyria-rt'] = [
     path.join(repoRoot, 'packages', 'lyria-rt', 'out', 'index.d.ts')
   ];
+  paths['@luna-estelar/gas-magenta-rt2'] = [
+    path.join(repoRoot, 'packages', 'magenta-rt2', 'out', 'index.d.ts')
+  ];
+  paths['@luna-estelar/gas-connector-test'] = [
+    path.join(repoRoot, 'packages', 'connector-test', 'out', 'index.d.ts')
+  ];
 
   writeFileSync(path.join(scratch, 'package.json'), JSON.stringify({ type: 'module' }), 'utf8');
 
@@ -153,10 +159,9 @@ describe('README TypeScript snippets', () => {
     expect(tsFailures.get(-1) ?? '').toBe('');
   });
 
-  test.each(tsSnippets.map((snippet, index) => ({ ...snippet, index })))(
-    '$file — ```ts typechecks',
-    ({ index }) => {
-      expect(tsFailures.get(index) ?? '').toBe('');
-    }
-  );
+  const cases = tsSnippets.map((snippet, index) => ({ ...snippet, index }));
+
+  test.each(cases)('$file — ```ts typechecks', ({ index }) => {
+    expect(tsFailures.get(index) ?? '').toBe('');
+  });
 });

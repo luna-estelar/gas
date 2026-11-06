@@ -23,7 +23,7 @@ function compile(name: string) {
   return result.timeline;
 }
 
-describe('host compile and timeline over the example documents', () => {
+describe('app compile and timeline over the example documents', () => {
   it('derives musical time and timeline view models without mutating the timeline', () => {
     const timeline = compile('spec-example');
     expect(secondsPerBar(timeline)).toBeCloseTo(240 / 104);
@@ -104,6 +104,22 @@ describe('host compile and timeline over the example documents', () => {
       ['Play', 'pad'],
       ['Stop', 'pad'],
       ['Tempo', undefined]
+    ]);
+  });
+
+  it('labels clears, release and global statements', () => {
+    const preview = previewLiveCommands(
+      'pad.level clear\npad.release\ntrack pad clear\nflavor "dusk"\nlevel 0.5\ntempo clear'
+    );
+    expect(preview.status).toBe('valid');
+    if (preview.status !== 'valid') return;
+    expect(preview.statements).toEqual([
+      { label: 'pad.level clear', kind: 'ClearTrack', trackName: 'pad' },
+      { label: 'pad.release', kind: 'Release', trackName: 'pad' },
+      { label: 'remove track pad', kind: 'RemoveTrack', trackName: 'pad' },
+      { label: 'flavor', kind: 'GlobalFlavor', trackName: undefined },
+      { label: 'level 0.5', kind: 'GlobalLevel', trackName: undefined },
+      { label: 'tempo clear', kind: 'ClearGlobal', trackName: undefined }
     ]);
   });
 });

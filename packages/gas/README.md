@@ -56,27 +56,34 @@ restarting the music, and stay in effect until you clear them:
 
 ```gas-live
 strings.flavor "intense, full bow pressure"
+strings.stop
+```
+
+`clear` hands a value back to the score, and `release` does the same for whether a track plays:
+
+```gas-live
+strings.flavor clear
+strings.release
 ```
 
 GAS decides what plays, when, and in what style. The model writes the notes, so two renders of the
 same document sound different.
 
-To play a document in Node you need a connector, a clock and an API key. This uses the Lyria
-RealTime connector,
+To play a document in Node you need a connector and an API key. This uses the Lyria RealTime
+connector,
 [`@luna-estelar/gas-lyria-rt`](https://github.com/luna-estelar/gas/tree/main/packages/lyria-rt):
 
 ```ts
-import { createRenderer, createSession, sourceText } from '@luna-estelar/gas';
-import type { MonotonicClock } from '@luna-estelar/gas/protocol';
+import { createSession, sourceText } from '@luna-estelar/gas';
 import { createLyriaRtConnector } from '@luna-estelar/gas-lyria-rt';
 
-declare const clock: MonotonicClock;
 declare const apiKey: string;
 
-const session = await createSession({
-  createRenderer: () =>
-    createRenderer({ clock, connector: createLyriaRtConnector(), settings: { apiKey } })
+const session = await createSession({ connector: createLyriaRtConnector({ apiKey }) });
+session.on('audio', (chunk) => {
+  // PCM in the model's format: send chunk.bytes to your audio output.
 });
+session.on('error', (error) => console.error(error.kind, error.code));
 
 await session.loadSource(
   sourceText(`tempo 88
@@ -91,16 +98,17 @@ a()
 );
 await session.play();
 await session.submitLiveCommands(sourceText('piano.flavor "busier, left hand walking"'));
+console.log(session.getState().status); // 'playing'
 ```
 
-In a browser, `createBrowserSession` from `@luna-estelar/gas/browser` also sets up the renderer
-and Web Audio playback.
+In a browser, `createBrowserSession` from `@luna-estelar/gas/browser` also plays the audio through
+Web Audio.
 
 ## Exports
 
 | Import                                  | Contents                                                     |
 | --------------------------------------- | ------------------------------------------------------------ |
-| `@luna-estelar/gas`                     | Sessions, sources, errors, `createRenderer` and `version`    |
+| `@luna-estelar/gas`                     | Sessions, sources, errors and `version`                      |
 | `@luna-estelar/gas/language`            | Parser, compiler, live commands and editor helpers           |
 | `@luna-estelar/gas/browser`             | Browser session, Web Audio playback, capture, timeline views |
 | `@luna-estelar/gas/protocol`            | Shared types and `ConnectorError`, for writing a connector   |

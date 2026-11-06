@@ -29,6 +29,7 @@ export type GasKeywordNames =
     | ":"
     | "bar"
     | "bars"
+    | "clear"
     | "effect"
     | "extend"
     | "flavor"
@@ -42,6 +43,7 @@ export type GasKeywordNames =
     | "notes"
     | "play"
     | "prompt"
+    | "release"
     | "section"
     | "stop"
     | "tempo"
@@ -92,6 +94,21 @@ export const BarCommand = {
 
 export function isBarCommand(item: unknown): item is BarCommand {
     return reflection.isInstance(item, BarCommand.$type);
+}
+
+export interface ClearCommand extends langium.AstNode {
+    readonly $container: TrackStatement;
+    readonly $type: 'ClearCommand';
+    slot?: 'flavor' | 'level' | 'motif' | 'notes' | 'timbre';
+}
+
+export const ClearCommand = {
+    $type: 'ClearCommand',
+    slot: 'slot'
+} as const;
+
+export function isClearCommand(item: unknown): item is ClearCommand {
+    return reflection.isInstance(item, ClearCommand.$type);
 }
 
 export interface EffectReservedCommand extends langium.AstNode {
@@ -169,6 +186,21 @@ export const FlavorDeclaration = {
 
 export function isFlavorDeclaration(item: unknown): item is FlavorDeclaration {
     return reflection.isInstance(item, FlavorDeclaration.$type);
+}
+
+export interface GlobalClear extends langium.AstNode {
+    readonly $container: Model | SectionDeclaration;
+    readonly $type: 'GlobalClear';
+    slot: 'flavor' | 'level' | 'tempo';
+}
+
+export const GlobalClear = {
+    $type: 'GlobalClear',
+    slot: 'slot'
+} as const;
+
+export function isGlobalClear(item: unknown): item is GlobalClear {
+    return reflection.isInstance(item, GlobalClear.$type);
 }
 
 export type GlobalDeclaration = FlavorDeclaration | GlobalLengthDeclaration | KeyDeclaration | LevelDeclaration | TempoDeclaration | TimeSignatureDeclaration;
@@ -329,10 +361,10 @@ export function isMotifCommand(item: unknown): item is MotifCommand {
     return reflection.isInstance(item, MotifCommand.$type);
 }
 
-export type Name = 'bar' | 'bars' | 'effect' | 'extend' | 'flavor' | 'infinite' | 'key' | 'length' | 'level' | 'loop' | 'lyrics' | 'motif' | 'notes' | 'play' | 'prompt' | 'section' | 'stop' | 'tempo' | 'theme' | 'timbre' | 'time_signature' | 'track' | string;
+export type Name = 'bar' | 'bars' | 'clear' | 'effect' | 'extend' | 'flavor' | 'infinite' | 'key' | 'length' | 'level' | 'loop' | 'lyrics' | 'motif' | 'notes' | 'play' | 'prompt' | 'release' | 'section' | 'stop' | 'tempo' | 'theme' | 'timbre' | 'time_signature' | 'track' | string;
 
 export function isName(item: unknown): item is Name {
-    return item === 'bar' || item === 'bars' || item === 'effect' || item === 'extend' || item === 'flavor' || item === 'infinite' || item === 'key' || item === 'length' || item === 'level' || item === 'loop' || item === 'lyrics' || item === 'motif' || item === 'notes' || item === 'play' || item === 'prompt' || item === 'section' || item === 'stop' || item === 'tempo' || item === 'theme' || item === 'time_signature' || item === 'timbre' || item === 'track' || (typeof item === 'string' && (/[_a-zA-Z][\w_]*/.test(item)));
+    return item === 'bar' || item === 'bars' || item === 'clear' || item === 'effect' || item === 'extend' || item === 'flavor' || item === 'infinite' || item === 'key' || item === 'length' || item === 'level' || item === 'loop' || item === 'lyrics' || item === 'motif' || item === 'notes' || item === 'play' || item === 'prompt' || item === 'release' || item === 'section' || item === 'stop' || item === 'tempo' || item === 'theme' || item === 'time_signature' || item === 'timbre' || item === 'track' || (typeof item === 'string' && (/[_a-zA-Z][\w_]*/.test(item)));
 }
 
 export interface NotesCommand extends langium.AstNode {
@@ -376,6 +408,19 @@ export const PromptReservedCommand = {
 
 export function isPromptReservedCommand(item: unknown): item is PromptReservedCommand {
     return reflection.isInstance(item, PromptReservedCommand.$type);
+}
+
+export interface ReleaseCommand extends langium.AstNode {
+    readonly $container: TrackStatement;
+    readonly $type: 'ReleaseCommand';
+}
+
+export const ReleaseCommand = {
+    $type: 'ReleaseCommand'
+} as const;
+
+export function isReleaseCommand(item: unknown): item is ReleaseCommand {
+    return reflection.isInstance(item, ReleaseCommand.$type);
 }
 
 export type ReservedGlobalCommand = EffectReservedCommand | ExtendReservedCommand | LyricsReservedCommand | LyricsThemeReservedCommand | PromptReservedCommand;
@@ -472,7 +517,7 @@ export function isSectionDeclaration(item: unknown): item is SectionDeclaration 
     return reflection.isInstance(item, SectionDeclaration.$type);
 }
 
-export type SectionItem = BarBlock | FlavorDeclaration | ReservedStatement | SectionLengthDeclaration | TrackStatement;
+export type SectionItem = BarBlock | FlavorDeclaration | GlobalClear | ReservedStatement | SectionLengthDeclaration | TrackStatement;
 
 export const SectionItem = {
     $type: 'SectionItem'
@@ -578,7 +623,7 @@ export function isTimeSignatureDeclaration(item: unknown): item is TimeSignature
     return reflection.isInstance(item, TimeSignatureDeclaration.$type);
 }
 
-export type TopLevelElement = GlobalDeclaration | ReservedStatement | SectionCall | SectionDeclaration | TrackDeclaration | TrackStatement;
+export type TopLevelElement = GlobalClear | GlobalDeclaration | ReservedStatement | SectionCall | SectionDeclaration | TrackDeclaration | TrackRemoval | TrackStatement;
 
 export const TopLevelElement = {
     $type: 'TopLevelElement'
@@ -588,7 +633,7 @@ export function isTopLevelElement(item: unknown): item is TopLevelElement {
     return reflection.isInstance(item, TopLevelElement.$type);
 }
 
-export type TrackCommand = FlavorCommand | LevelCommand | MotifCommand | NotesCommand | PlayCommand | StopCommand | TimbreCommand;
+export type TrackCommand = ClearCommand | FlavorCommand | LevelCommand | MotifCommand | NotesCommand | PlayCommand | ReleaseCommand | StopCommand | TimbreCommand;
 
 export const TrackCommand = {
     $type: 'TrackCommand'
@@ -615,6 +660,21 @@ export function isTrackDeclaration(item: unknown): item is TrackDeclaration {
     return reflection.isInstance(item, TrackDeclaration.$type);
 }
 
+export interface TrackRemoval extends langium.AstNode {
+    readonly $container: Model;
+    readonly $type: 'TrackRemoval';
+    name: Name;
+}
+
+export const TrackRemoval = {
+    $type: 'TrackRemoval',
+    name: 'name'
+} as const;
+
+export function isTrackRemoval(item: unknown): item is TrackRemoval {
+    return reflection.isInstance(item, TrackRemoval.$type);
+}
+
 export interface TrackStatement extends langium.AstNode {
     readonly $container: BarBlock | Model | SectionDeclaration;
     readonly $type: 'TrackStatement';
@@ -636,11 +696,13 @@ export type GasAstType = {
     AldaValue: AldaValue
     BarBlock: BarBlock
     BarCommand: BarCommand
+    ClearCommand: ClearCommand
     EffectReservedCommand: EffectReservedCommand
     ExtendReservedCommand: ExtendReservedCommand
     FiniteLength: FiniteLength
     FlavorCommand: FlavorCommand
     FlavorDeclaration: FlavorDeclaration
+    GlobalClear: GlobalClear
     GlobalDeclaration: GlobalDeclaration
     GlobalLength: GlobalLength
     GlobalLengthDeclaration: GlobalLengthDeclaration
@@ -655,6 +717,7 @@ export type GasAstType = {
     NotesCommand: NotesCommand
     PlayCommand: PlayCommand
     PromptReservedCommand: PromptReservedCommand
+    ReleaseCommand: ReleaseCommand
     ReservedGlobalCommand: ReservedGlobalCommand
     ReservedGlobalStatement: ReservedGlobalStatement
     ReservedStatement: ReservedStatement
@@ -672,6 +735,7 @@ export type GasAstType = {
     TopLevelElement: TopLevelElement
     TrackCommand: TrackCommand
     TrackDeclaration: TrackDeclaration
+    TrackRemoval: TrackRemoval
     TrackStatement: TrackStatement
 }
 
@@ -704,6 +768,15 @@ export class GasAstReflection extends langium.AbstractAstReflection {
             properties: {
             },
             superTypes: []
+        },
+        ClearCommand: {
+            name: ClearCommand.$type,
+            properties: {
+                slot: {
+                    name: ClearCommand.slot
+                }
+            },
+            superTypes: [TrackCommand.$type]
         },
         EffectReservedCommand: {
             name: EffectReservedCommand.$type,
@@ -753,6 +826,15 @@ export class GasAstReflection extends langium.AbstractAstReflection {
                 }
             },
             superTypes: [GlobalDeclaration.$type, SectionItem.$type]
+        },
+        GlobalClear: {
+            name: GlobalClear.$type,
+            properties: {
+                slot: {
+                    name: GlobalClear.slot
+                }
+            },
+            superTypes: [SectionItem.$type, TopLevelElement.$type]
         },
         GlobalDeclaration: {
             name: GlobalDeclaration.$type,
@@ -868,6 +950,12 @@ export class GasAstReflection extends langium.AbstractAstReflection {
                 }
             },
             superTypes: [ReservedGlobalCommand.$type, ReservedTrackCommand.$type]
+        },
+        ReleaseCommand: {
+            name: ReleaseCommand.$type,
+            properties: {
+            },
+            superTypes: [TrackCommand.$type]
         },
         ReservedGlobalCommand: {
             name: ReservedGlobalCommand.$type,
@@ -1012,6 +1100,15 @@ export class GasAstReflection extends langium.AbstractAstReflection {
                 },
                 name: {
                     name: TrackDeclaration.name
+                }
+            },
+            superTypes: [TopLevelElement.$type]
+        },
+        TrackRemoval: {
+            name: TrackRemoval.$type,
+            properties: {
+                name: {
+                    name: TrackRemoval.name
                 }
             },
             superTypes: [TopLevelElement.$type]

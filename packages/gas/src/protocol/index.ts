@@ -1,8 +1,6 @@
-// Shared, transport-neutral payload schemas and types used across GAS. This
-// module depends on no other GAS module. The v1.0 JSON
-// schemas ship under `schemas/1.0/`; JSON-compatible value contracts have
-// matching schemas, while service interfaces and binary values remain
-// canonical TypeScript contracts.
+// Types shared across GAS. This module depends on no other GAS module. The JSON
+// values have matching schemas under `schemas/1.0/`. Interfaces and binary
+// values are defined only here.
 
 export type {
   ArrangementInstance,
@@ -43,6 +41,7 @@ export type {
 export type { CapabilitiesTable, IntentKeyword, IntentSupport } from './capabilities.js';
 
 export type {
+  AppValueDroppedWarning,
   CommandFailure,
   CommandFailureCode,
   CommandWarning,
@@ -55,16 +54,20 @@ export type {
 } from './diagnostics.js';
 
 export type {
+  AppValueCommand,
   ClearGlobalFlavorCommand,
   ClearGlobalLevelCommand,
   ClearTempoCommand,
   ClearTrackFlavorCommand,
   ClearTrackLevelCommand,
+  ClearTrackMotifCommand,
+  ClearTrackNotesCommand,
+  ClearTrackPlayCommand,
   ClearTrackTimbreCommand,
   Command,
   DefineTrackCommand,
-  OverrideCommand,
   PlayTrackCommand,
+  RemoveTrackCommand,
   SetGlobalFlavorCommand,
   SetGlobalLevelCommand,
   SetTempoCommand,
@@ -76,23 +79,23 @@ export type {
   StopTrackCommand
 } from './commands.js';
 
-export type { HostTrack, InputState, Override } from './input-state.js';
+export type { AppTrack, AppValue, InputState } from './input-state.js';
 export type { EffectiveGlobals, EffectiveState, EffectiveTrack } from './effective-state.js';
 
 export type {
   AppliedPosition,
+  AudiblePositionEvent,
   CommandResult,
   CompileResult,
-  DiagnosticEvent,
-  LifecycleEvent,
+  DocumentDefaults,
+  GenerationPositionEvent,
   LoadResult,
-  LiveCommandFailureResult,
-  LiveCommandResult,
-  LiveCommandSuccess,
-  PlaybackPhase,
-  PlaybackWarning,
+  PlayWarning,
+  SessionEnded,
   SessionState,
+  SessionStatus,
   SessionWarning,
+  SubmitLiveCommandsResult,
   TrackView,
   WarningEvent
 } from './session.js';
@@ -100,8 +103,9 @@ export type {
 export type {
   AudioChunk,
   AudioFormat,
-  AudioSink,
   ClockTimer,
+  Connection,
+  ConnectOptions,
   Connector,
   ConnectorAudioChunk,
   ConnectorConfig,
@@ -111,27 +115,16 @@ export type {
   ConnectorDescription,
   ConnectorFailureReason,
   ConnectorNotation,
-  ConnectorSettings,
-  ConnectorStreamStatus,
   ConnectorTiming,
   ConnectorUpdate,
+  ConnectorWarning,
   JsonObject,
   JsonPrimitive,
   JsonValue,
   ModelInfo,
   MonotonicClock,
-  PlaybackStatus,
-  Renderer,
-  RendererDefaults,
-  RendererEventMap,
-  RendererFailure,
-  RendererLifecycle,
-  RendererPositionEvent,
-  RendererStatusEvent,
-  RendererUpdateResult,
-  RendererWarning,
   SampleFormat
-} from './renderer.js';
+} from './connector.js';
 
 export type { ConnectorErrorOptions } from './errors.js';
 export { ConnectorError, isCloseCode } from './errors.js';

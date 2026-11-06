@@ -23,16 +23,24 @@ export type PromptTransitionOptions = {
   readonly transitionSteps: number;
 };
 
+/**
+ * Blends one connection's prompt changes. A transition lives as long as its
+ * connection: each connection makes its own.
+ */
 export interface PromptTransition {
-  /** Start a run; clears the last emitted mixture and the per-run failure flag. */
-  beginRun(runId: string): void;
-  /** End a run; cancels pending sends and clears the last emitted mixture. */
-  endRun(runId: string): void;
   /** Crossfade toward a target; resolves once the first send is dispatched. */
   update(target: readonly WeightedPrompt[]): Promise<void>;
   /** The last mixture handed to the sender. */
   lastEmitted(): readonly WeightedPrompt[];
+  /**
+   * Cancels pending sends for good. A later `update` rejects. The connection
+   * calls it when it closes or fails.
+   */
+  cancel(): void;
 }
+
+/** Makes the transition for one connection. `createPromptTransition` is the default. */
+export type LyriaRtTransitionFactory = (options: PromptTransitionOptions) => PromptTransition;
 
 interface TransitionStep {
   readonly atMs: number;
@@ -96,7 +104,7 @@ function toConnectorError(error: unknown): ConnectorError {
 export function createPromptTransition(options: PromptTransitionOptions): PromptTransition {
   const { clock, sender, onFailure, transitionDurationMs, transitionSteps } = options;
 
-  let runId: string | undefined;
+  let cancelled = false;
   let generation = 0;
   let failureReported = false;
   let lastEmittedPrompts: readonly WeightedPrompt[] = [];
@@ -129,34 +137,10 @@ export function createPromptTransition(options: PromptTransitionOptions): Prompt
   }
 
   return {
-    beginRun(nextRunId: string): void {
-      if (runId !== undefined) {
-        throw new ConnectorError({
-          code: 'lyria-rt-transition-run-active',
-          reason: 'internal',
-          retryable: false
-        });
-      }
-      cancelTimers();
-      runId = nextRunId;
-      generation++;
-      failureReported = false;
-      lastEmittedPrompts = [];
-      chain = Promise.resolve();
-    },
-
-    endRun(endingRunId: string): void {
-      if (runId !== endingRunId) return;
-      cancelTimers();
-      generation++;
-      runId = undefined;
-      lastEmittedPrompts = [];
-    },
-
     async update(target: readonly WeightedPrompt[]): Promise<void> {
-      if (runId === undefined) {
+      if (cancelled) {
         throw new ConnectorError({
-          code: 'lyria-rt-transition-no-run',
+          code: 'lyria-rt-transition-cancelled',
           reason: 'internal',
           retryable: false
         });
@@ -221,6 +205,12 @@ export function createPromptTransition(options: PromptTransitionOptions): Prompt
 
     lastEmitted(): readonly WeightedPrompt[] {
       return lastEmittedPrompts;
+    },
+
+    cancel(): void {
+      cancelled = true;
+      cancelTimers();
+      generation++;
     }
   };
 }

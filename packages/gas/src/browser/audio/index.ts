@@ -1,4 +1,4 @@
-// Web Audio playback for renderer chunks. Nothing here loads the compiler or a
+// Web Audio playback for session audio chunks. Nothing here loads the compiler or a
 // connector.
 export type {
   AudioState,

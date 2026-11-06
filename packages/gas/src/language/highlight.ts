@@ -34,6 +34,7 @@ export interface HighlightResult {
 const ACTION_TYPES = new Set([
   'PlayCommand',
   'StopCommand',
+  'ReleaseCommand',
   'TimbreCommand',
   'NotesCommand',
   'MotifCommand',
@@ -46,6 +47,18 @@ const ACTION_TYPES = new Set([
 ]);
 
 const BUILTIN_TYPES = new Set(['FlavorDeclaration', 'FlavorCommand']);
+
+// A clear's verb is an action, and its slot keyword reads like the set form it undoes.
+function classifyClear(node: CstNode, astType: string): HighlightKind | undefined {
+  if (node.text === 'clear') {
+    return astType === 'ClearCommand' || astType === 'GlobalClear' || astType === 'TrackRemoval'
+      ? 'action'
+      : undefined;
+  }
+  if (astType === 'ClearCommand') return node.text === 'flavor' ? 'builtin' : 'action';
+  if (astType === 'GlobalClear') return node.text === 'flavor' ? 'builtin' : 'keyword';
+  return undefined;
+}
 
 /**
  * Returns editor-oriented token and symbol ranges without exposing Langium,
@@ -73,11 +86,18 @@ function classifyLeaf(node: CstNode): HighlightKind | undefined {
   if (tokenName === 'ALDA') return 'builtin';
   if (tokenName === 'ID') {
     if (astType === 'SectionDeclaration' || astType === 'SectionCall') return 'section';
-    if (astType === 'TrackDeclaration' || astType === 'TrackStatement') return 'track';
+    if (
+      astType === 'TrackDeclaration' ||
+      astType === 'TrackStatement' ||
+      astType === 'TrackRemoval'
+    )
+      return 'track';
     return undefined;
   }
   if (!GrammarAST.isKeyword(node.grammarSource)) return undefined;
   if (/^[.:()/]+$/.test(node.text)) return 'punct';
+  const clear = classifyClear(node, astType);
+  if (clear !== undefined) return clear;
   if (BUILTIN_TYPES.has(astType)) return 'builtin';
   if (ACTION_TYPES.has(astType)) return 'action';
   return 'keyword';
@@ -128,6 +148,7 @@ function symbolFor(astType: string): Pick<SymbolOccurrence, 'kind' | 'role'> | u
     case 'TrackDeclaration':
       return { kind: 'track', role: 'declaration' };
     case 'TrackStatement':
+    case 'TrackRemoval':
       return { kind: 'track', role: 'reference' };
     case 'SectionDeclaration':
       return { kind: 'section', role: 'declaration' };

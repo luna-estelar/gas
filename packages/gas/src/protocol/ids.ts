@@ -1,6 +1,6 @@
 // How a display name becomes a timeline id segment. This lives in Protocol
 // because it is a property of the id format, not of the compiler: the compiler
-// derives `track.<slug>` for an authored track and a host derives the same id
+// derives `track.<slug>` for an authored track and an app derives the same id
 // for a live `DeclareTrack "<name>"`, so the two must agree exactly. Protocol
 // depends on nothing, so sharing the rule costs neither side a dependency.
 //

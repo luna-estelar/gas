@@ -1,4 +1,4 @@
-import type { ConnectorFailureReason } from './renderer.js';
+import type { ConnectorFailureReason } from './connector.js';
 
 const CONNECTOR_FAILURE_REASONS: readonly ConnectorFailureReason[] = [
   'network',
@@ -17,11 +17,8 @@ const CONNECTOR_FAILURE_MESSAGES: Readonly<Record<ConnectorFailureReason, string
 };
 
 /**
- * The one range a close code may fall in: the WebSocket close-code space, from
- * the protocol codes at 1000 through the application codes ending at 4999. This
- * is the single definition every close-code gate uses — the `ConnectorError`
- * constructor, the structural guard, the JSON Schema range, and the API's
- * failure fields — so no gate can end up looser than another.
+ * Whether a value is a WebSocket close code, 1000 to 4999. Every close-code
+ * check uses this one, so no check is looser than another.
  */
 export function isCloseCode(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 1000 && value <= 4999;
@@ -35,13 +32,12 @@ export interface ConnectorErrorOptions {
 }
 
 /**
- * The one error shape a connector may throw to hand the Renderer a safe,
- * structured failure classification. The message is fixed by `reason` and never
- * carries caller or vendor text, so provider details and credentials cannot
- * leak through it into diagnostics, warnings, logs, or events.
+ * The error a connector throws or reports to GAS. The message is fixed by
+ * `reason` and never carries caller or vendor text, so provider details and
+ * credentials can't leak into diagnostics, warnings, logs or events.
  *
- * `closeCode` is the raw transport close code, passed through unclassified so a
- * host can interpret an application code (4000-4999) the connector cannot.
+ * `closeCode` is the raw transport close code, passed through so an app can
+ * read an application code (4000-4999) the connector doesn't know.
  */
 export class ConnectorError extends Error {
   readonly code: string;

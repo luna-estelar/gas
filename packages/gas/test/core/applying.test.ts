@@ -2,13 +2,13 @@ import { describe, expect, it, test } from 'vitest';
 import type { CapabilitiesTable, IntentKeyword, IntentSupport } from '../../src/protocol/index.js';
 import {
   applyCommand,
+  applyCommands,
   createInputState,
   defineTrack,
   type Command,
   type CommandFailureCode,
   type InputState,
-  type OverrideCommand,
-  type PlaybackPhase
+  type AppValueCommand
 } from '../../src/core/index.js';
 import { validTimeline } from './support/timelines.js';
 
@@ -43,24 +43,24 @@ function baseState(): InputState {
 function mustApply(
   state: InputState,
   command: Command,
-  phase: PlaybackPhase,
   capabilities: CapabilitiesTable = ALL_SUPPORTED
 ): InputState {
-  const result = applyCommand(state, command, { phase, capabilities });
+  const result = applyCommand(state, command, { capabilities });
   if (!result.ok) {
     throw new Error(`Expected the command to apply: ${result.failure.message}`);
   }
   return result.state;
 }
 
-// One valid fixture per override kind, against the fixture timeline's
+// One valid fixture per app value kind, against the fixture timeline's
 // 'track.pad' / 'track.lead', with the intent keyword each command expresses
-// (undefined for the structural play/stop commands).
+// (undefined for the structural play/stop commands and global level).
 const OVERRIDES: ReadonlyArray<
-  readonly [name: string, command: OverrideCommand, intent: IntentKeyword | undefined]
+  readonly [name: string, command: AppValueCommand, intent: IntentKeyword | undefined]
 > = [
   ['playTrack', { kind: 'playTrack', trackId: 'track.pad' }, undefined],
   ['stopTrack', { kind: 'stopTrack', trackId: 'track.pad' }, undefined],
+  ['clearTrackPlay', { kind: 'clearTrackPlay', trackId: 'track.pad' }, undefined],
   ['setGlobalFlavor', { kind: 'setGlobalFlavor', value: 'warm dusk' }, 'flavor'],
   ['clearGlobalFlavor', { kind: 'clearGlobalFlavor' }, 'flavor'],
   ['setGlobalLevel', { kind: 'setGlobalLevel', value: 0.7 }, undefined],
@@ -76,65 +76,104 @@ const OVERRIDES: ReadonlyArray<
   ['setTrackLevel', { kind: 'setTrackLevel', trackId: 'track.pad', value: 0.4 }, 'level'],
   ['clearTrackLevel', { kind: 'clearTrackLevel', trackId: 'track.pad' }, 'level'],
   ['setTrackNotes', { kind: 'setTrackNotes', trackId: 'track.pad', alda: 'c d e' }, 'notes'],
+  ['clearTrackNotes', { kind: 'clearTrackNotes', trackId: 'track.pad' }, 'notes'],
   ['setTrackMotif', { kind: 'setTrackMotif', trackId: 'track.pad', alda: 'c8 d e2' }, 'motif'],
+  ['clearTrackMotif', { kind: 'clearTrackMotif', trackId: 'track.pad' }, 'motif'],
   ['setTempo', { kind: 'setTempo', bpm: 96 }, 'tempo'],
   ['clearTempo', { kind: 'clearTempo' }, 'tempo']
 ];
 
 const INTENT_COMMANDS = OVERRIDES.filter(([, , intent]) => intent !== undefined) as ReadonlyArray<
-  readonly [name: string, command: OverrideCommand, intent: IntentKeyword]
+  readonly [name: string, command: AppValueCommand, intent: IntentKeyword]
 >;
 
-const PHASES: readonly PlaybackPhase[] = ['stopped', 'active'];
+const SETS = OVERRIDES.filter(([name]) => !name.startsWith('clear'));
+const CLEARS = OVERRIDES.filter(([name]) => name.startsWith('clear'));
 
-describe('applyCommand routes overrides by phase', () => {
-  const ROUTING = PHASES.flatMap((phase) =>
-    OVERRIDES.map(([name, command]) => [phase, name, command] as const)
-  );
+describe('applyCommand stores app values', () => {
+  test.each(SETS)('%s is stored as an app value', (_name, command) => {
+    const result = applyCommand(baseState(), command, { capabilities: ALL_SUPPORTED });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.appValues).toEqual([command]);
+    expect(result.state.appTracks).toEqual([]);
+    expect(result.warnings).toEqual([]);
+  });
 
-  test.each(ROUTING)(
-    "applied while %s, %s becomes that phase's override",
-    (phase, _name, command) => {
-      const result = applyCommand(baseState(), command, { phase, capabilities: ALL_SUPPORTED });
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      const [target, other] =
-        phase === 'stopped'
-          ? [result.state.staged, result.state.live]
-          : [result.state.live, result.state.staged];
-      expect(target).toEqual([command]);
-      expect(other).toEqual([]);
-      expect(result.state.hostTracks).toEqual([]);
-      expect(result.warnings).toEqual([]);
-    }
-  );
+  test.each(CLEARS)('%s is never stored', (_name, command) => {
+    const result = applyCommand(baseState(), command, { capabilities: ALL_SUPPORTED });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.appValues).toEqual([]);
+  });
 });
 
-describe('applyCommand applies defineTrack independent of phase', () => {
-  test.each(PHASES)(
-    'applied while %s, defineTrack appends a host track and no override',
-    (phase) => {
-      const result = applyCommand(
-        baseState(),
-        { kind: 'defineTrack', id: 'host.synth', name: 'Synth' },
-        { phase, capabilities: ALL_UNSUPPORTED }
-      );
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      expect(result.state.hostTracks).toEqual([{ id: 'host.synth', name: 'Synth' }]);
-      expect(result.state.staged).toEqual([]);
-      expect(result.state.live).toEqual([]);
-      // Track identity is structural, not renderable intent — never warned about.
-      expect(result.warnings).toEqual([]);
-    }
-  );
+describe('applyCommand keeps one value per slot', () => {
+  it('keeps one entry when the same slot is set twice, moved to the end', () => {
+    let state = baseState();
+    state = mustApply(state, { kind: 'setTrackLevel', trackId: 'track.pad', value: 0.3 });
+    state = mustApply(state, { kind: 'setTempo', bpm: 90 });
+    state = mustApply(state, { kind: 'setTrackLevel', trackId: 'track.pad', value: 0.6 });
+    expect(state.appValues).toEqual([
+      { kind: 'setTempo', bpm: 90 },
+      { kind: 'setTrackLevel', trackId: 'track.pad', value: 0.6 }
+    ]);
+  });
+
+  it('keeps slots on different tracks apart', () => {
+    let state = baseState();
+    state = mustApply(state, { kind: 'setTrackLevel', trackId: 'track.pad', value: 0.3 });
+    state = mustApply(state, { kind: 'setTrackLevel', trackId: 'track.lead', value: 0.6 });
+    state = mustApply(state, { kind: 'setGlobalLevel', value: 0.9 });
+    expect(state.appValues).toHaveLength(3);
+  });
+
+  it('removes the entry on a clear', () => {
+    let state = baseState();
+    state = mustApply(state, { kind: 'setGlobalFlavor', value: 'a' });
+    state = mustApply(state, { kind: 'setTempo', bpm: 90 });
+    state = mustApply(state, { kind: 'clearGlobalFlavor' });
+    expect(state.appValues).toEqual([{ kind: 'setTempo', bpm: 90 }]);
+  });
+
+  it('treats playTrack, stopTrack and clearTrackPlay as one slot', () => {
+    let state = baseState();
+    state = mustApply(state, { kind: 'playTrack', trackId: 'track.pad' });
+    state = mustApply(state, { kind: 'stopTrack', trackId: 'track.pad' });
+    expect(state.appValues).toEqual([{ kind: 'stopTrack', trackId: 'track.pad' }]);
+    state = mustApply(state, { kind: 'clearTrackPlay', trackId: 'track.pad' });
+    expect(state.appValues).toEqual([]);
+  });
+
+  it('clears notes and motif', () => {
+    let state = baseState();
+    state = mustApply(state, { kind: 'setTrackNotes', trackId: 'track.pad', alda: 'c' });
+    state = mustApply(state, { kind: 'setTrackMotif', trackId: 'track.pad', alda: 'd' });
+    state = mustApply(state, { kind: 'clearTrackNotes', trackId: 'track.pad' });
+    expect(state.appValues).toEqual([{ kind: 'setTrackMotif', trackId: 'track.pad', alda: 'd' }]);
+    state = mustApply(state, { kind: 'clearTrackMotif', trackId: 'track.pad' });
+    expect(state.appValues).toEqual([]);
+  });
+});
+
+describe('applyCommand applies defineTrack', () => {
+  it('appends an app track and no app value', () => {
+    const result = applyCommand(
+      baseState(),
+      { kind: 'defineTrack', id: 'app.synth', name: 'Synth' },
+      { capabilities: ALL_UNSUPPORTED }
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.appTracks).toEqual([{ id: 'app.synth', name: 'Synth' }]);
+    expect(result.state.appValues).toEqual([]);
+    // Track identity is structural, not renderable intent — never warned about.
+    expect(result.warnings).toEqual([]);
+  });
 
   it('fails a duplicate id exactly like the standalone defineTrack', () => {
     const command = { kind: 'defineTrack', id: 'track.pad' } as const;
-    const viaApply = applyCommand(baseState(), command, {
-      phase: 'stopped',
-      capabilities: ALL_SUPPORTED
-    });
+    const viaApply = applyCommand(baseState(), command, { capabilities: ALL_SUPPORTED });
     const standalone = defineTrack(baseState(), command);
     expect(viaApply.ok).toBe(false);
     expect(standalone.ok).toBe(false);
@@ -143,16 +182,57 @@ describe('applyCommand applies defineTrack independent of phase', () => {
     expect(viaApply.failure.code).toBe('duplicate-track');
   });
 
-  it('rejects a host track id already defined through applyCommand', () => {
-    const state = mustApply(baseState(), { kind: 'defineTrack', id: 'host.a' }, 'stopped');
+  it('treats an identical app track definition as a no-op', () => {
+    const state = mustApply(baseState(), { kind: 'defineTrack', id: 'app.a', name: 'A' });
+    const again = applyCommand(
+      state,
+      { kind: 'defineTrack', id: 'app.a', name: 'A' },
+      { capabilities: ALL_SUPPORTED }
+    );
+    expect(again).toEqual({ ok: true, state, warnings: [] });
+    expect(again.ok && again.state).toBe(state);
+  });
+
+  it('rejects a different definition for an app track id', () => {
+    const state = mustApply(baseState(), { kind: 'defineTrack', id: 'app.a', name: 'A' });
     const clash = applyCommand(
       state,
-      { kind: 'defineTrack', id: 'host.a' },
-      { phase: 'active', capabilities: ALL_SUPPORTED }
+      { kind: 'defineTrack', id: 'app.a', name: 'B' },
+      { capabilities: ALL_SUPPORTED }
     );
     expect(clash.ok).toBe(false);
     if (clash.ok) return;
     expect(clash.failure.code).toBe('duplicate-track');
+  });
+});
+
+describe('applyCommand applies removeTrack', () => {
+  it("drops the app track and the track's values, and keeps other values", () => {
+    let state = baseState();
+    state = mustApply(state, { kind: 'defineTrack', id: 'app.bells' });
+    state = mustApply(state, { kind: 'playTrack', trackId: 'app.bells' });
+    state = mustApply(state, { kind: 'setTrackLevel', trackId: 'app.bells', value: 0.5 });
+    state = mustApply(state, { kind: 'setTrackLevel', trackId: 'track.pad', value: 0.2 });
+    state = mustApply(state, { kind: 'setTempo', bpm: 100 });
+    const result = applyCommand(
+      state,
+      { kind: 'removeTrack', trackId: 'app.bells' },
+      { capabilities: ALL_UNSUPPORTED }
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.appTracks).toEqual([]);
+    expect(result.state.appValues).toEqual([
+      { kind: 'setTrackLevel', trackId: 'track.pad', value: 0.2 },
+      { kind: 'setTempo', bpm: 100 }
+    ]);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('lets the id be defined again afterwards', () => {
+    let state = mustApply(baseState(), { kind: 'defineTrack', id: 'app.bells' });
+    state = mustApply(state, { kind: 'removeTrack', trackId: 'app.bells' });
+    expect(() => mustApply(state, { kind: 'defineTrack', id: 'app.bells' })).not.toThrow();
   });
 });
 
@@ -236,6 +316,32 @@ const REJECTIONS: ReadonlyArray<
   ['a number track id', { kind: 'playTrack', trackId: 5 }, 'invalid-value'],
   ['an empty track id', { kind: 'stopTrack', trackId: '' }, 'invalid-value'],
   ['an empty defineTrack id', { kind: 'defineTrack', id: '' }, 'invalid-value'],
+  [
+    'clearTrackPlay on an unknown track',
+    { kind: 'clearTrackPlay', trackId: 'track.ghost' },
+    'unknown-track'
+  ],
+  [
+    'clearTrackNotes on an unknown track',
+    { kind: 'clearTrackNotes', trackId: 'track.ghost' },
+    'unknown-track'
+  ],
+  [
+    'clearTrackMotif on an unknown track',
+    { kind: 'clearTrackMotif', trackId: 'track.ghost' },
+    'unknown-track'
+  ],
+  [
+    'removeTrack on an unknown track',
+    { kind: 'removeTrack', trackId: 'track.ghost' },
+    'unknown-track'
+  ],
+  [
+    'removeTrack on a document track',
+    { kind: 'removeTrack', trackId: 'track.pad' },
+    'not-app-track'
+  ],
+  ['removeTrack without a track id', { kind: 'removeTrack' }, 'invalid-value'],
   ['an unrecognized command kind', { kind: 'warble' }, 'invalid-value'],
   ['a null command', null, 'invalid-value'],
   ['a missing command', undefined, 'invalid-value']
@@ -244,10 +350,7 @@ const REJECTIONS: ReadonlyArray<
 describe('applyCommand rejects invalid commands', () => {
   test.each(REJECTIONS)('rejects %s', (_name, command, code) => {
     const state = baseState();
-    const result = applyCommand(state, command as Command, {
-      phase: 'stopped',
-      capabilities: ALL_SUPPORTED
-    });
+    const result = applyCommand(state, command as Command, { capabilities: ALL_SUPPORTED });
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.failure.code).toBe(code);
@@ -255,9 +358,8 @@ describe('applyCommand rejects invalid commands', () => {
     if (code === 'unknown-track') {
       expect(result.failure.trackId).toBe('track.ghost');
     }
-    expect(state.staged).toEqual([]);
-    expect(state.live).toEqual([]);
-    expect(state.hostTracks).toEqual([]);
+    expect(state.appValues).toEqual([]);
+    expect(state.appTracks).toEqual([]);
   });
 
   const ACCEPTED_BOUNDARIES: ReadonlyArray<readonly [name: string, command: Command]> = [
@@ -270,10 +372,7 @@ describe('applyCommand rejects invalid commands', () => {
   ];
 
   test.each(ACCEPTED_BOUNDARIES)('accepts %s', (_name, command) => {
-    const result = applyCommand(baseState(), command, {
-      phase: 'stopped',
-      capabilities: ALL_SUPPORTED
-    });
+    const result = applyCommand(baseState(), command, { capabilities: ALL_SUPPORTED });
     expect(result.ok).toBe(true);
   });
 });
@@ -282,10 +381,7 @@ describe('applyCommand warns from the capabilities table', () => {
   test.each(INTENT_COMMANDS)(
     '%s warns when its intent is unsupported',
     (_name, command, intent) => {
-      const result = applyCommand(baseState(), command, {
-        phase: 'active',
-        capabilities: ALL_UNSUPPORTED
-      });
+      const result = applyCommand(baseState(), command, { capabilities: ALL_UNSUPPORTED });
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.warnings).toHaveLength(1);
@@ -299,20 +395,16 @@ describe('applyCommand warns from the capabilities table', () => {
       } else {
         expect(warning.trackId).toBeUndefined();
       }
-      // Warn, never drop: the override is stored despite the warning.
-      expect(result.state.live).toEqual([command]);
+      // Warn, never drop: a set is stored despite the warning.
+      if (!command.kind.startsWith('clear')) {
+        expect(result.state.appValues).toEqual([command]);
+      }
     }
   );
 
   test.each(INTENT_COMMANDS)('%s warns more softly when approximated', (_name, command, intent) => {
-    const approximated = applyCommand(baseState(), command, {
-      phase: 'active',
-      capabilities: ALL_APPROXIMATED
-    });
-    const unsupported = applyCommand(baseState(), command, {
-      phase: 'active',
-      capabilities: ALL_UNSUPPORTED
-    });
+    const approximated = applyCommand(baseState(), command, { capabilities: ALL_APPROXIMATED });
+    const unsupported = applyCommand(baseState(), command, { capabilities: ALL_UNSUPPORTED });
     expect(approximated.ok).toBe(true);
     expect(unsupported.ok).toBe(true);
     if (!approximated.ok || !unsupported.ok) return;
@@ -325,32 +417,30 @@ describe('applyCommand warns from the capabilities table', () => {
   const STRUCTURAL: ReadonlyArray<readonly [name: string, command: Command]> = [
     ['playTrack', { kind: 'playTrack', trackId: 'track.pad' }],
     ['stopTrack', { kind: 'stopTrack', trackId: 'track.pad' }],
-    ['defineTrack', { kind: 'defineTrack', id: 'host.synth' }]
+    ['clearTrackPlay', { kind: 'clearTrackPlay', trackId: 'track.pad' }],
+    ['defineTrack', { kind: 'defineTrack', id: 'app.synth' }]
   ];
 
   test.each(STRUCTURAL)(
     '%s never warns, even when every intent is unsupported',
     (_name, command) => {
-      const result = applyCommand(baseState(), command, {
-        phase: 'active',
-        capabilities: ALL_UNSUPPORTED
-      });
+      const result = applyCommand(baseState(), command, { capabilities: ALL_UNSUPPORTED });
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.warnings).toEqual([]);
     }
   );
 
-  it('treats global level as Renderer-owned while track level still follows capabilities', () => {
+  it('treats global level as GAS gain while track level still follows capabilities', () => {
     const global = applyCommand(
       baseState(),
       { kind: 'setGlobalLevel', value: 0.5 },
-      { phase: 'active', capabilities: ALL_UNSUPPORTED }
+      { capabilities: ALL_UNSUPPORTED }
     );
     const track = applyCommand(
       baseState(),
       { kind: 'setTrackLevel', trackId: 'track.pad', value: 0.5 },
-      { phase: 'active', capabilities: ALL_APPROXIMATED }
+      { capabilities: ALL_APPROXIMATED }
     );
     expect(global.ok).toBe(true);
     expect(track.ok).toBe(true);
@@ -365,12 +455,12 @@ describe('applyCommand warns from the capabilities table', () => {
     const set = applyCommand(
       baseState(),
       { kind: 'setTrackTimbre', trackId: 'track.pad', value: 'tape' },
-      { phase: 'active', capabilities: ALL_UNSUPPORTED }
+      { capabilities: ALL_UNSUPPORTED }
     );
     const clear = applyCommand(
       baseState(),
       { kind: 'clearTrackTimbre', trackId: 'track.pad' },
-      { phase: 'active', capabilities: ALL_UNSUPPORTED }
+      { capabilities: ALL_UNSUPPORTED }
     );
     expect(set.ok).toBe(true);
     expect(clear.ok).toBe(true);
@@ -382,15 +472,11 @@ describe('applyCommand warns from the capabilities table', () => {
     const capabilities: CapabilitiesTable = {
       intents: { ...ALL_SUPPORTED.intents, tempo: 'unsupported' }
     };
-    const warned = applyCommand(
-      baseState(),
-      { kind: 'setTempo', bpm: 90 },
-      { phase: 'stopped', capabilities }
-    );
+    const warned = applyCommand(baseState(), { kind: 'setTempo', bpm: 90 }, { capabilities });
     const silent = applyCommand(
       baseState(),
       { kind: 'setGlobalFlavor', value: 'dusk' },
-      { phase: 'stopped', capabilities }
+      { capabilities }
     );
     expect(warned.ok).toBe(true);
     expect(silent.ok).toBe(true);
@@ -400,61 +486,71 @@ describe('applyCommand warns from the capabilities table', () => {
     expect(silent.warnings).toEqual([]);
   });
 
-  it('keeps earlier overrides intact when a later command warns', () => {
+  it('keeps earlier app values intact when a later command warns', () => {
     const capabilities: CapabilitiesTable = {
       intents: { ...ALL_SUPPORTED.intents, tempo: 'unsupported' }
     };
-    const state = mustApply(
-      baseState(),
-      { kind: 'setGlobalFlavor', value: 'dusk' },
-      'stopped',
-      capabilities
-    );
-    const result = applyCommand(
-      state,
-      { kind: 'setTempo', bpm: 90 },
-      { phase: 'stopped', capabilities }
-    );
+    const state = mustApply(baseState(), { kind: 'setGlobalFlavor', value: 'dusk' }, capabilities);
+    const result = applyCommand(state, { kind: 'setTempo', bpm: 90 }, { capabilities });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.warnings).toHaveLength(1);
-    expect(result.state.staged).toEqual([
+    expect(result.state.appValues).toEqual([
       { kind: 'setGlobalFlavor', value: 'dusk' },
       { kind: 'setTempo', bpm: 90 }
     ]);
   });
 });
 
-describe('applyCommand preserves application order', () => {
-  it('keeps staged sets and clears in application order', () => {
-    let state = baseState();
-    state = mustApply(state, { kind: 'setGlobalFlavor', value: 'a' }, 'stopped');
-    state = mustApply(state, { kind: 'clearGlobalFlavor' }, 'stopped');
-    state = mustApply(state, { kind: 'setGlobalFlavor', value: 'b' }, 'stopped');
-    // Clears are stored as ordinary overrides, never collapsed — the cascade
-    // reads this order directly.
-    expect(state.staged).toEqual([
-      { kind: 'setGlobalFlavor', value: 'a' },
-      { kind: 'clearGlobalFlavor' },
-      { kind: 'setGlobalFlavor', value: 'b' }
-    ]);
-    expect(state.live).toEqual([]);
+describe('applyCommands applies a group fully or not at all', () => {
+  it('applies every command in order and collects every warning', () => {
+    const result = applyCommands(
+      baseState(),
+      [
+        { kind: 'defineTrack', id: 'app.bells' },
+        { kind: 'playTrack', trackId: 'app.bells' },
+        { kind: 'setTempo', bpm: 90 },
+        { kind: 'setTrackTimbre', trackId: 'app.bells', value: 'glass' }
+      ],
+      { capabilities: ALL_UNSUPPORTED }
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.appTracks).toEqual([{ id: 'app.bells' }]);
+    expect(result.state.appValues).toHaveLength(3);
+    expect(result.warnings.map((warning) => warning.intent)).toEqual(['tempo', 'timbre']);
   });
 
-  it('appends live overrides without touching staged', () => {
-    let state = baseState();
-    state = mustApply(
+  it('leaves the state untouched when a later command fails', () => {
+    const state = mustApply(baseState(), { kind: 'setTempo', bpm: 80 });
+    const result = applyCommands(
       state,
-      { kind: 'setTrackLevel', trackId: 'track.pad', value: 0.3 },
-      'stopped'
+      [
+        { kind: 'defineTrack', id: 'app.bells' },
+        { kind: 'setTempo', bpm: 120 },
+        { kind: 'setTrackLevel', trackId: 'track.pad', value: 4 }
+      ],
+      { capabilities: ALL_SUPPORTED }
     );
-    state = mustApply(state, { kind: 'playTrack', trackId: 'track.lead' }, 'active');
-    state = mustApply(state, { kind: 'clearTrackLevel', trackId: 'track.pad' }, 'active');
-    expect(state.staged).toEqual([{ kind: 'setTrackLevel', trackId: 'track.pad', value: 0.3 }]);
-    expect(state.live).toEqual([
-      { kind: 'playTrack', trackId: 'track.lead' },
-      { kind: 'clearTrackLevel', trackId: 'track.pad' }
-    ]);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure.code).toBe('invalid-level');
+    expect(result.index).toBe(2);
+    expect(state.appValues).toEqual([{ kind: 'setTempo', bpm: 80 }]);
+    expect(state.appTracks).toEqual([]);
+  });
+
+  it('accepts an empty group', () => {
+    const state = baseState();
+    const result = applyCommands(state, [], { capabilities: ALL_SUPPORTED });
+    expect(result).toEqual({ ok: true, state, warnings: [] });
+  });
+
+  it('rejects a group that is not a list', () => {
+    const result = applyCommands(baseState(), 'setTempo' as unknown as Command[], {
+      capabilities: ALL_SUPPORTED
+    });
+    expect(result.ok).toBe(false);
   });
 });
 
@@ -464,26 +560,23 @@ describe('applyCommand never mutates its input', () => {
     const result = applyCommand(
       state,
       { kind: 'setGlobalFlavor', value: 'dawn' },
-      { phase: 'active', capabilities: ALL_SUPPORTED }
+      { capabilities: ALL_SUPPORTED }
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.state).not.toBe(state);
-    expect(state.live).toEqual([]);
+    expect(state.appValues).toEqual([]);
     expect(Object.isFrozen(result.state)).toBe(true);
-    expect(Object.isFrozen(result.state.live)).toBe(true);
-    expect(Object.isFrozen(result.state.staged)).toBe(true);
+    expect(Object.isFrozen(result.state.appValues)).toBe(true);
+    expect(Object.isFrozen(result.state.appTracks)).toBe(true);
   });
 
   it("stores a canonical frozen copy, not the caller's command", () => {
     const command = { kind: 'setTempo', bpm: 120, extra: 'x' } as unknown as Command;
-    const result = applyCommand(baseState(), command, {
-      phase: 'stopped',
-      capabilities: ALL_SUPPORTED
-    });
+    const result = applyCommand(baseState(), command, { capabilities: ALL_SUPPORTED });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const stored = result.state.staged[0];
+    const stored = result.state.appValues[0];
     expect(stored).not.toBe(command);
     expect(Object.isFrozen(stored)).toBe(true);
     // Only declared fields are stored, and later caller mutation changes nothing.

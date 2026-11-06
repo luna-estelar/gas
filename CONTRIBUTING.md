@@ -1,6 +1,6 @@
 # Contributing to GAS
 
-Use Node.js 22.13 or newer and pnpm 11.
+Use Node.js 22.13 or newer and pnpm 12.
 
 ```bash
 git clone https://github.com/luna-estelar/gas.git
@@ -34,13 +34,17 @@ in the root `test/` directory.
 ## Writing a connector
 
 A connector implements the `Connector` interface from `@luna-estelar/gas/protocol` and declares
-`@luna-estelar/gas` as a peer dependency. It should also:
+`@luna-estelar/gas` as a peer dependency. GAS calls `connect()` once per Play, and the returned
+`Connection` takes `update`, `pause`, `resume` and `close`. It should also:
 
 - Implement `validateConfig` by hand, reporting every problem at once with a JSON Pointer `path`,
   a stable `code` and a fixed message that never echoes the value. Don't compile a schema at
   runtime. `packages/lyria-rt/src/config.ts` is the reference.
-- Throw `ConnectorError` with a `reason` and a stable `code`, and pass a closed connection's raw
-  number as `closeCode`. Leave application codes (4000-4999) to the host.
+- Report a failure as a `ConnectorError` with a `reason` and a stable `code`: throw it from
+  `connect()`, or pass it to `onError` once the connection is open. Pass a closed connection's raw
+  number as `closeCode`, and leave application codes (4000-4999) to the app.
+- Run [`@luna-estelar/gas-connector-test`](./packages/connector-test/README.md) in its tests.
+  `packages/lyria-rt/test/conformance.test.ts` is the reference.
 
 ## READMEs
 
@@ -61,5 +65,5 @@ The workflow publishes missing versions with provenance and pushes tags like
 `@luna-estelar/gas@0.3.0`. If it fails partway, rerun the same workflow run. Already published
 versions are skipped. Never unpublish.
 
-Connectors peer on GAS with `>=0.3.0 <1.0.0`, not `^0.3.0`, which on 0.x would mean `<0.4.0`.
+Connectors peer on GAS with `>=0.4.0 <1.0.0`, not `^0.4.0`, which on 0.x would mean `<0.5.0`.
 Before a connector's first publish, check that the npm token can create packages in the scope.

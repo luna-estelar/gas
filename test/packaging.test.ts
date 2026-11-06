@@ -70,23 +70,29 @@ function exportTargets(node: unknown, out: string[] = []): string[] {
 
 // Every package, private or not, so a connector is ready to publish the moment
 // its private flag is removed.
-const CONNECTORS = ['lyria-rt'];
+const CONNECTORS = ['lyria-rt', 'magenta-rt2'];
+
+// Packages for connector authors, published with gas.
+const TOOLS = ['connector-test'];
 
 describe('packages', () => {
-  test('there are exactly gas and the connectors', () => {
-    expect(packages.map((pkg) => pkg.dir)).toEqual(['gas', ...CONNECTORS]);
+  test('there are exactly gas, the connectors and the tools', () => {
+    expect(packages.map((pkg) => pkg.dir).sort()).toEqual(['gas', ...CONNECTORS, ...TOOLS].sort());
   });
 
-  test('gas publishes, and each connector publishes once it is no longer private', () => {
+  test('gas and the tools publish, and each connector publishes once it is no longer private', () => {
     const publishable = packages
       .filter((pkg) => pkg.manifest.private !== true)
       .map((pkg) => pkg.manifest.name);
-    expect(publishable).toEqual([
-      '@luna-estelar/gas',
-      ...packages
-        .filter((pkg) => CONNECTORS.includes(pkg.dir) && pkg.manifest.private !== true)
-        .map((pkg) => pkg.manifest.name)
-    ]);
+    expect(publishable.sort()).toEqual(
+      [
+        '@luna-estelar/gas',
+        ...TOOLS.map((dir) => packages.find((pkg) => pkg.dir === dir)!.manifest.name),
+        ...packages
+          .filter((pkg) => CONNECTORS.includes(pkg.dir) && pkg.manifest.private !== true)
+          .map((pkg) => pkg.manifest.name)
+      ].sort()
+    );
   });
 
   test.each(packages)('$manifest.name carries its own LICENSE', ({ root }) => {
@@ -161,20 +167,21 @@ describe('packages', () => {
     expect(internal).toEqual([]);
   });
 
-  test.each(['@luna-estelar/gas-lyria-rt'])(
-    '%s peers on gas and develops against the workspace copy',
-    (name) => {
-      // A peer, not a dependency: a host with two copies of gas would have two
-      // ConnectorError classes, and instanceof checks would fail across them.
-      // The range is written out because on 0.x `^0.3.0` means `<0.4.0`, which
-      // would force a connector release for every gas minor.
-      const { manifest } = byName.get(name)!;
-      expect(manifest.peerDependencies?.['@luna-estelar/gas']).toBe('>=0.3.0 <1.0.0');
-      expect(manifest.devDependencies?.['@luna-estelar/gas']).toBe('workspace:^');
-      const runtime = Object.keys(manifest.dependencies ?? {}).filter((dependency) =>
-        dependency.startsWith('@luna-estelar/')
-      );
-      expect(runtime).toEqual([]);
-    }
-  );
+  test.each([
+    '@luna-estelar/gas-lyria-rt',
+    '@luna-estelar/gas-magenta-rt2',
+    '@luna-estelar/gas-connector-test'
+  ])('%s peers on gas and develops against the workspace copy', (name) => {
+    // A peer, not a dependency: an app with two copies of gas would have two
+    // ConnectorError classes, and instanceof checks would fail across them.
+    // The range is written out because on 0.x `^0.3.0` means `<0.4.0`, which
+    // would force a connector release for every gas minor.
+    const { manifest } = byName.get(name)!;
+    expect(manifest.peerDependencies?.['@luna-estelar/gas']).toBe('>=0.4.0 <1.0.0');
+    expect(manifest.devDependencies?.['@luna-estelar/gas']).toBe('workspace:^');
+    const runtime = Object.keys(manifest.dependencies ?? {}).filter((dependency) =>
+      dependency.startsWith('@luna-estelar/')
+    );
+    expect(runtime).toEqual([]);
+  });
 });

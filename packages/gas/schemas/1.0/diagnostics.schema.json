@@ -48,6 +48,7 @@
           "enum": [
             "duplicate-track",
             "unknown-track",
+            "not-app-track",
             "invalid-level",
             "invalid-tempo",
             "invalid-value"
@@ -69,27 +70,15 @@
         "message": { "type": "string", "minLength": 1 }
       }
     },
-    "RendererWarning": {
+    "AppValueDroppedWarning": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["code", "message"],
+      "required": ["code", "trackId", "command", "message"],
       "properties": {
-        "code": { "type": "string", "minLength": 1 },
-        "message": { "type": "string", "minLength": 1 },
-        "runId": { "$ref": "common.schema.json#/$defs/NonEmptyString" }
-      }
-    },
-    "RendererFailure": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["code", "message", "retryable"],
-      "properties": {
-        "code": { "type": "string", "minLength": 1 },
-        "message": { "type": "string", "minLength": 1 },
-        "reason": { "enum": ["network", "auth", "quota", "provider", "internal"] },
-        "runId": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
-        "retryable": { "type": "boolean" },
-        "closeCode": { "type": "integer", "minimum": 1000, "maximum": 4999 }
+        "code": { "const": "app-value-dropped" },
+        "trackId": { "$ref": "common.schema.json#/$defs/NonEmptyString" },
+        "command": { "$ref": "commands.schema.json#/$defs/AppValueCommand" },
+        "message": { "type": "string", "minLength": 1 }
       }
     }
   }

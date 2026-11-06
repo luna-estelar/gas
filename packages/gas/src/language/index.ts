@@ -45,7 +45,17 @@ export type {
   GasDiagnosticCategory,
   GasDiagnosticSeverity
 } from '../protocol/index.js';
-export type { LiveStatement, LiveTempoCommand, LiveTrackDeclaration } from './semantic/live.js';
+export type {
+  LiveGlobalClear,
+  LiveGlobalFlavor,
+  LiveGlobalLevel,
+  LiveStatement,
+  LiveTempoCommand,
+  LiveTrackClear,
+  LiveTrackDeclaration,
+  LiveTrackRelease,
+  LiveTrackRemoval
+} from './semantic/live.js';
 export type {
   ArrangementInstance,
   AldaValue,

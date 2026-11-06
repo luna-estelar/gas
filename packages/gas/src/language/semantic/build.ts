@@ -17,7 +17,13 @@ import type {
   TrackCommand
 } from './ast.js';
 import { semanticDiagnostic, type GasDiagnostic } from './diagnostics.js';
-import { NodeLowering, reservedDiagnostic, unquoteString } from './lower.js';
+import {
+  NodeLowering,
+  isLiveOnlyCommand,
+  liveOnlyDiagnostic,
+  reservedDiagnostic,
+  unquoteString
+} from './lower.js';
 
 export interface BuildResult {
   readonly document: GasDocument;
@@ -52,6 +58,8 @@ class SemanticBuilder {
         this.appendGlobal(globals, element);
       } else if (ast.isReservedStatement(element)) {
         this.diagnostics.push(reservedDiagnostic(element));
+      } else if (ast.isGlobalClear(element) || ast.isTrackRemoval(element)) {
+        this.diagnostics.push(liveOnlyDiagnostic(element));
       } else if (ast.isTrackDeclaration(element)) {
         const defaults: TrackCommand[] = [];
         const track: Track = {
@@ -99,6 +107,10 @@ class SemanticBuilder {
 
     for (const element of model.elements) {
       if (ast.isTrackStatement(element)) {
+        if (isLiveOnlyCommand(element.command)) {
+          this.diagnostics.push(liveOnlyDiagnostic(element));
+          continue;
+        }
         const command = this.lowering.trackCommand(element);
         const record = trackRecords.get(command.trackName);
         if (record !== undefined) {
@@ -236,6 +248,10 @@ class SemanticBuilder {
         });
       } else if (ast.isReservedStatement(item)) {
         this.diagnostics.push(reservedDiagnostic(item));
+      } else if (ast.isGlobalClear(item)) {
+        this.diagnostics.push(liveOnlyDiagnostic(item));
+      } else if (ast.isTrackStatement(item) && isLiveOnlyCommand(item.command)) {
+        this.diagnostics.push(liveOnlyDiagnostic(item));
       } else if (ast.isTrackStatement(item)) {
         const command = this.lowering.trackCommand(item);
         setup.push(command);
@@ -268,6 +284,10 @@ class SemanticBuilder {
     for (const statement of block.commands) {
       if (ast.isReservedStatement(statement)) {
         this.diagnostics.push(reservedDiagnostic(statement));
+        continue;
+      }
+      if (isLiveOnlyCommand(statement.command)) {
+        this.diagnostics.push(liveOnlyDiagnostic(statement));
         continue;
       }
       const command = this.lowering.trackCommand(statement);

@@ -1,4 +1,4 @@
-// PCM decoding and WAV encoding for captured renderer audio. Pure byte work: no
+// PCM decoding and WAV encoding for captured session audio. Pure byte work: no
 // AudioContext, no DOM. Scheduling and playback live in ./audio/.
 import type { AudioChunk } from '../protocol/index.js';
 
@@ -88,7 +88,7 @@ export interface CaptureSnapshot {
   readonly byteLength: number;
 }
 
-/** Opt-in per-run recording, so a surface can offer the audio it just played as a download. */
+/** Opt-in recording of each Play, so a surface can offer the audio it just played as a download. */
 export class PcmCapture {
   private chunks: AudioChunk[] = [];
 

@@ -1,20 +1,17 @@
-// Exercise Core through the API session, renderer state derivation and compile-only inspection.
+// Exercise Core through the session, the per-boundary derivation and compile-only inspection.
 
 import { describe, expect, it } from 'vitest';
 import { compileSource, type Timeline } from '../packages/gas/src/language/index.js';
 import { createSession, GasOperationError } from '../packages/gas/src/api/index.js';
-import { createRenderer } from '../packages/gas/src/renderer/index.js';
 import {
   applyCommand,
-  applyCompletion,
-  applyLoopBoundary,
   authoredEventSchedule,
   createInputState,
   effectiveStateAt,
   sectionInstanceAt,
   type EffectiveState
 } from '../packages/gas/src/core/index.js';
-import { FakeConnector } from './support/fake-connector.js';
+import { FakeConnector } from './support/fake-connection.js';
 import { VirtualClock } from './support/virtual-clock.js';
 import { readExample } from '../examples/support.js';
 
@@ -48,18 +45,15 @@ function trackOf(snapshot: EffectiveState, trackId: string) {
   return track;
 }
 
-// The API path runs through a real session and Renderer rather than a copy of
+// The API path runs through a real session rather than a copy of
 // the API's command mapping: a copy once declared live tracks as `pad` while the
 // API declares `track.pad`, and the test passed while asserting behaviour the
-// API did not have. Capability warnings come from the connector's `describe()`,
+// API did not have. Capability warnings come from the connector's description,
 // whose table marks notes and motif unsupported.
 async function apiSession(timeline: Timeline) {
   const clock = new VirtualClock();
-  // Musical time starts with the first chunk, so a run needs audio to begin.
-  const connector = new FakeConnector({ anchorOnStart: true });
-  const session = await createSession({
-    createRenderer: () => createRenderer({ clock, connector })
-  });
+  const connector = new FakeConnector();
+  const session = await createSession({ connector, clock });
   await session.loadTimeline(timeline);
   return { connector, session };
 }
@@ -68,6 +62,8 @@ describe('consumer: the GAS API command path', () => {
   it('parses live statements, maps them onto canonical commands, and applies them', async () => {
     const { connector, session } = await apiSession(corpusTimeline('spec-example')); // authored guitar / drums / keys
     await session.play();
+    // A track plays at bar 1, so musical time starts with the first audio.
+    connector.latest().pushAudio(2);
 
     const result = await session.submitLiveCommands(
       ['track pad "warm background"', 'pad.play', 'guitar.flavor "brighter"', 'tempo 120'].join(
@@ -76,17 +72,17 @@ describe('consumer: the GAS API command path', () => {
     );
 
     // All four landed, and none touched an unsupported intent.
-    expect(result).toMatchObject({ ok: true, applied: 4, warnings: [] });
-    // A host track joined the namespace under the compiler's id scheme.
+    expect(result).toMatchObject({ applied: 4, warnings: [] });
+    // An app track joined the namespace under the compiler's id scheme.
     expect(session.getTracks()).toContainEqual({
       id: 'track.pad',
       name: 'pad',
       description: 'warm background',
-      source: 'host'
+      source: 'app'
     });
 
-    // The Renderer forwarded the derived state, which reflects every command.
-    const forwarded = connector.updates.at(-1)?.update.state;
+    // The session forwarded the derived state, which reflects every command.
+    const forwarded = connector.latest().updates.at(-1)?.update.state;
     expect(forwarded).toBeDefined();
     expect(forwarded!.globals.tempo).toBe(120);
     expect(trackOf(forwarded!, 'track.pad').active).toBe(true);
@@ -99,7 +95,7 @@ describe('consumer: the GAS API command path', () => {
 
     const result = await session.submitLiveCommands('guitar.motif alda( c d e )');
     // Unsupported by the connector: the override is kept, but warned.
-    expect(result).toMatchObject({ ok: true, applied: 1 });
+    expect(result).toMatchObject({ applied: 1 });
     expect(result.warnings).toHaveLength(1);
     expect(result.warnings[0]).toMatchObject({
       code: 'unsupported-intent',
@@ -107,10 +103,10 @@ describe('consumer: the GAS API command path', () => {
       support: 'unsupported'
     });
 
-    // Staged rather than dropped: the run starts with it.
-    expect(connector.prepared).toEqual([]);
+    // Kept rather than dropped: the Play starts with it.
+    expect(connector.connects).toEqual([]);
     await session.play();
-    expect(trackOf(connector.prepared[0]!.state, 'track.guitar').motif).toBeDefined();
+    expect(trackOf(connector.connects[0]!.state, 'track.guitar').motif).toBeDefined();
     await session.close();
   });
 
@@ -119,31 +115,31 @@ describe('consumer: the GAS API command path', () => {
     const rejection = session.submitLiveCommands('ghost.play');
     await expect(rejection).rejects.toBeInstanceOf(GasOperationError);
     await expect(rejection).rejects.toMatchObject({
-      kind: 'live',
+      kind: 'command',
       failure: { code: 'unknown-track', trackId: 'ghost' }
     });
     await session.close();
   });
 });
 
-// --- Consumer 2: the Renderer derivation loop ---------------------------------
+// --- Consumer 2: the session derivation loop ----------------------------------
 
-describe('consumer: the Renderer derivation loop', () => {
-  it('derives at every schedule position and preserves live overrides across a loop', () => {
+describe('consumer: the session derivation loop', () => {
+  it('derives at every schedule position and preserves app values across a loop', () => {
     const timeline = corpusTimeline('drum-loop'); // loop playback, one section
     const drumsId = timeline.tracks.find((track) => track.name === 'drums')!.trackId;
 
-    // A live level override during the run.
+    // An app level value.
     const applied = applyCommand(
       createInputState(timeline),
       { kind: 'setTrackLevel', trackId: drumsId, value: 0.7 },
-      { phase: 'active', capabilities: CAPABILITIES }
+      { capabilities: CAPABILITIES }
     );
     expect(applied.ok).toBe(true);
     if (!applied.ok) return;
     const state = applied.state;
 
-    // The Renderer re-derives at each authored boundary, supplying the section
+    // The session re-derives at each authored boundary, supplying the section
     // and the current loop iteration.
     const schedule = authoredEventSchedule(timeline);
     expect(schedule.length).toBeGreaterThan(0);
@@ -156,34 +152,19 @@ describe('consumer: the Renderer derivation loop', () => {
       expect(trackOf(snapshot, drumsId).level).toEqual({ kind: 'level', value: 0.7 });
     }
 
-    // At the loop boundary the Renderer preserves live overrides; iteration 2
-    // still sees the live level.
-    const looped = applyLoopBoundary(state);
-    expect(looped.live).toEqual(state.live);
-    const iterationTwo = effectiveStateAt(looped, schedule[0], {
+    // App values outlast a loop; iteration 2 still sees the app level.
+    const iterationTwo = effectiveStateAt(state, schedule[0], {
       loopIteration: 2,
       activeSection: sectionInstanceAt(timeline, schedule[0])
     });
     expect(trackOf(iterationTwo, drumsId).level).toEqual({ kind: 'level', value: 0.7 });
-
-    // On completion the Renderer clears overrides; the authored document alone remains.
-    const completed = applyCompletion(state);
-    expect(completed.live).toEqual([]);
-    expect(
-      trackOf(
-        effectiveStateAt(completed, schedule[0], {
-          activeSection: sectionInstanceAt(timeline, schedule[0])
-        }),
-        drumsId
-      ).level
-    ).toBeUndefined();
   });
 });
 
 // --- Consumer 3: CLI / compile-only inspection --------------------------------
 
 describe('consumer: CLI / compile-only inspection', () => {
-  it('scrubs effective state across bars with no Renderer, connector, or capabilities table', () => {
+  it('scrubs effective state across bars with no session, connector, or capabilities table', () => {
     const timeline = corpusTimeline('arrangement');
     const state = createInputState(timeline);
 

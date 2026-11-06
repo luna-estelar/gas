@@ -1,9 +1,7 @@
-// The authored event schedule: the ordered, de-duplicated musical positions at
-// which authored effective state can change. These are the Renderer's derivation
-// boundaries and the positions a CLI scrubs — positions only, never the events;
-// the caller re-derives with `effectiveStateAt` at each. Derived from the
-// timeline alone: no input state, no capabilities, no clock. Run start and loop
-// boundaries are Renderer-added derivation points, not schedule entries.
+// The positions where authored state can change, in order and without
+// duplicates. The session sends an update at each, and a CLI can scrub through
+// them. The caller derives the state at each with `effectiveStateAt`. Only the
+// timeline is used. The start of a Play and loop boundaries are not included.
 
 import type { MusicalPosition, Timeline } from '../protocol/index.js';
 import { comparePositions, positionsEqual } from './positions.js';

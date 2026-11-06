@@ -1,4 +1,4 @@
-// A minimal valid Timeline for tests, shared by the renderer and the browser.
+// A minimal valid Timeline for tests, shared by the renderer and browser tests.
 // Protocol-only, like the other shared fixtures.
 import type { Timeline } from '../../packages/gas/src/protocol/index.js';
 

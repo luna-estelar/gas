@@ -1,0 +1,40 @@
+---
+'@luna-estelar/gas': minor
+---
+
+GAS owns the connection lifecycle, and the session is the only public object.
+
+- `createSession({ connector, clock?, documentDefaults?, connectorConfig? })` builds everything.
+  The renderer is internal: `createRenderer`, `session.renderer`, `RendererControl`,
+  `SessionWiring` and `retryRenderer()` are gone.
+- `firstAudioTimeoutSeconds` on `createSession` and `createBrowserSession` sets how long a playing
+  track may go without audio before the session fails. It defaults to three chunks and is clamped
+  to 2-15 s.
+- Each Play opens a new connection. Play resolves once it is open, rejects with `provider` if it
+  can't open, and rejects with `cancelled` if Stop or Close came first. Stop and Close return at
+  once.
+- A failure during playback emits one `error` and leaves the session stopped. Play works again
+  on the same session.
+- `getState()` is `{ status, loaded, ended?, tracks, appValues }`, and one `state` event reports
+  every change. The events are `state`, `generationPosition`, `audio`, `warning` and `error`.
+  `lifecycle`, `position` and `diagnostic` are gone, and no payload carries a `runId`.
+- While no track plays, GAS writes silence and musical time keeps going. It pauses the model
+  during a rest and resumes it, with the next track's update, one chunk plus the model's start-up
+  delay before that track comes in. A rest too short to be worth it keeps the entry's prompts
+  active so the connector also keeps generating. Edits during the lead preserve the entry's
+  tracks, and intervening score boundaries cannot replace them with an inactive rest state.
+  If an opening rest is shorter than the cold-start lead, GAS prepares the first entry before
+  starting the musical clock and preserves the full written rest.
+- New session methods: `getCapabilities`, `getModelInfo`, `getConnectorConfig`,
+  `updateConnectorConfig`, `getConfigSchema`, `getDocumentDefaults`, `updateDocumentDefaults` and
+  `setConnector`.
+- The `Legacy*` connector types are removed. `createBrowserSession` takes a `Connector`, with no
+  factory, `settings` or `renderer` option.
+- `diagnostics.schema.json` no longer defines `RendererWarning` or `RendererFailure`. The
+  `session`, `renderer` and `state` schemas are no longer published. The data schemas stay at 1.0.
+- `OverrideCommand` is `AppValueCommand`, and `Override` is `AppValue`. The schema def in
+  `commands.schema.json` is renamed to match.
+- `PlaybackWarning` is `PlayWarning`.
+- `submitLiveCommands` returns `SubmitLiveCommandsResult`, which is `CommandResult` plus
+  `applied`. `LiveCommandSuccess`, `LiveCommandResult` and its `ok` field are gone.
+- `ConnectorSettings` and `ConnectorAudioChunk.final` are removed.

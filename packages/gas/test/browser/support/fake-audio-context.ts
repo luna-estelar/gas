@@ -4,7 +4,7 @@
 import type { AudioChunk } from '../../../src/protocol/index.js';
 import { VirtualClock } from '../../../../../test/support/virtual-clock.js';
 
-export class FakeAudioParam {
+class FakeAudioParam {
   value = 1;
   readonly calls: Array<readonly [string, ...number[]]> = [];
 
@@ -23,7 +23,7 @@ export class FakeAudioParam {
   }
 }
 
-export class FakeGainNode {
+class FakeGainNode {
   readonly gain = new FakeAudioParam();
   connected: unknown;
   disconnected = 0;
@@ -37,7 +37,7 @@ export class FakeGainNode {
   }
 }
 
-export class FakeAudioBuffer {
+class FakeAudioBuffer {
   readonly channels: Float32Array[];
   readonly duration: number;
 
@@ -55,7 +55,7 @@ export class FakeAudioBuffer {
   }
 }
 
-export class FakeBufferSource {
+class FakeBufferSource {
   buffer: FakeAudioBuffer | null = null;
   connected: unknown;
   startedAt: number | undefined;
@@ -156,7 +156,6 @@ export class FakeAudioContext {
 }
 
 export interface ChunkOptions {
-  readonly runId?: string;
   readonly seconds?: number;
   readonly sampleRate?: number;
   readonly channels?: number;
@@ -169,7 +168,6 @@ export function pcmChunk(sequence: number, options: ChunkOptions = {}): AudioChu
   const seconds = options.seconds ?? 2;
   const frames = Math.round(seconds * sampleRate);
   return {
-    runId: options.runId ?? 'run-a',
     sequence,
     codec: 'pcm',
     sampleFormat: 's16le',

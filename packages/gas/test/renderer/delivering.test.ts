@@ -1,192 +1,138 @@
-import { createInputState } from '../../src/core/index.js';
-import type { ConnectorAudioChunk, Renderer, Timeline } from '../../src/protocol/index.js';
 import { describe, expect, it } from 'vitest';
-import { applyS16leGain, BufferLedger, createRenderer } from '../../src/renderer/index.js';
-import { FakeConnector } from '../../../../test/support/fake-connector.js';
-import { deferred, flushAsync } from '../../../../test/support/deferred.js';
+import { applyS16leGain, BufferLedger } from '../../src/renderer/index.js';
+import { flushAsync } from '../../../../test/support/deferred.js';
 import { testTimeline } from '../../../../test/support/timeline.js';
-import { VirtualClock } from '../../../../test/support/virtual-clock.js';
+import {
+  decodeSamples,
+  encodeSamples,
+  playing,
+  rig,
+  samplesChunk,
+  type Rig
+} from './support/rig.js';
+import type { FakeConnection } from '../../../../test/support/fake-connection.js';
+
+const infinite = () => testTimeline({ playback: { mode: 'infinite' } });
 
 describe('audio delivery', () => {
-  it('holds startup audio and releases it from the committed audible anchor', async () => {
-    const clock = new VirtualClock();
-    const gate = deferred();
-    const connector = new FakeConnector({
-      startGate: gate.promise,
-      startChunks: [
-        chunk('run-startup-audio', [1], 2),
-        chunk('run-startup-audio', [2], 2),
-        chunk('run-startup-audio', [3], 2)
-      ]
-    });
-    const renderer = await createRenderer({
-      clock,
-      connector,
-      runIdFactory: () => 'run-startup-audio'
-    });
-    const timeline = infiniteTimeline();
-    await renderer.load(timeline, createInputState(timeline));
-    const sequences: number[] = [];
-    renderer.on('audio', (value) => sequences.push(value.sequence));
+  it('holds audio sent while connecting and releases it from the anchor', async () => {
+    const r = rig(infinite());
+    r.connector.autoConnect = false;
+    const sequences = sequencesOf(r);
 
-    const starting = renderer.start();
+    const play = r.renderer.play();
     await flushAsync();
-    expect(sequences).toEqual([]);
-    clock.advanceTo(10);
+    r.clock.advanceTo(10);
+    const connection = r.connector.resolveConnect();
+    connection.pushAudio(6);
     expect(sequences).toEqual([]);
 
-    gate.resolve();
-    await starting;
+    await play;
     expect(sequences).toEqual([0, 1]);
-    clock.advanceTo(11.99);
+    r.clock.advanceTo(11.99);
     expect(sequences).toEqual([0, 1]);
-    clock.advanceTo(12);
+    r.clock.advanceTo(12);
     expect(sequences).toEqual([0, 1, 2]);
   });
 
-  it('rejects startup audio when playback stops before the anchor is committed', async () => {
-    const clock = new VirtualClock();
-    const gate = deferred();
-    const connector = new FakeConnector({
-      startGate: gate.promise,
-      startChunks: [chunk('run-stopped-startup', [1], 2)]
-    });
-    const renderer = await createRenderer({
-      clock,
-      connector,
-      runIdFactory: () => 'run-stopped-startup'
-    });
-    const timeline = infiniteTimeline();
-    await renderer.load(timeline, createInputState(timeline));
-    const audio: number[] = [];
-    const warnings: string[] = [];
-    renderer.on('audio', (value) => audio.push(value.sequence));
-    renderer.on('warning', (value) => warnings.push(value.code));
+  it('drops audio sent while connecting when playback stops first', async () => {
+    const r = rig(infinite());
+    r.connector.autoConnect = false;
 
-    const starting = renderer.start();
+    const play = r.renderer.play();
     await flushAsync();
-    await renderer.stop();
-    gate.resolve();
-    // The run was stopped before it started, so start() says so.
-    await expect(starting).rejects.toMatchObject({ code: 'renderer-state-conflict' });
+    const connection = r.connector.resolveConnect();
+    connection.pushAudio(2);
+    r.renderer.stop();
+    await expect(play).rejects.toMatchObject({ code: 'cancelled' });
+    await flushAsync();
 
-    expect(audio).toEqual([]);
-    expect(warnings).toContain('buffered-audio-rejected');
-    expect(connector.calls.filter((call) => call === 'stop:run-stopped-startup')).toHaveLength(1);
-    expect(clock.pendingDeadlines()).toEqual([]);
+    expect(r.audio).toEqual([]);
+    expect(r.warnings).toEqual([]);
+    expect(connection.calls.filter((call) => call === 'close')).toHaveLength(1);
+    expect(r.clock.pendingDeadlines()).toEqual([]);
   });
 
   it('assigns sequence numbers and applies global s16le gain once', async () => {
     const timeline = testTimeline({ globals: { level: { kind: 'level', value: 0.5 } } });
-    const { connector, renderer } = await audioRenderer(timeline);
+    const { connection, renderer } = await playing(timeline, { firstAudio: 0 });
     const audio: Array<{ sequence: number; samples: number[] }> = [];
     renderer.on('audio', (chunk) =>
       audio.push({ sequence: chunk.sequence, samples: decodeSamples(chunk.bytes) })
     );
-    connector.sink!.push(chunk('run-audio', [10_000, -10_000], 2));
-    connector.sink!.push(chunk('run-audio', [32_767, -32_768], 2));
+    connection.options.onAudio(samplesChunk([10_000, -10_000], 2));
+    connection.options.onAudio(samplesChunk([32_767, -32_768], 2));
     expect(audio).toEqual([
       { sequence: 0, samples: [5_000, -5_000] },
       { sequence: 1, samples: [16_384, -16_384] }
     ]);
   });
 
-  it('paces burst chunks to the committed lookahead window', async () => {
-    const timeline = infiniteTimeline();
-    const { clock, connector, renderer } = await audioRenderer(timeline);
-    const sequences: number[] = [];
-    renderer.on('audio', (value) => sequences.push(value.sequence));
-    connector.sink!.push(chunk('run-audio', [1], 2));
-    connector.sink!.push(chunk('run-audio', [2], 2));
-    connector.sink!.push(chunk('run-audio', [3], 2));
+  it('paces burst chunks to the anchored lookahead window', async () => {
+    const r = await playing(infinite(), { firstAudio: 0 });
+    const sequences = sequencesOf(r);
+    r.connection.pushAudio(6);
     expect(sequences).toEqual([0, 1]);
-    clock.advanceTo(2);
+    r.clock.advanceTo(2);
     await flushAsync();
     expect(sequences).toEqual([0, 1, 2]);
   });
 
-  it('visibly rejects stale chunks after stop', async () => {
-    const { connector, renderer } = await audioRenderer(infiniteTimeline());
-    const warnings: string[] = [];
-    renderer.on('warning', (warning) => warnings.push(warning.code));
-    const sink = connector.sink!;
-    await renderer.stop();
-    sink.push(chunk('run-audio', [1], 2));
-    expect(warnings).toContain('stale-audio-rejected');
+  it('drops chunks sent after stop, without a warning (rule 1)', async () => {
+    const { connection, renderer, audio, warnings } = await playing(infinite());
+    const before = audio.length;
+    renderer.stop();
+    connection.pushAudio(2);
+    expect(audio).toHaveLength(before);
+    expect(warnings).toEqual([]);
   });
 
-  it('surfaces connector stream status and ignores stale callbacks', async () => {
-    const { connector, renderer } = await audioRenderer(
-      infiniteTimeline(),
-      new FakeConnector({ anchorOnStart: true })
-    );
-    const statuses: Array<{ playback: string; stream?: string; throttled?: boolean }> = [];
-    renderer.on('status', (status) =>
-      statuses.push({
-        playback: status.playback,
-        ...(status.stream !== undefined ? { stream: status.stream } : {}),
-        ...(status.throttled !== undefined ? { throttled: status.throttled } : {})
-      })
-    );
-    const sink = connector.sink!;
+  it('passes connection warnings on with safe text and ignores them after stop', async () => {
+    const secret = 'provider-warning-secret';
+    const { connection, renderer, warnings } = await playing(infinite());
 
-    sink.status('streaming', 'run-audio');
-    sink.status('throttled', 'run-audio');
-    sink.status('ended', 'run-audio');
-    expect(statuses.slice(-3)).toEqual([
-      { playback: 'running', stream: 'streaming' },
-      // `stream` alone: the provider throttling is not the renderer throttling it.
-      { playback: 'running', stream: 'throttled' },
-      { playback: 'running', stream: 'ended' }
+    connection.warn({ code: 'tempo-clamped', message: secret });
+    expect(warnings).toEqual([
+      { code: 'tempo-clamped', message: 'The connector reported a warning.' }
     ]);
 
-    await renderer.stop();
-    const afterStop = statuses.length;
-    sink.status('streaming', 'run-audio');
-    expect(statuses).toHaveLength(afterStop);
+    renderer.stop();
+    connection.warn({ code: 'late', message: 'late' });
+    expect(warnings).toHaveLength(1);
   });
 
-  it('warns, throttles at the hard limit, and resumes below the warning level', async () => {
-    const { clock, connector, renderer } = await audioRenderer(infiniteTimeline());
-    const warnings: string[] = [];
-    const throttled: boolean[] = [];
-    renderer.on('warning', (warning) => warnings.push(warning.code));
-    renderer.on('status', (status) => throttled.push(status.throttled ?? false));
-    pushBurst(connector, 17);
+  it('warns, pauses the model at the hard limit, and resumes below the warning level', async () => {
+    const { clock, connection, warnings } = await playing(infinite(), { firstAudio: 0 });
+    pushBurst(connection, 17);
     await flushAsync();
-    expect(warnings.filter((code) => code === 'audio-buffer-high')).toHaveLength(1);
-    expect(connector.calls).toContain('paused:true');
-    expect(throttled).toContain(true);
-
-    connector.sink!.status('streaming', 'run-audio');
-    expect(throttled.at(-1)).toBe(true);
+    expect(codes(warnings, 'audio-buffer-high')).toHaveLength(1);
+    expect(codes(warnings, 'generation-paused-backlog')).toHaveLength(1);
+    expect(connection.flow).toEqual(['pause']);
 
     clock.advanceTo(20);
     await flushAsync();
-    expect(connector.calls).toContain('paused:false');
+    expect(connection.flow).toEqual(['pause', 'resume']);
   });
 
-  it('fails clearly at the hard limit when flow control is unavailable', async () => {
-    const connector = new FakeConnector({ description: { supportsFlowControl: false } });
-    const { renderer } = await audioRenderer(infiniteTimeline(), connector);
-    const failures: string[] = [];
-    renderer.on('failure', (failure) => failures.push(failure.code));
-    pushBurst(connector, 17);
+  it('fails only if generation runs on to the overflow limit while paused', async () => {
+    const { connection, ends } = await playing(infinite(), { firstAudio: 0 });
+    pushBurst(connection, 17);
     await flushAsync();
-    expect(failures).toContain('audio-backpressure-overflow');
-  });
+    expect(connection.flow).toEqual(['pause']);
 
-  it('fails if generation continues after flow control has throttled the connector', async () => {
-    const { connector, renderer } = await audioRenderer(infiniteTimeline());
-    const failures: string[] = [];
-    renderer.on('failure', (failure) => failures.push(failure.code));
-    pushBurst(connector, 17);
+    // Below the overflow limit a backlog only pauses the model.
+    pushBurst(connection, 14);
     await flushAsync();
-    expect(connector.calls).toContain('paused:true');
+    expect(ends).toEqual([]);
 
-    connector.sink!.push(chunk('run-audio', [18], 2));
+    pushBurst(connection, 1);
     await flushAsync();
-    expect(failures).toContain('audio-backpressure-overflow');
+    expect(ends).toEqual([
+      {
+        reason: 'failed',
+        failure: expect.objectContaining({ code: 'audio-backpressure-overflow' })
+      }
+    ]);
   });
 });
 
@@ -218,59 +164,19 @@ describe('audio accounting and gain primitives', () => {
   });
 });
 
-async function audioRenderer(
-  timeline: Timeline,
-  connector = new FakeConnector()
-): Promise<{ clock: VirtualClock; connector: FakeConnector; renderer: Renderer }> {
-  const clock = new VirtualClock();
-  const renderer = await createRenderer({
-    clock,
-    connector,
-    runIdFactory: () => 'run-audio'
-  });
-  await renderer.load(timeline, createInputState(timeline));
-  await renderer.start();
-  return { clock, connector, renderer };
+function sequencesOf(r: Rig): number[] {
+  const sequences: number[] = [];
+  r.renderer.on('audio', (value) => sequences.push(value.sequence));
+  return sequences;
 }
 
-function infiniteTimeline(): Timeline {
-  return testTimeline({ playback: { mode: 'infinite' } });
+function codes(warnings: ReadonlyArray<{ code: string }>, code: string): unknown[] {
+  return warnings.filter((warning) => warning.code === code);
 }
 
-function pushBurst(connector: FakeConnector, count: number): void {
+/** `count` two-second chunks, one at a time, each with its own sample value. */
+function pushBurst(connection: FakeConnection, count: number): void {
   for (let index = 0; index < count; index += 1) {
-    connector.sink!.push(chunk('run-audio', [index], 2));
+    connection.options.onAudio(samplesChunk([index], 2));
   }
-}
-
-function chunk(
-  runId: string,
-  samples: readonly number[],
-  durationSeconds: number
-): ConnectorAudioChunk {
-  return {
-    runId,
-    bytes: encodeSamples(samples),
-    durationSeconds,
-    codec: 'pcm',
-    sampleFormat: 's16le',
-    sampleRate: 48_000,
-    channels: 2
-  };
-}
-
-function encodeSamples(samples: readonly number[]): Uint8Array {
-  const bytes = new Uint8Array(samples.length * 2);
-  const view = new DataView(bytes.buffer);
-  samples.forEach((sample, index) => view.setInt16(index * 2, sample, true));
-  return bytes;
-}
-
-function decodeSamples(bytes: Uint8Array): number[] {
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const samples: number[] = [];
-  for (let offset = 0; offset < bytes.byteLength; offset += 2) {
-    samples.push(view.getInt16(offset, true));
-  }
-  return samples;
 }

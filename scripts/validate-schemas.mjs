@@ -23,20 +23,7 @@ const fixtureSchemas = new Map([
   ['command.json', `${SCHEMA_BASE}/commands.schema.json#/$defs/Command`],
   ['compiler-diagnostic.json', `${SCHEMA_BASE}/diagnostics.schema.json#/$defs/GasDiagnostic`],
   ['config-schema.json', `${SCHEMA_BASE}/config.schema.json#/$defs/ConnectorConfigSchema`],
-  [
-    'connector-config-problem.json',
-    `${SCHEMA_BASE}/renderer.schema.json#/$defs/ConnectorConfigProblem`
-  ],
   ['connector-config.json', `${SCHEMA_BASE}/config.schema.json#/$defs/ConnectorConfig`],
-  ['effective-state.json', `${SCHEMA_BASE}/state.schema.json#/$defs/EffectiveState`],
-  ['lifecycle-event.json', `${SCHEMA_BASE}/session.schema.json#/$defs/LifecycleEvent`],
-  ['live-command-result.json', `${SCHEMA_BASE}/session.schema.json#/$defs/LiveCommandResult`],
-  ['load-result.json', `${SCHEMA_BASE}/session.schema.json#/$defs/LoadResult`],
-  ['renderer-failure.json', `${SCHEMA_BASE}/diagnostics.schema.json#/$defs/RendererFailure`],
-  ['renderer-position.json', `${SCHEMA_BASE}/renderer.schema.json#/$defs/RendererPositionEvent`],
-  ['renderer-status.json', `${SCHEMA_BASE}/renderer.schema.json#/$defs/RendererStatusEvent`],
-  ['renderer-warning.json', `${SCHEMA_BASE}/diagnostics.schema.json#/$defs/RendererWarning`],
-  ['session-state.json', `${SCHEMA_BASE}/session.schema.json#/$defs/SessionState`],
   ['timeline-finite.json', `${SCHEMA_BASE}/timeline.schema.json`],
   ['timeline-infinite.json', `${SCHEMA_BASE}/timeline.schema.json`],
   ['timeline-level.json', `${SCHEMA_BASE}/timeline.schema.json`],
@@ -127,16 +114,6 @@ const invalidCases = [
     }
   },
   {
-    name: 'sessions reject unknown playback phases',
-    schemaId: `${SCHEMA_BASE}/session.schema.json#/$defs/SessionState`,
-    value: { ...fixtureValues.get('session-state.json'), playback: 'paused' }
-  },
-  {
-    name: 'lifecycle events reject unknown properties',
-    schemaId: `${SCHEMA_BASE}/session.schema.json#/$defs/LifecycleEvent`,
-    value: { ...fixtureValues.get('lifecycle-event.json'), providerStatus: 'secret' }
-  },
-  {
     name: 'timelines reject non-1.0 versions',
     schemaId: `${SCHEMA_BASE}/timeline.schema.json`,
     value: {
@@ -148,41 +125,6 @@ const invalidCases = [
     name: 'timelines reject extra fields',
     schemaId: `${SCHEMA_BASE}/timeline.schema.json`,
     value: { ...fixtureValues.get('timeline-infinite.json'), extension: true }
-  },
-  {
-    name: 'renderer failures reject a close code below the WebSocket range',
-    schemaId: `${SCHEMA_BASE}/diagnostics.schema.json#/$defs/RendererFailure`,
-    value: { ...fixtureValues.get('renderer-failure.json'), closeCode: 999 }
-  },
-  {
-    name: 'renderer failures reject a close code above the application range',
-    schemaId: `${SCHEMA_BASE}/diagnostics.schema.json#/$defs/RendererFailure`,
-    value: { ...fixtureValues.get('renderer-failure.json'), closeCode: 5000 }
-  },
-  {
-    name: 'renderer failures reject a fractional close code',
-    schemaId: `${SCHEMA_BASE}/diagnostics.schema.json#/$defs/RendererFailure`,
-    value: { ...fixtureValues.get('renderer-failure.json'), closeCode: 1000.5 }
-  },
-  {
-    name: 'renderer statuses reject a false completion flag',
-    schemaId: `${SCHEMA_BASE}/renderer.schema.json#/$defs/RendererStatusEvent`,
-    value: { ...fixtureValues.get('renderer-status.json'), completed: false }
-  },
-  {
-    name: 'lifecycle events reject a false completion flag',
-    schemaId: `${SCHEMA_BASE}/session.schema.json#/$defs/LifecycleEvent`,
-    value: { ...fixtureValues.get('lifecycle-event.json'), completed: false }
-  },
-  {
-    name: 'connector config problems reject extra members',
-    schemaId: `${SCHEMA_BASE}/renderer.schema.json#/$defs/ConnectorConfigProblem`,
-    value: { ...fixtureValues.get('connector-config-problem.json'), keyword: 'maximum' }
-  },
-  {
-    name: 'connector config problems require a non-empty code',
-    schemaId: `${SCHEMA_BASE}/renderer.schema.json#/$defs/ConnectorConfigProblem`,
-    value: { ...fixtureValues.get('connector-config-problem.json'), code: '' }
   },
   {
     name: 'timeline actions require their matching value kind',

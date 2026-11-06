@@ -1,72 +1,52 @@
 import { createInputState } from '../../src/core/index.js';
-import type {
-  Renderer,
-  RendererStatusEvent,
-  Timeline,
-  TimelineEvent
-} from '../../src/protocol/index.js';
+import type { Timeline, TimelineEvent } from '../../src/protocol/index.js';
 import { describe, expect, it } from 'vitest';
-import { createRenderer } from '../../src/renderer/index.js';
-import { FakeConnector } from '../../../../test/support/fake-connector.js';
-import { deferred, flushAsync } from '../../../../test/support/deferred.js';
+import { flushAsync } from '../../../../test/support/deferred.js';
 import { testTimeline } from '../../../../test/support/timeline.js';
-import { VirtualClock } from '../../../../test/support/virtual-clock.js';
+import { applyActive, playing, rig } from './support/rig.js';
 
 describe('renderer scheduling and derivation', () => {
-  it('anchors musical time after delayed connector startup', async () => {
-    const clock = new VirtualClock();
-    const gate = deferred();
-    const connector = new FakeConnector({ startGate: gate.promise, anchorOnStart: true });
-    const renderer = await createRenderer({
-      clock,
-      connector,
-      runIdFactory: () => 'run-delayed-start'
-    });
-    const timeline = timelineWithBarThreeStop();
-    await renderer.load(timeline, createInputState(timeline));
-    const positions: Array<{ bar: number; seconds: number }> = [];
-    renderer.on('position', (event) =>
-      positions.push({ bar: event.position.bar, seconds: event.seconds })
-    );
+  it('anchors musical time after a delayed connect', async () => {
+    const r = rig(timelineWithBarThreeStop());
+    r.connector.autoConnect = false;
 
-    const starting = renderer.start();
+    const play = r.renderer.play();
     await flushAsync();
-    clock.advanceTo(10);
+    r.clock.advanceTo(10);
     await flushAsync();
-    expect(connector.updates).toHaveLength(0);
-    expect(positions).toEqual([]);
+    expect(r.positions).toEqual([]);
 
-    gate.resolve();
-    await expect(starting).resolves.toBe('run-delayed-start');
-    expect(positions).toEqual([{ bar: 1, seconds: 0 }]);
+    const connection = r.connector.resolveConnect();
+    await play;
+    connection.pushAudio(2);
+    expect(barsAndSeconds(r.positions)).toEqual([{ bar: 1, seconds: 0 }]);
 
-    clock.advanceTo(11.99);
+    r.clock.advanceTo(11.99);
     await flushAsync();
-    expect(connector.updates).toHaveLength(0);
-    clock.advanceTo(12);
+    expect(connection.updates).toHaveLength(0);
+    r.clock.advanceTo(12);
     await flushAsync();
-    expect(connector.updates[0]?.requested).toEqual({ bar: 3 });
-    clock.advanceTo(14);
+    expect(connection.updates[0]?.requested).toEqual({ bar: 3 });
+    r.clock.advanceTo(14);
     await flushAsync();
-    expect(positions.at(-1)).toEqual({ bar: 3, seconds: 4 });
+    expect(barsAndSeconds(r.positions).at(-1)).toEqual({ bar: 3, seconds: 4 });
   });
 
-  it('prepares bar one before starting and derives authored boundaries ahead', async () => {
-    const { clock, connector, renderer } = await runningRenderer(timelineWithBarThreeStop());
-    expect(connector.calls.slice(-2)).toEqual(['prepare', 'start']);
-    expect(connector.prepared[0]?.state.tracks[0]?.active).toBe(true);
+  it('connects with bar one and derives authored boundaries ahead', async () => {
+    const { clock, connector, connection } = await playing(timelineWithBarThreeStop());
+    expect(connector.connects[0]?.state.tracks[0]?.active).toBe(true);
 
     clock.advanceTo(1.99);
     await flushAsync();
-    expect(connector.updates).toHaveLength(0);
+    expect(connection.updates).toHaveLength(0);
 
-    // Bar 3 is four seconds after bar 1 at 120 BPM. One two-second provider
-    // chunk of lookahead submits its state update at t=2.
+    // Bar 3 is four seconds after bar 1 at 120 BPM. One two-second chunk of
+    // lookahead sends its update at t=2.
     clock.advanceTo(2);
     await flushAsync();
-    expect(connector.updates).toHaveLength(1);
-    expect(connector.updates[0]?.requested).toEqual({ bar: 3 });
-    expect(connector.updates[0]?.update.state.tracks[0]?.active).toBe(false);
+    expect(connection.updates).toHaveLength(1);
+    expect(connection.updates[0]?.requested).toEqual({ bar: 3 });
+    expect(connection.updates[0]?.update.state.tracks[0]?.active).toBe(false);
   });
 
   it('executes overdue same-position events immediately as one stable boundary', async () => {
@@ -77,38 +57,25 @@ describe('renderer scheduling and derivation', () => {
         event.position.bar === 3 ? { ...event, position: { bar: 2 } } : event
       )
     };
-    const { connector } = await runningRenderer(timeline);
+    const { connection } = await playing(timeline);
     await flushAsync();
 
-    expect(connector.updates).toHaveLength(1);
-    expect(connector.updates[0]?.requested).toEqual({ bar: 2 });
-    expect(connector.updates[0]?.update.state.tracks[0]).toMatchObject({
+    expect(connection.updates).toHaveLength(1);
+    expect(connection.updates[0]?.requested).toEqual({ bar: 2 });
+    expect(connection.updates[0]?.update.state.tracks[0]).toMatchObject({
       active: false,
       flavor: { kind: 'text', text: 'distant' }
     });
   });
 
   it('emits position at the actual boundary rather than the lookahead deadline', async () => {
-    const timeline = timelineWithBarThreeStop();
-    const clock = new VirtualClock();
-    const connector = new FakeConnector({ anchorOnStart: true });
-    const renderer = await createRenderer({
-      clock,
-      connector,
-      runIdFactory: () => 'run-position'
-    });
-    await renderer.load(timeline, createInputState(timeline));
-    const positions: Array<{ bar: number; seconds: number }> = [];
-    renderer.on('position', (event) =>
-      positions.push({ bar: event.position.bar, seconds: event.seconds })
-    );
-    await renderer.start();
+    const { clock, positions } = await playing(timelineWithBarThreeStop());
     clock.advanceTo(2);
     await flushAsync();
-    expect(positions).toEqual([{ bar: 1, seconds: 0 }]);
+    expect(barsAndSeconds(positions)).toEqual([{ bar: 1, seconds: 0 }]);
     clock.advanceTo(4);
     await flushAsync();
-    expect(positions).toEqual([
+    expect(barsAndSeconds(positions)).toEqual([
       { bar: 1, seconds: 0 },
       { bar: 3, seconds: 4 }
     ]);
@@ -122,210 +89,166 @@ describe('renderer scheduling and derivation', () => {
   ] as const)(
     'schedules an authored beat at its own instant in %s',
     async (_meter, timeSignature) => {
-      const timeline = timelineWithBeatThreeStop(timeSignature);
-      const { clock, renderer } = await runningRenderer(timeline);
-      const positions: Array<{ position: unknown; seconds: number }> = [];
-      renderer.on('position', (event) =>
-        positions.push({ position: event.position, seconds: event.seconds })
+      const { clock, renderer, positions } = await playing(
+        timelineWithBeatThreeStop(timeSignature)
       );
+      const after = positions.length;
 
       clock.advanceTo(0.99);
       await flushAsync();
-      expect(positions).toEqual([]);
+      expect(positions.slice(after)).toEqual([]);
 
       clock.advanceTo(1);
       await flushAsync();
-      expect(positions).toEqual([{ position: { bar: 1, beat: { index: 3 } }, seconds: 1 }]);
-      await renderer.stop();
+      expect(
+        positions.slice(after).map(({ position, seconds }) => ({ position, seconds }))
+      ).toEqual([{ position: { bar: 1, beat: { index: 3 } }, seconds: 1 }]);
+      renderer.stop();
     }
   );
 
-  it('completes finite playback at the end boundary and clears every timer', async () => {
-    const { clock, connector, renderer } = await runningRenderer(timelineWithBarThreeStop());
-    const statuses: RendererStatusEvent[] = [];
-    renderer.on('status', (event) => statuses.push(event));
+  it('finishes finite playback at the end boundary and clears every timer', async () => {
+    const { clock, connection, ends } = await playing(timelineWithBarThreeStop());
+    clock.advanceTo(7.99);
+    await flushAsync();
+    expect(ends).toEqual([]);
+
     clock.advanceTo(8);
     await flushAsync();
-    expect(connector.calls).toContain('stop:run-1');
-    // Reaching the declared end is its own event: a terminal status that still
-    // names the run and says it completed, then the ordinary stopped status.
-    expect(statuses.slice(-3)).toEqual([
-      { lifecycle: 'ready', playback: 'stopping', runId: 'run-1' },
-      { lifecycle: 'ready', playback: 'stopped', runId: 'run-1', completed: true },
-      { lifecycle: 'ready', playback: 'stopped' }
-    ]);
-    expect(connector.calls.filter((call) => call === 'stop:run-1')).toHaveLength(1);
+    expect(ends).toEqual([{ reason: 'finished' }]);
+    expect(connection.calls.filter((call) => call === 'close')).toHaveLength(1);
     expect(clock.pendingDeadlines()).toEqual([]);
   });
 
-  // A host that buffers audio is still playing the piece after the renderer is
-  // done with it, so the mapping has to outlive the run.
-  it('keeps placing a completed run until the next start or a stop', async () => {
-    const { clock, renderer } = await runningRenderer(timelineWithBarThreeStop());
+  // An app that buffers audio is still playing the piece after the renderer is
+  // done with it, so the mapping has to outlive the Play.
+  it('keeps placing a finished Play until the next one or a stop', async () => {
+    const { clock, connector, renderer } = await playing(timelineWithBarThreeStop());
     clock.advanceTo(8);
     await flushAsync();
-    expect(renderer.positionAtSeconds?.(7)).toEqual({ bar: 4, beat: { index: 3 } });
+    expect(renderer.positionAtSeconds(7)).toEqual({ bar: 4, beat: { index: 3 } });
     // Audio past the declared end is the last chunk's tail, not bar five.
-    expect(renderer.positionAtSeconds?.(9)).toEqual({ bar: 5 });
+    expect(renderer.positionAtSeconds(9)).toEqual({ bar: 5 });
 
-    // A new run is placed from its own anchor, not the finished one's end.
-    await renderer.start();
-    expect(renderer.positionAtSeconds?.(9)).toEqual({ bar: 5, beat: { index: 3 } });
-    await renderer.stop();
-    expect(renderer.positionAtSeconds?.(1)).toBeUndefined();
+    // A new Play is placed from its own anchor, not the finished one's end.
+    await renderer.play();
+    expect(renderer.positionAtSeconds(9)).toBeUndefined();
+    connector.latest().pushAudio(2);
+    expect(renderer.positionAtSeconds(9)).toEqual({ bar: 5, beat: { index: 3 } });
+    renderer.stop();
+    expect(renderer.positionAtSeconds(1)).toBeUndefined();
   });
 
-  it('forgets a completed run when playback is stopped', async () => {
-    const { clock, renderer } = await runningRenderer(timelineWithBarThreeStop());
+  it('forgets a finished Play when playback is stopped', async () => {
+    const { clock, renderer } = await playing(timelineWithBarThreeStop());
     clock.advanceTo(8);
     await flushAsync();
-    await renderer.stop();
-    expect(renderer.positionAtSeconds?.(7)).toBeUndefined();
+    renderer.stop();
+    expect(renderer.positionAtSeconds(7)).toBeUndefined();
   });
 
-  it('times finite completion from a delayed startup anchor', async () => {
-    const clock = new VirtualClock();
-    const gate = deferred();
-    const connector = new FakeConnector({ startGate: gate.promise, anchorOnStart: true });
-    const renderer = await createRenderer({
-      clock,
-      connector,
-      runIdFactory: () => 'run-delayed-completion'
-    });
-    const timeline = timelineWithBarThreeStop();
-    await renderer.load(timeline, createInputState(timeline));
+  it('times finite completion from a delayed anchor', async () => {
+    const r = rig(timelineWithBarThreeStop());
+    r.connector.autoConnect = false;
 
-    const starting = renderer.start();
+    const play = r.renderer.play();
     await flushAsync();
-    clock.advanceTo(10);
-    gate.resolve();
-    await starting;
+    r.clock.advanceTo(10);
+    const connection = r.connector.resolveConnect();
+    await play;
+    connection.pushAudio(2);
 
-    clock.advanceTo(17.99);
+    r.clock.advanceTo(17.99);
     await flushAsync();
-    expect(connector.calls).not.toContain('stop:run-delayed-completion');
-    clock.advanceTo(18);
+    expect(r.ends).toEqual([]);
+    expect(connection.calls).not.toContain('close');
+    r.clock.advanceTo(18);
     await flushAsync();
-    expect(connector.calls).toContain('stop:run-delayed-completion');
-    expect(clock.pendingDeadlines()).toEqual([]);
+    expect(r.ends).toEqual([{ reason: 'finished' }]);
+    expect(connection.calls).toContain('close');
+    expect(r.clock.pendingDeadlines()).toEqual([]);
   });
 
-  it('cancels future work on stop and rejects double start', async () => {
-    const { clock, connector, renderer } = await runningRenderer(timelineWithBarThreeStop());
-    await expect(renderer.start()).rejects.toMatchObject({ code: 'renderer-state-conflict' });
-    await renderer.stop();
+  it('cancels future work on stop and rejects a second play', async () => {
+    const { clock, connection, renderer } = await playing(timelineWithBarThreeStop());
+    await expect(renderer.play()).rejects.toMatchObject({ code: 'wrong-state' });
+    renderer.stop();
     expect(clock.pendingDeadlines()).toEqual([]);
     clock.advanceTo(20);
     await flushAsync();
-    expect(connector.updates).toHaveLength(0);
-    expect(connector.calls.filter((call) => call === 'stop:run-1')).toHaveLength(1);
+    expect(connection.updates).toHaveLength(0);
+    expect(connection.calls.filter((call) => call === 'close')).toHaveLength(1);
   });
 
-  it('isolates status listeners while starting playback', async () => {
-    const clock = new VirtualClock();
-    const connector = new FakeConnector({ anchorOnStart: true });
-    const renderer = await createRenderer({ clock, connector, runIdFactory: () => 'run-listener' });
+  it('isolates listeners while starting playback', async () => {
+    const r = rig(testTimeline());
+    r.renderer.on('generationPosition', () => {
+      throw new Error('app listener failure');
+    });
+    const bars: number[] = [];
+    r.renderer.on('generationPosition', (event) => bars.push(event.position.bar));
+
+    await expect(r.renderer.play()).resolves.toBeUndefined();
+    r.connector.latest().pushAudio(2);
+    expect(bars).toEqual([1]);
+    r.renderer.stop();
+  });
+
+  it('closes a connection whose first update fails during startup', async () => {
     const timeline = testTimeline();
-    await renderer.load(timeline, createInputState(timeline));
-    const statuses: string[] = [];
-    renderer.on('status', () => {
-      throw new Error('host listener failure');
-    });
-    renderer.on('status', (status) => statuses.push(status.playback));
-
-    await expect(renderer.start()).resolves.toBe('run-listener');
-    expect(statuses.slice(0, 2)).toEqual(['starting', 'running']);
-    await renderer.stop();
-  });
-
-  it('stops a partially started connector when startup fails', async () => {
-    const connector = new FakeConnector({ startFailure: new Error('provider startup failed') });
-    const clock = new VirtualClock();
-    const renderer = await createRenderer({
-      clock,
-      connector,
-      runIdFactory: () => 'run-start-fail'
-    });
-    const timeline = testTimeline();
-    await renderer.load(timeline, createInputState(timeline));
-
-    await expect(renderer.start()).rejects.toMatchObject({
-      code: 'connector-unavailable',
-      failure: { code: 'generation-failed', runId: 'run-start-fail' }
-    });
-    expect(connector.calls).toEqual([
-      'describe',
-      'open',
-      'prepare',
-      'start',
-      'stop:run-start-fail'
-    ]);
-    await renderer.close();
-    expect(connector.calls.at(-1)).toBe('close');
-  });
-
-  it('fails terminally when an explicit connector stop is rejected', async () => {
-    const secret = 'provider-stop-secret';
-    const connector = new FakeConnector({
-      stopFailure: new Error(`stop rejected ${secret}`),
-      anchorOnStart: true
-    });
-    const clock = new VirtualClock();
-    const renderer = await createRenderer({
-      clock,
-      connector,
-      runIdFactory: () => 'run-stop-fail'
-    });
-    const timeline = testTimeline({ playback: { mode: 'infinite' } });
-    await renderer.load(timeline, createInputState(timeline));
-    const failures: unknown[] = [];
-    const statuses: Array<{ lifecycle: string; playback: string }> = [];
-    renderer.on('failure', (failure) => failures.push(failure));
-    renderer.on('status', (status) =>
-      statuses.push({ lifecycle: status.lifecycle, playback: status.playback })
+    const r = rig(timeline);
+    r.connector.autoConnect = false;
+    const play = r.renderer.play();
+    await flushAsync();
+    // A change while connecting is sent once the connection opens.
+    await r.renderer.update(
+      applyActive(createInputState(timeline), {
+        kind: 'setTrackFlavor',
+        trackId: 'track.pad',
+        value: 'brighter'
+      })
     );
-    await renderer.start();
+    const connection = r.connector.resolveConnect();
+    connection.update = async () => {
+      throw new Error('provider startup failed');
+    };
 
-    let caught: unknown;
-    try {
-      await renderer.stop();
-    } catch (error) {
-      caught = error;
-    }
-    expect(caught).toMatchObject({
-      code: 'connector-unavailable',
-      failure: { code: 'connector-unavailable', runId: 'run-stop-fail' }
+    await expect(play).rejects.toMatchObject({
+      code: 'connection-failed',
+      failure: { code: 'connector-unavailable' }
     });
-    expect(JSON.stringify({ caught, failures })).not.toContain(secret);
-    expect(statuses.at(-1)).toEqual({ lifecycle: 'failed', playback: 'failed' });
-    await expect(renderer.start()).rejects.toMatchObject({ code: 'renderer-state-conflict' });
-    expect(connector.calls.filter((call) => call === 'stop:run-stop-fail')).toHaveLength(1);
-
-    await renderer.close();
-    expect(connector.calls.at(-1)).toBe('close');
+    expect(connection.calls).toEqual(['close']);
+    expect(r.ends).toEqual([]);
   });
 
-  it('produces deterministic event and connector logs for the same script', async () => {
+  it('ignores a close() that rejects and plays again', async () => {
+    const secret = 'provider-close-secret';
+    const { connection, renderer, ends, warnings, connector } = await playing(
+      testTimeline({ playback: { mode: 'infinite' } })
+    );
+    connection.close = async () => {
+      throw new Error(`close rejected ${secret}`);
+    };
+
+    renderer.stop();
+    await flushAsync();
+    expect(ends).toEqual([]);
+    expect(JSON.stringify(warnings)).not.toContain(secret);
+
+    await renderer.play();
+    expect(connector.connections).toHaveLength(2);
+    renderer.stop();
+  });
+
+  it('produces deterministic event and connection logs for the same script', async () => {
     expect(await scriptedLog()).toEqual(await scriptedLog());
   });
 });
 
-async function runningRenderer(timeline: Timeline): Promise<{
-  clock: VirtualClock;
-  connector: FakeConnector;
-  renderer: Renderer;
-}> {
-  const clock = new VirtualClock();
-  // Musical time starts with the first chunk, so a running renderer needs audio.
-  const connector = new FakeConnector({ anchorOnStart: true });
-  const renderer = await createRenderer({
-    clock,
-    connector,
-    runIdFactory: () => 'run-1'
-  });
-  await renderer.load(timeline, createInputState(timeline));
-  await renderer.start();
-  return { clock, connector, renderer };
+function barsAndSeconds(
+  positions: ReadonlyArray<{ position: { bar: number }; seconds: number }>
+): Array<{ bar: number; seconds: number }> {
+  return positions.map((event) => ({ bar: event.position.bar, seconds: event.seconds }));
 }
 
 function timelineWithBeatThreeStop(timeSignature: {
@@ -377,11 +300,13 @@ function timelineWithBarThreeStop(): Timeline {
 }
 
 async function scriptedLog(): Promise<readonly string[]> {
-  const { clock, connector, renderer } = await runningRenderer(timelineWithBarThreeStop());
-  const events: string[] = [];
-  renderer.on('position', (event) => events.push(`position:${event.position.bar}:${event.runId}`));
-  renderer.on('status', (event) => events.push(`status:${event.playback}:${event.runId ?? '-'}`));
+  const { clock, connection, positions, audio, ends } = await playing(timelineWithBarThreeStop());
   clock.advanceTo(8);
   await flushAsync();
-  return [...connector.calls, ...events];
+  return [
+    ...connection.calls,
+    ...positions.map((event) => `position:${event.position.bar}:${event.seconds}`),
+    ...audio.map((chunk) => `audio:${chunk.sequence}:${chunk.durationSeconds}`),
+    ...ends.map((end) => `ended:${end.reason}`)
+  ];
 }

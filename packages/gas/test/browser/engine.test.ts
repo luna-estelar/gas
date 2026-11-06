@@ -128,7 +128,7 @@ describe('frame accounting', () => {
 });
 
 describe('rejected chunks', () => {
-  it('drops a chunk whose format differs from the run and warns', () => {
+  it('drops a chunk whose format differs from the Play and warns', () => {
     const { context, engine, warnings, at } = setup();
     at(0, pcmChunk(0));
     const before = engine.status();
@@ -145,7 +145,7 @@ describe('rejected chunks', () => {
     expect(context.buffers).toEqual([]);
   });
 
-  it('warns once per run while the context is suspended', () => {
+  it('warns once per Play while the context is suspended', () => {
     const { context, warnings, at } = setup();
     context.state = 'suspended';
     at(0, pcmChunk(0));
@@ -154,7 +154,7 @@ describe('rejected chunks', () => {
   });
 });
 
-describe('gain, flush and run changes', () => {
+describe('gain, flush and Play changes', () => {
   it('flush ramps to silence over 20 ms and stops every source at the end of the ramp', () => {
     const { context, engine, at } = setup();
     at(0.1, pcmChunk(0));
@@ -181,11 +181,11 @@ describe('gain, flush and run changes', () => {
     expect(engine.status().state).toBe('stopped');
   });
 
-  it('flushes the old run on a new run id and brings the gain back at the new start', () => {
+  it('a chunk at sequence 0 starts a new Play', () => {
     const { context, engine, capture, at } = setup();
     at(0.1, pcmChunk(0));
     at(0.1, pcmChunk(1));
-    at(1, pcmChunk(0, { runId: 'run-b' }));
+    at(1, pcmChunk(0));
     expect(context.started.map((source) => source.stoppedAt)).toEqual([1.02, 1.02]);
     expect(engine.status().state).toBe('buffering');
     expect(capture.snapshot()?.durationSeconds).toBe(2);
@@ -199,7 +199,7 @@ describe('gain, flush and run changes', () => {
     ]);
   });
 
-  it('plays a finished run out and reaches stopped when its last source ends', () => {
+  it('plays a finished Play out and reaches stopped when its last source ends', () => {
     const { context, engine, at } = setup();
     at(0.1, pcmChunk(0));
     at(0.1, pcmChunk(1));

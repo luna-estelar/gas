@@ -1,14 +1,13 @@
-// Application-facing sessions and commands. Renderer implementations arrive through wiring.
+// The session and its commands, as an app uses them.
 
 export { createSession, GasSession } from './session.js';
 export type {
   CompileOptions,
+  CreateSessionOptions,
+  LoadOptions,
   CompileResult,
-  DefineTrackInput,
-  RendererControl
+  DefineTrackInput
 } from './session.js';
-
-export type { SessionWiring } from './wiring.js';
 
 export {
   sourceText,
@@ -20,22 +19,24 @@ export {
 } from './source.js';
 export type { SourceInput, ResolvedSource } from './source.js';
 
-export type { LifecycleEvent, DiagnosticEvent, SessionEvent, SessionEventMap } from './events.js';
+export type { SessionEvent, SessionEventMap } from './events.js';
 
 export { GasOperationError } from './types.js';
 export type {
   AppliedPosition,
+  AudiblePositionEvent,
   CommandResult,
   LoadResult,
-  LiveCommandFailureResult,
-  LiveCommandResult,
-  LiveCommandSuccess,
   OperationErrorInit,
   OperationErrorKind,
-  PlaybackPhase,
-  PlaybackWarning,
+  PlayWarning,
+  DocumentDefaults,
+  GenerationPositionEvent,
+  SessionEnded,
   SessionState,
+  SessionStatus,
   SessionWarning,
+  SubmitLiveCommandsResult,
   TrackView,
   WarningEvent
 } from './types.js';

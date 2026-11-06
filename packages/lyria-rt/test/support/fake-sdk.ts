@@ -6,13 +6,14 @@
 // - session sends never wait on the server, and after close are dropped;
 //   `setWeightedPrompts` rejects an empty list, nothing else rejects;
 // - `close()` is followed by a close event, and messages already in flight can
-//   still arrive until it fires.
+//   still arrive until it fires. `holdCloseEvent()` delays that event until
+//   `releaseClose()`.
 import type { LiveMusicServerMessage } from '@google/genai';
 import type {
   LyriaRtConnectorDependencies,
   LyriaRtMusicSession,
   LyriaRtSdkClient
-} from '../../src/connector.js';
+} from '../../src/transport.js';
 
 type Callbacks = Parameters<LyriaRtSdkClient['connect']>[0]['callbacks'];
 type ClientOptions = Parameters<LyriaRtConnectorDependencies['createClient']>[0];
@@ -23,6 +24,7 @@ export type SessionCall = { readonly kind: string; readonly value?: unknown };
 export class FakeConnection {
   readonly calls: SessionCall[] = [];
   private readyState: 'connecting' | 'open' | 'closing' | 'closed' = 'connecting';
+  private closeHeld = false;
 
   constructor(
     readonly model: string,
@@ -47,7 +49,7 @@ export class FakeConnection {
       this.calls.push({ kind: 'close' });
       if (this.readyState !== 'open') return;
       this.readyState = 'closing';
-      queueMicrotask(() => this.end(1005));
+      if (!this.closeHeld) queueMicrotask(() => this.end(1005));
     }
   };
 
@@ -55,8 +57,21 @@ export class FakeConnection {
     return this.calls.some((call) => call.kind === 'close');
   }
 
+  /** The close event has fired, from either side. */
+  get closed(): boolean {
+    return this.readyState === 'closed';
+  }
+
   kinds(): string[] {
     return this.calls.map((call) => call.kind);
+  }
+
+  holdCloseEvent(): void {
+    this.closeHeld = true;
+  }
+
+  releaseClose(): void {
+    this.end(1005);
   }
 
   open(): void {

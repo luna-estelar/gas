@@ -1,30 +1,33 @@
-// Allocate warning IDs and emit session events. The session filters stale runs
-// before forwarding renderer position and audio events.
+// Allocate warning IDs and emit session events. The renderer only reports the
+// current Play, so nothing from an old connection reaches here.
 
 import type {
+  AppValueDroppedWarning,
+  AudiblePositionEvent,
   AudioChunk,
   CommandWarning,
-  DiagnosticEvent,
-  LifecycleEvent,
-  PlaybackWarning,
-  RendererPositionEvent,
-  RendererWarning,
+  GenerationPositionEvent,
+  PlayWarning,
   SessionState,
   SessionWarning,
   WarningEvent
 } from '../protocol/index.js';
 import type { GasOperationError } from './types.js';
 
-export type { DiagnosticEvent, LifecycleEvent } from '../protocol/index.js';
-
 export interface SessionEventMap {
+  /** Every change to `SessionState`, once. */
   readonly state: SessionState;
-  readonly lifecycle: LifecycleEvent;
-  readonly position: RendererPositionEvent;
+  /** Where the model has generated up to. */
+  readonly generationPosition: GenerationPositionEvent;
+  /**
+   * Where the listener is: each `generationPosition` again, as it is heard.
+   * Only a session with a player emits it, such as `createBrowserSession`'s.
+   */
+  readonly audiblePosition: AudiblePositionEvent;
   readonly audio: AudioChunk;
   readonly warning: WarningEvent;
+  /** A provider failure after Play resolved. Every other failure is a rejection. */
   readonly error: GasOperationError;
-  readonly diagnostic: DiagnosticEvent;
 }
 
 export type SessionEvent = keyof SessionEventMap;
@@ -33,12 +36,11 @@ type Listener<T> = (payload: T) => void;
 export class EventHub {
   private readonly channels: { [K in SessionEvent]: Set<Listener<SessionEventMap[K]>> } = {
     state: new Set(),
-    lifecycle: new Set(),
-    position: new Set(),
+    generationPosition: new Set(),
+    audiblePosition: new Set(),
     audio: new Set(),
     warning: new Set(),
-    error: new Set(),
-    diagnostic: new Set()
+    error: new Set()
   };
   private warningCounter = 0;
 
@@ -66,23 +68,20 @@ export class EventHub {
 
   // Core warning: allocate an id, emit the event, and return the enriched
   // warning for the operation result — the result and the event share one id.
-  warn(warning: CommandWarning): SessionWarning {
+  warn(warning: CommandWarning | AppValueDroppedWarning): SessionWarning {
     const sessionWarning: SessionWarning = { ...warning, warningId: this.nextWarningId() };
     this.emit('warning', sessionWarning);
     return sessionWarning;
   }
 
-  // Renderer warning: same channel, its own id, event only (no result carries
-  // it, since no command produced it).
-  warnRenderer(warning: RendererWarning): PlaybackWarning {
-    const playbackWarning: PlaybackWarning = {
+  // A warning from the Play: same channel, its own id, event only, since no
+  // command produced it.
+  warnPlay(warning: { readonly code: string; readonly message: string }): void {
+    this.emit('warning', {
       warningId: this.nextWarningId(),
       code: warning.code,
-      message: warning.message,
-      ...(warning.runId !== undefined ? { runId: warning.runId } : {})
-    };
-    this.emit('warning', playbackWarning);
-    return playbackWarning;
+      message: warning.message
+    } satisfies PlayWarning);
   }
 
   private nextWarningId(): string {

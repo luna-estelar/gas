@@ -558,7 +558,7 @@ function validateEventPosition(
 // bounds of its beat, so this covers only what JSON Schema cannot: a beat past
 // the end of its bar, and an offset of a whole beat or more. The index check
 // needs a declared meter, and a document that declares none is played at the
-// host's default, which a document-level gate cannot see — so that half is
+// app's default, which a document-level gate cannot see — so that half is
 // skipped rather than guessed at 4/4.
 function validatePositionBeats(
   position: unknown,

@@ -1,4 +1,4 @@
-// Every corpus document compiles, derives state in Core and schedules in the Renderer.
+// Every corpus document compiles, derives state in Core and schedules in the session's renderer.
 
 import { describe, expect, test } from 'vitest';
 import {
@@ -7,19 +7,25 @@ import {
   sectionInstanceAt
 } from '../packages/gas/src/core/index.js';
 import { compileSource } from '../packages/gas/src/language/index.js';
-import { createRenderer } from '../packages/gas/src/renderer/index.js';
+import { createRenderer, type RendererEnd } from '../packages/gas/src/renderer/index.js';
 import type {
+  AudioChunk,
   CapabilitiesTable,
-  RendererPositionEvent,
-  RendererStatusEvent,
+  GenerationPositionEvent,
   Timeline
 } from '../packages/gas/src/protocol/index.js';
-import { FakeConnector } from './support/fake-connector.js';
+import { FakeConnector, type FakeConnection } from './support/fake-connection.js';
 import { VirtualClock } from './support/virtual-clock.js';
 import { exampleFiles, readExample } from '../examples/support.js';
 import { flushAsync } from './support/deferred.js';
 
 const corpusFiles = exampleFiles();
+
+// The clock moves at most this far per step, and the fake model sends this much
+// audio per step while it isn't paused, so it keeps pace without a backlog.
+const STEP_SECONDS = 1;
+// Audio sent as soon as the connection opens, so bar 1 can start.
+const LEAD_SECONDS = 2;
 
 describe('renderer executes every compiled corpus timeline', () => {
   test.each(corpusFiles)(
@@ -33,14 +39,15 @@ describe('renderer executes every compiled corpus timeline', () => {
       const first = await renderScript(result.timeline);
       const second = await renderScript(result.timeline);
       expect(first.log).toEqual(second.log);
-      expect(first.connector.prepared).toHaveLength(1);
-      expect(first.connector.calls.filter((call) => call === 'start')).toHaveLength(1);
+      expect(first.connector.connects).toHaveLength(1);
+      expect(first.connector.connections).toHaveLength(1);
+      expect(first.ended.filter((end) => end.reason === 'failed')).toEqual([]);
 
       const input = createInputState(result.timeline);
-      for (const { update, requested } of first.connector.updates) {
+      for (const { update, requested } of first.connector.latest().updates) {
         expect(update.state).toEqual(
           effectiveStateAt(input, requested, {
-            loopIteration: 0,
+            loopIteration: 1,
             activeSection: sectionInstanceAt(result.timeline, requested)
           })
         );
@@ -51,49 +58,56 @@ describe('renderer executes every compiled corpus timeline', () => {
 
 async function renderScript(timeline: Timeline): Promise<{
   connector: FakeConnector;
+  ended: readonly RendererEnd[];
   log: readonly string[];
 }> {
   const clock = new VirtualClock();
   const connector = new FakeConnector({
-    // Musical time starts with the first chunk, so a run needs audio to begin.
-    description: { capabilities: allSupportedCapabilities() },
-    anchorOnStart: true
+    description: { capabilities: allSupportedCapabilities() }
   });
-  const renderer = await createRenderer({
-    clock,
-    connector,
-    runIdFactory: () => 'corpus-run'
-  });
-  const statuses: RendererStatusEvent[] = [];
-  const positions: RendererPositionEvent[] = [];
-  renderer.on('status', (event) => statuses.push(event));
-  renderer.on('position', (event) => positions.push(event));
-  await renderer.load(timeline, createInputState(timeline));
-  await renderer.start();
+  const renderer = createRenderer({ clock, connector });
+  const positions: GenerationPositionEvent[] = [];
+  const audio: AudioChunk[] = [];
+  const ended: RendererEnd[] = [];
+  const warnings: string[] = [];
+  renderer.on('generationPosition', (event) => positions.push(event));
+  renderer.on('audio', (chunk) => audio.push(chunk));
+  renderer.on('ended', (end) => ended.push(end));
+  renderer.on('warning', (warning) => warnings.push(warning.code));
+  renderer.load(timeline, createInputState(timeline));
+  await renderer.play();
+  const connection = connector.latest();
+  feed(connection, LEAD_SECONDS);
 
   if (timeline.playback.mode === 'finite') {
-    await drainClock(clock, () => statuses.at(-1)?.playback === 'stopped');
+    await drainClock(clock, connection, () => ended.length > 0);
   } else if (timeline.playback.mode === 'loop') {
-    await drainClock(clock, () =>
+    await drainClock(clock, connection, () =>
       positions.some((event) => event.loopIteration === 2 && event.position.bar === 1)
     );
-    await renderer.stop();
+    renderer.stop();
   } else {
-    await drainClock(clock, () => statuses.at(-1)?.playback === 'holding');
-    await renderer.stop();
+    // An infinite document holds after its last arranged bar.
+    const holding = Math.max(1, timeline.arrangedBars + 1);
+    await drainClock(clock, connection, () =>
+      positions.some((event) => event.position.bar === holding)
+    );
+    renderer.stop();
   }
+  await flushAsync();
 
   const eventLog = [
-    ...statuses.map(
-      (event) =>
-        `status:${event.lifecycle}:${event.playback}:${event.runId ?? '-'}:${event.throttled ?? false}:${event.completed ?? false}`
-    ),
     ...positions.map(
-      (event) =>
-        `position:${event.position.bar}:${event.seconds}:${event.loopIteration}:${event.runId}`
-    )
+      (event) => `position:${event.position.bar}:${event.seconds}:${event.loopIteration}`
+    ),
+    ...audio.map(
+      (chunk) =>
+        `audio:${chunk.sequence}:${chunk.durationSeconds}:${chunk.bytes.every((byte) => byte === 0)}`
+    ),
+    ...ended.map((end) => `ended:${end.reason}`),
+    ...warnings.map((code) => `warning:${code}`)
   ];
-  const updateLog = connector.updates.map(({ update, requested }) =>
+  const updateLog = connection.updates.map(({ update, requested }) =>
     JSON.stringify({
       requested,
       state: update.state,
@@ -105,18 +119,32 @@ async function renderScript(timeline: Timeline): Promise<{
       }))
     })
   );
-  return { connector, log: [...connector.calls, ...eventLog, ...updateLog] };
+  return { connector, ended, log: [...connection.calls, ...eventLog, ...updateLog] };
 }
 
-async function drainClock(clock: VirtualClock, complete: () => boolean): Promise<void> {
-  for (let step = 0; step < 500; step += 1) {
+/** Sends audio unless the renderer has paused the connection for a rest or a backlog. */
+function feed(connection: FakeConnection, seconds: number): void {
+  if (connection.closed || connection.flow.at(-1) === 'pause') return;
+  connection.pushAudio(seconds);
+}
+
+async function drainClock(
+  clock: VirtualClock,
+  connection: FakeConnection,
+  complete: () => boolean
+): Promise<void> {
+  for (let step = 0; step < 5000; step += 1) {
     await flushAsync();
     if (complete()) return;
     const deadline = clock.pendingDeadlines()[0];
     if (deadline === undefined) break;
-    clock.advanceTo(deadline);
+    const next = Math.min(deadline, clock.now() + STEP_SECONDS);
+    const elapsed = next - clock.now();
+    clock.advanceTo(next);
+    await flushAsync();
+    feed(connection, elapsed);
   }
-  throw new Error('Renderer corpus script did not reach its terminal checkpoint.');
+  throw new Error('The corpus script did not reach its terminal checkpoint.');
 }
 
 function allSupportedCapabilities(): CapabilitiesTable {

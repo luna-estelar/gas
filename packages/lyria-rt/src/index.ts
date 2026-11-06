@@ -23,7 +23,25 @@ export { translatePrompts } from './prompts.js';
 export type { PromptTranslationOptions, WeightedPrompt } from './prompts.js';
 
 export { createPromptTransition } from './transition.js';
-export type { PromptSender, PromptTransition, PromptTransitionOptions } from './transition.js';
+export type {
+  LyriaRtTransitionFactory,
+  PromptSender,
+  PromptTransition,
+  PromptTransitionOptions
+} from './transition.js';
 
-export { createLyriaRtConnector, LYRIA_RT_CAPABILITIES } from './connector.js';
-export type { LyriaRtConnectorSettings } from './settings.js';
+export {
+  createLyriaRtConnector,
+  LYRIA_RT_CAPABILITIES,
+  LYRIA_RT_DESCRIPTION
+} from './connector.js';
+export type { LyriaRtTranslate } from './connection.js';
+export type { LyriaRtApiKey, LyriaRtConnectorOptions } from './settings.js';
+
+export { openLyriaRtSession } from './transport.js';
+export type {
+  LyriaRtMusicGenerationConfig,
+  LyriaRtSession,
+  LyriaRtSessionOptions,
+  LyriaRtTransportWarningCode
+} from './transport.js';

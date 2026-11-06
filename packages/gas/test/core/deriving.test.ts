@@ -1,5 +1,5 @@
 import { describe, expect, it, test } from 'vitest';
-import type { ArrangementInstance, IntentValue, Timeline } from '../../src/protocol/index.js';
+import type { IntentValue, Timeline } from '../../src/protocol/index.js';
 import {
   applyCommand,
   createInputState,
@@ -8,15 +8,14 @@ import {
   type Command,
   type EffectiveState,
   type EffectiveTrack,
-  type InputState,
-  type PlaybackPhase
+  type InputState
 } from '../../src/core/index.js';
 import { validTimeline } from './support/timelines.js';
 
 // --- Helpers ------------------------------------------------------------------
 
-function mustApply(state: InputState, command: Command, phase: PlaybackPhase): InputState {
-  const result = applyCommand(state, command, { phase, capabilities: ALL_SUPPORTED });
+function mustApply(state: InputState, command: Command): InputState {
+  const result = applyCommand(state, command, { capabilities: ALL_SUPPORTED });
   if (!result.ok) {
     throw new Error(`Expected the command to apply: ${result.failure.message}`);
   }
@@ -36,12 +35,10 @@ const ALL_SUPPORTED = {
   }
 } as const;
 
-// Builds a state with the given staged then live commands, through the real
-// applyCommand path (staged while stopped, live while active).
-function stateWith(timeline: Timeline, staged: Command[] = [], live: Command[] = []): InputState {
+// Builds a state with the given commands, through the real applyCommand path.
+function stateWith(timeline: Timeline, commands: Command[] = []): InputState {
   let state = createInputState(timeline);
-  for (const command of staged) state = mustApply(state, command, 'stopped');
-  for (const command of live) state = mustApply(state, command, 'active');
+  for (const command of commands) state = mustApply(state, command);
   return state;
 }
 
@@ -58,7 +55,7 @@ const level = (value: number): IntentValue => ({ kind: 'level', value });
 const alda = (source: string): IntentValue => ({ kind: 'alda', source });
 
 // Derives at a bar with the section instance the arrangement puts there — the way
-// a caller without a Renderer supplies `activeSection`.
+// a caller without a session supplies `activeSection`.
 function deriveAtBar(state: InputState, bar: number, loopIteration = 0): EffectiveState {
   return effectiveStateAt(
     state,
@@ -73,7 +70,7 @@ function deriveAtBar(state: InputState, bar: number, loopIteration = 0): Effecti
 // --- Authored base: layers 1 and 2 --------------------------------------------
 
 describe('effectiveStateAt derives the authored base', () => {
-  it('reports globals, track declarations, and defaults with no overrides', () => {
+  it('reports globals, track declarations, and defaults with no app values', () => {
     // At bar 1 in the intro instance: the section flavor overlays the global
     // flavor, the pad plays and carries its default level, the lead is inactive.
     const snapshot = deriveAtBar(createInputState(validTimeline()), 1);
@@ -137,7 +134,7 @@ describe('sectionInstanceAt maps bars to instances end-exclusively', () => {
   });
 });
 
-// --- Five-layer precedence ----------------------------------------------------
+// --- Four-layer precedence ----------------------------------------------------
 
 // A track with an authored flavor default and an authored flavor event at bar 2,
 // inside one section instance (bars 1..4). The event is `timed`, so activeSection
@@ -195,50 +192,51 @@ const setA = (value: string): Command => ({ kind: 'setTrackFlavor', trackId: 'tr
 const clearA: Command = { kind: 'clearTrackFlavor', trackId: 'track.a' };
 
 const PRECEDENCE: ReadonlyArray<
-  readonly [
-    name: string,
-    bar: number,
-    staged: Command[],
-    live: Command[],
-    expected: IntentValue | undefined
-  ]
+  readonly [name: string, bar: number, commands: Command[], expected: IntentValue | undefined]
 > = [
-  // At bar 2, the authored event (layer 4) sits above staged (layer 3) and the base.
-  ['no overrides at the event bar', 2, [], [], text('authored-event')],
-  ['a staged set loses to the authored event', 2, [setA('staged')], [], text('authored-event')],
-  ['a live set wins over the authored event', 2, [], [setA('live')], text('live')],
-  ['a staged clear still loses to the authored event', 2, [clearA], [], text('authored-event')],
-  ['a live clear restores the authored event value', 2, [], [clearA], text('authored-event')],
+  ['the authored default with no app values', 1, [], text('authored-default')],
+  ['the authored event with no app values', 2, [], text('authored-event')],
+  ['an app value beats the authored default', 1, [setA('app')], text('app')],
+  ['an app value beats a later score event', 2, [setA('app')], text('app')],
   [
-    'a live set then clear falls back to the event',
+    'a clear goes back to the authored default before the event',
+    1,
+    [setA('app'), clearA],
+    text('authored-default')
+  ],
+  [
+    'a clear goes back to the authored event at the event',
     2,
-    [],
-    [setA('live1'), clearA],
+    [setA('app'), clearA],
     text('authored-event')
   ],
-  ['a live clear then set — the later set wins', 2, [], [clearA, setA('live2')], text('live2')],
-  ['a live set beats a staged set', 2, [setA('staged')], [setA('live')], text('live')],
-  // Before the event bar, layer 4 is empty, so staged (layer 3) shows through.
-  ['a staged set shows before the event', 1, [setA('staged')], [], text('staged')],
-  [
-    'a live clear restores the surviving staged value',
-    1,
-    [setA('staged')],
-    [clearA],
-    text('staged')
-  ],
-  ['a staged clear falls back to the authored default', 1, [clearA], [], text('authored-default')],
-  ['the authored default with no overrides', 1, [], [], text('authored-default')]
+  ['a clear then a set: the set wins', 2, [clearA, setA('app2')], text('app2')],
+  ['a later set replaces an earlier one', 2, [setA('app1'), setA('app2')], text('app2')]
 ];
 
-describe('effectiveStateAt resolves the five layers in order', () => {
-  test.each(PRECEDENCE)('%s', (_name, bar, staged, live, expected) => {
-    const state = stateWith(precedenceTimeline(), staged, live);
+describe('effectiveStateAt resolves the four layers in order', () => {
+  test.each(PRECEDENCE)('%s', (_name, bar, commands, expected) => {
+    const state = stateWith(precedenceTimeline(), commands);
     const flavor = trackOf(deriveAtBar(state, bar), 'track.a').flavor;
     if (expected === undefined) {
       expect(flavor).toBeUndefined();
     } else {
       expect(flavor).toEqual(expected);
+    }
+  });
+
+  it('holds an app value at every bar, before and after the score changes', () => {
+    const state = stateWith(precedenceTimeline(), [setA('app')]);
+    for (const bar of [1, 2, 3, 4]) {
+      expect(trackOf(deriveAtBar(state, bar), 'track.a').flavor).toEqual(text('app'));
+    }
+  });
+
+  it('derives a cleared state exactly like a state that never had the value', () => {
+    const cleared = stateWith(precedenceTimeline(), [setA('app'), clearA]);
+    const fresh = createInputState(precedenceTimeline());
+    for (const bar of [1, 2, 3]) {
+      expect(deriveAtBar(cleared, bar)).toEqual(deriveAtBar(fresh, bar));
     }
   });
 });
@@ -283,21 +281,29 @@ describe('effectiveStateAt derives track activity from play/stop', () => {
     expect(trackOf(deriveAtBar(state, 3), 'track.a').active).toBe(false);
   });
 
-  it('lets a live stop override the authored play', () => {
-    const state = stateWith(activityTimeline(), [], [{ kind: 'stopTrack', trackId: 'track.a' }]);
+  it('lets an app stop override the authored play', () => {
+    const state = stateWith(activityTimeline(), [{ kind: 'stopTrack', trackId: 'track.a' }]);
     expect(trackOf(deriveAtBar(state, 1), 'track.a').active).toBe(false);
   });
 
-  it('lets an authored stop event win over a staged play (layer 4 over layer 3)', () => {
-    const state = stateWith(activityTimeline(), [{ kind: 'playTrack', trackId: 'track.a' }], []);
-    // At bar 3 the authored stop applies after the staged play.
+  it('lets an app play beat a later authored stop', () => {
+    const state = stateWith(activityTimeline(), [{ kind: 'playTrack', trackId: 'track.a' }]);
+    expect(trackOf(deriveAtBar(state, 3), 'track.a').active).toBe(true);
+  });
+
+  it('hands the track back to the score on clearTrackPlay', () => {
+    const state = stateWith(activityTimeline(), [
+      { kind: 'stopTrack', trackId: 'track.a' },
+      { kind: 'clearTrackPlay', trackId: 'track.a' }
+    ]);
+    expect(trackOf(deriveAtBar(state, 1), 'track.a').active).toBe(true);
     expect(trackOf(deriveAtBar(state, 3), 'track.a').active).toBe(false);
   });
 });
 
 // --- Position ordering --------------------------------------------------------
 
-describe('effectiveStateAt orders layer-4 events by position then sequence', () => {
+describe('effectiveStateAt orders layer-3 events by position then sequence', () => {
   it('resolves same-position events by source sequence', () => {
     const timeline: Timeline = {
       ...precedenceTimeline(),
@@ -383,21 +389,17 @@ describe('effectiveStateAt orders layer-4 events by position then sequence', () 
   });
 });
 
-// --- Wrapped override values --------------------------------------------------
+// --- Wrapped app values --------------------------------------------------
 
-describe('effectiveStateAt wraps override payloads as intent values', () => {
-  it('wraps flavor, level, and alda overrides into protocol values', () => {
-    const state = stateWith(
-      precedenceTimeline(),
-      [],
-      [
-        { kind: 'setTrackFlavor', trackId: 'track.a', value: 'glassy' },
-        { kind: 'setTrackLevel', trackId: 'track.a', value: 0.3 },
-        { kind: 'setTrackNotes', trackId: 'track.a', alda: 'c d e' },
-        { kind: 'setTrackMotif', trackId: 'track.a', alda: 'g2' },
-        { kind: 'setTrackTimbre', trackId: 'track.a', value: 'tape piano' }
-      ]
-    );
+describe('effectiveStateAt wraps app value payloads as intent values', () => {
+  it('wraps flavor, level, and alda values into protocol values', () => {
+    const state = stateWith(precedenceTimeline(), [
+      { kind: 'setTrackFlavor', trackId: 'track.a', value: 'glassy' },
+      { kind: 'setTrackLevel', trackId: 'track.a', value: 0.3 },
+      { kind: 'setTrackNotes', trackId: 'track.a', alda: 'c d e' },
+      { kind: 'setTrackMotif', trackId: 'track.a', alda: 'g2' },
+      { kind: 'setTrackTimbre', trackId: 'track.a', value: 'tape piano' }
+    ]);
     const track = trackOf(deriveAtBar(state, 1), 'track.a');
     expect(track.flavor).toEqual(text('glassy'));
     expect(track.level).toEqual(level(0.3));
@@ -406,16 +408,12 @@ describe('effectiveStateAt wraps override payloads as intent values', () => {
     expect(track.timbre).toEqual(text('tape piano'));
   });
 
-  it('wraps global overrides and keeps tempo a plain number', () => {
-    const state = stateWith(
-      precedenceTimeline(),
-      [],
-      [
-        { kind: 'setGlobalFlavor', value: 'dusk' },
-        { kind: 'setGlobalLevel', value: 0.2 },
-        { kind: 'setTempo', bpm: 88 }
-      ]
-    );
+  it('wraps global values and keeps tempo a plain number', () => {
+    const state = stateWith(precedenceTimeline(), [
+      { kind: 'setGlobalFlavor', value: 'dusk' },
+      { kind: 'setGlobalLevel', value: 0.2 },
+      { kind: 'setTempo', bpm: 88 }
+    ]);
     const snapshot = deriveAtBar(state, 1);
     expect(snapshot.globals.flavor).toEqual(text('dusk'));
     expect(snapshot.globals.level).toEqual(level(0.2));
@@ -426,35 +424,35 @@ describe('effectiveStateAt wraps override payloads as intent values', () => {
 // --- Completeness -------------------------------------------------------------
 
 describe('effectiveStateAt returns every track', () => {
-  it('includes authored and host tracks, active and inactive', () => {
+  it('includes authored and app tracks, active and inactive', () => {
     const state = stateWith(validTimeline(), [
-      { kind: 'defineTrack', id: 'host.synth', name: 'Synth' }
+      { kind: 'defineTrack', id: 'app.synth', name: 'Synth' }
     ]);
     const snapshot = deriveAtBar(state, 1);
     expect(snapshot.tracks.map((track) => track.trackId)).toEqual([
       'track.pad',
       'track.lead',
-      'host.synth'
+      'app.synth'
     ]);
-    const host = trackOf(snapshot, 'host.synth');
-    expect(host).toEqual({ trackId: 'host.synth', name: 'Synth', active: false });
+    const app = trackOf(snapshot, 'app.synth');
+    expect(app).toEqual({ trackId: 'app.synth', name: 'Synth', active: false });
   });
 
-  it('falls a host track name back to its id', () => {
-    const state = stateWith(validTimeline(), [{ kind: 'defineTrack', id: 'host.bare' }]);
-    expect(trackOf(deriveAtBar(state, 1), 'host.bare').name).toBe('host.bare');
+  it('falls an app track name back to its id', () => {
+    const state = stateWith(validTimeline(), [{ kind: 'defineTrack', id: 'app.bare' }]);
+    expect(trackOf(deriveAtBar(state, 1), 'app.bare').name).toBe('app.bare');
   });
 });
 
 // --- Loop iteration -----------------------------------------------------------
 
 describe('effectiveStateAt is inert across loop iterations in v1', () => {
-  it('derives the same snapshot for iteration 1 and 2 and keeps live overrides', () => {
-    const state = stateWith(validTimeline(), [], [{ kind: 'setGlobalFlavor', value: 'held' }]);
+  it('derives the same snapshot for iteration 1 and 2 and keeps app values', () => {
+    const state = stateWith(validTimeline(), [{ kind: 'setGlobalFlavor', value: 'held' }]);
     const first = deriveAtBar(state, 9, 1);
     const second = deriveAtBar(state, 9, 2);
     expect(second).toEqual(first);
-    // The live override persists across the boundary (it lives in input state).
+    // The app value persists across the boundary (it lives in input state).
     expect(second.globals.flavor).toEqual(text('held'));
   });
 });
@@ -463,11 +461,9 @@ describe('effectiveStateAt is inert across loop iterations in v1', () => {
 
 describe('effectiveStateAt is a pure derivation', () => {
   it('returns a deeply frozen snapshot', () => {
-    const state = stateWith(
-      precedenceTimeline(),
-      [],
-      [{ kind: 'setTrackFlavor', trackId: 'track.a', value: 'x' }]
-    );
+    const state = stateWith(precedenceTimeline(), [
+      { kind: 'setTrackFlavor', trackId: 'track.a', value: 'x' }
+    ]);
     const snapshot = deriveAtBar(state, 2);
     expect(Object.isFrozen(snapshot)).toBe(true);
     expect(Object.isFrozen(snapshot.globals)).toBe(true);
@@ -479,11 +475,10 @@ describe('effectiveStateAt is a pure derivation', () => {
   });
 
   it('never touches the input state and is stable across repeated calls', () => {
-    const state = stateWith(
-      validTimeline(),
-      [{ kind: 'setGlobalLevel', value: 0.1 }],
-      [{ kind: 'playTrack', trackId: 'track.lead' }]
-    );
+    const state = stateWith(validTimeline(), [
+      { kind: 'setGlobalLevel', value: 0.1 },
+      { kind: 'playTrack', trackId: 'track.lead' }
+    ]);
     const before = JSON.stringify(state);
     const first = deriveAtBar(state, 9);
     const second = deriveAtBar(state, 9);

@@ -1,9 +1,8 @@
-// Compose a GAS session, the renderer and a playback engine for a browser page.
-// The one module that imports the concrete renderer. It never imports a
-// connector: the host builds one and passes it in, along with its settings.
+// Compose a GAS session and a playback engine for a browser page. It never
+// imports a connector: the app builds one and passes it in.
 import { createSession, type GasSession } from '../api/index.js';
-import type { Connector, ConnectorSettings, MusicalPosition, Renderer } from '../protocol/index.js';
-import { createRenderer, type CreateRendererOptions } from '../renderer/index.js';
+import type { Connector, ConnectorConfig, DocumentDefaults } from '../protocol/index.js';
+import { AudiblePositions } from './audible.js';
 import { ChainedSourceEngine } from './audio/chained-source-engine.js';
 import { AudioClock } from './audio/clock.js';
 import { openAudioContext } from './audio/context.js';
@@ -11,20 +10,25 @@ import type { EngineOptions, PlaybackEngine } from './audio/engine.js';
 import { PcmCapture } from './capture.js';
 
 export interface BrowserSessionOptions {
-  /**
-   * The connector, or a factory for one. A connector opens once, so only a
-   * factory lets `session.retryRenderer()` build a working replacement.
-   */
-  readonly connector: Connector | (() => Connector);
-  readonly settings: ConnectorSettings;
+  readonly connector: Connector;
+  /** A patch over the connector's `defaultConfig`. */
+  readonly connectorConfig?: ConnectorConfig;
+  /** The tempo, time signature and key for a document that doesn't set them. */
+  readonly documentDefaults?: DocumentDefaults;
   /** Adopted as is and never closed by the session. Omitted, the session opens one and owns it. */
   readonly context?: AudioContext;
   /** Defaults to one chunk duration of the connector's model. Clamped to 0.25-4 s. */
   readonly prebufferSeconds?: number;
-  /** Record each run so it can be offered as a WAV download. Off by default. */
+  /** Record each Play so it can be offered as a WAV download. Off by default. */
   readonly capture?: boolean;
   readonly engine?: (context: AudioContext, options: EngineOptions) => PlaybackEngine;
-  readonly renderer?: Omit<CreateRendererOptions, 'clock' | 'connector' | 'settings'>;
+  /**
+   * How long a playing track may go without audio, after Play or after a rest
+   * ends, before the session fails with code `generation-failed`. Defaults to three of the
+   * model's chunks. Clamped to 2-15 s. Raise it for a connector that reaches
+   * the model through a relay or a slow network.
+   */
+  readonly firstAudioTimeoutSeconds?: number;
 }
 
 export interface BrowserSession {
@@ -38,18 +42,14 @@ export interface BrowserSession {
    * owner's business — `close()` closes only a context this session opened.
    */
   readonly context: AudioContext;
-  /** The musical position the listener is hearing now, or undefined before first audio. */
-  audiblePosition(): { position: MusicalPosition; seconds: number } | undefined;
   close(): Promise<void>;
 }
 
 export async function createBrowserSession(
   options: BrowserSessionOptions
 ): Promise<BrowserSession> {
-  const supplied = options.connector;
-  const makeConnector = typeof supplied === 'function' ? supplied : () => supplied;
   // Created before the first await, so a context opened here resumes inside the
-  // host's gesture.
+  // app's gesture.
   const opening = options.context === undefined ? openAudioContext() : undefined;
   let context: AudioContext | undefined = options.context;
   let clock: AudioClock | undefined;
@@ -57,8 +57,7 @@ export async function createBrowserSession(
   try {
     if (opening !== undefined) context = (await opening).context;
     const audioContext = context!;
-    const firstConnector = makeConnector();
-    const description = await firstConnector.describe();
+    const description = options.connector.description;
     clock = new AudioClock(audioContext);
     const capture = options.capture === true ? new PcmCapture() : undefined;
     const engineOptions: EngineOptions = {
@@ -71,48 +70,37 @@ export async function createBrowserSession(
       engineOptions
     );
 
-    // The session replaces its renderer on retry, so the playhead must ask
-    // whichever one it built last.
-    let unusedConnector: Connector | undefined = firstConnector;
-    let renderer: Renderer | undefined;
-    const rendererClock = clock;
+    const audioClock = clock;
     const session = await createSession({
-      createRenderer: async () => {
-        const connector = unusedConnector ?? makeConnector();
-        unusedConnector = undefined;
-        renderer = await createRenderer({
-          ...options.renderer,
-          clock: rendererClock,
-          connector,
-          settings: options.settings
-        });
-        return renderer;
-      }
+      connector: options.connector,
+      clock: audioClock,
+      ...(options.connectorConfig !== undefined
+        ? { connectorConfig: options.connectorConfig }
+        : {}),
+      ...(options.documentDefaults !== undefined
+        ? { documentDefaults: options.documentDefaults }
+        : {}),
+      ...(options.firstAudioTimeoutSeconds !== undefined
+        ? { firstAudioTimeoutSeconds: options.firstAudioTimeoutSeconds }
+        : {})
     });
 
     const activeEngine = engine;
-    const unsubscribe = wireEngine(session, activeEngine);
+    const unsubscribe = wireEngine(session, activeEngine, audioClock);
     return {
       session,
       audio: activeEngine,
       capture,
       context: audioContext,
-      audiblePosition() {
-        const seconds = activeEngine.playheadSeconds();
-        if (seconds === undefined) return undefined;
-        const position = renderer?.positionAtSeconds?.(seconds);
-        return position === undefined ? undefined : { position, seconds };
-      },
       async close() {
-        // Silence first: closing the session waits on the connector, which may
-        // be slow or never answer, and the listener should not hear it.
+        // Silence first, so the listener hears nothing more.
         activeEngine.flush();
         unsubscribe();
         try {
           await session.close();
         } finally {
           await activeEngine.close();
-          rendererClock.dispose();
+          audioClock.dispose();
           if (opening !== undefined) await audioContext.close().catch(() => undefined);
         }
       }
@@ -129,37 +117,36 @@ export async function createBrowserSession(
 }
 
 /**
- * Drive the engine from the session. Audio alone is not enough: a host stop and
- * a renderer failure must silence what is already scheduled, while a finished
- * piece must play out the tail the listener has not heard yet.
- *
- * The renderer ends a finite piece with `stopping`, a `stopped` status flagged
- * `completed`, and a plain `stopped`. A host stop and a failure give `stopping`
- * and then `stopped` or `failed`, with no flag. `stopping` looks the same both
- * ways and arrives while the listener is still up to a prebuffer behind, so the
- * engine acts only once the outcome is known.
+ * Drive the engine from the session. Audio alone is not enough: Stop and a
+ * failure must silence what is already scheduled, while a finished piece plays
+ * out the tail the listener has not heard yet. Audible positions follow the
+ * same rule.
  */
-function wireEngine(session: GasSession, engine: PlaybackEngine): () => void {
-  let completing = false;
+function wireEngine(session: GasSession, engine: PlaybackEngine, clock: AudioClock): () => void {
+  const audible = new AudiblePositions(
+    engine,
+    clock,
+    (seconds) => session.positionAtSeconds(seconds),
+    (event) => session.emitAudiblePosition(event)
+  );
   const unsubscribers = [
     session.on('audio', (chunk) => engine.push(chunk)),
-    session.on('lifecycle', (event) => {
-      if (event.completed === true) {
-        completing = true;
+    session.on('generationPosition', (event) => audible.push(event)),
+    session.on('state', (state) => {
+      if (state.status === 'starting') {
+        audible.reset();
         return;
       }
-      if (event.rendererPlayback !== 'stopped' && event.rendererPlayback !== 'failed') return;
-      if (completing) {
-        completing = false;
-        return;
+      if (state.status !== 'stopped' && state.status !== 'closed') return;
+      if (state.ended === 'stopped' || state.ended === 'failed') {
+        // Before the flush, so nothing unheard is reported as it stops.
+        audible.reset();
+        engine.flush();
       }
-      engine.flush();
-    }),
-    session.on('error', (error) => {
-      if (error.kind === 'renderer') engine.flush();
     })
   ];
   return () => {
     for (const unsubscribe of unsubscribers) unsubscribe();
+    audible.dispose();
   };
 }

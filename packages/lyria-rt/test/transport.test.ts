@@ -1,18 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type {
-  AudioSink,
-  Connector,
+  Connection,
   ConnectorAudioChunk,
   ConnectorConfig,
+  ConnectorError,
   ConnectorTiming,
-  EffectiveState,
-  RendererFailure,
-  RendererWarning
+  ConnectorWarning,
+  EffectiveState
 } from '@luna-estelar/gas/protocol';
-import { ConnectorError } from '@luna-estelar/gas/protocol';
 import { createLyriaRtConnectorWithDependencies } from '../src/connector.js';
 import { DEFAULT_LYRIA_RT_CONFIG } from '../src/config.js';
 import { LYRIA_RT_MODEL_ID } from '../src/constants.js';
+import { translatePrompts } from '../src/prompts.js';
+import type { LyriaRtConnectorOptions } from '../src/settings.js';
+import { createPromptTransition } from '../src/transition.js';
 import { VirtualClock } from '../../../test/support/virtual-clock.js';
 import { FakeLiveMusic } from './support/fake-sdk.js';
 
@@ -41,6 +42,7 @@ const EMPTY_STATE: EffectiveState = {
 
 const TIMING: ConnectorTiming = {
   tempo: 96,
+  quarterNoteTempo: 96,
   timeSignature: { beatsPerBar: 4, beatUnit: 4 },
   key: 'C major',
   secondsPerBar: 2.5
@@ -55,69 +57,66 @@ const IMMEDIATE_CONFIG: ConnectorConfig = {
   generation: DEFAULT_LYRIA_RT_CONFIG.generation
 };
 
-function recordingSink() {
-  const chunks: ConnectorAudioChunk[] = [];
-  const warnings: RendererWarning[] = [];
-  const failures: RendererFailure[] = [];
-  const statuses: string[] = [];
-  const sink: AudioSink = {
-    push: (chunk) => chunks.push(chunk),
-    status: (status) => statuses.push(status),
-    warning: (warning) => warnings.push(warning),
-    failure: (failure) => failures.push(failure)
-  };
-  return { sink, chunks, warnings, failures, statuses };
+interface ConnectOverrides {
+  readonly state?: EffectiveState;
+  readonly config?: ConnectorConfig;
+  readonly timing?: ConnectorTiming;
 }
 
-function setup() {
+function setup(options: Partial<LyriaRtConnectorOptions> = {}) {
   const clock = new VirtualClock();
   const sdk = new FakeLiveMusic();
-  const connector = createLyriaRtConnectorWithDependencies({
+  const connector = createLyriaRtConnectorWithDependencies(
+    { apiKey: 'test-key', ...options },
+    { clock, setupTimeoutSeconds: 15, createClient: sdk.createClient }
+  );
+  const chunks: ConnectorAudioChunk[] = [];
+  const warnings: ConnectorWarning[] = [];
+  const errors: ConnectorError[] = [];
+
+  function connect(overrides: ConnectOverrides = {}) {
+    const controller = new AbortController();
+    const connecting = connector.connect({
+      config: overrides.config ?? IMMEDIATE_CONFIG,
+      state: overrides.state ?? INITIAL_STATE,
+      timing: overrides.timing ?? TIMING,
+      signal: controller.signal,
+      onAudio: (chunk) => chunks.push(chunk),
+      onWarning: (warning) => warnings.push(warning),
+      onError: (error) => errors.push(error)
+    });
+    return { connecting, controller };
+  }
+
+  /** Starts a connect and lets the socket open, short of setup. */
+  async function beginConnect(overrides: ConnectOverrides = {}) {
+    const expected = sdk.connections.length + 1;
+    const started = connect(overrides);
+    await flushAsync();
+    expect(sdk.connections).toHaveLength(expected);
+    expect(sdk.last.model).toBe(LYRIA_RT_MODEL_ID);
+    sdk.last.open();
+    await flushAsync();
+    return started;
+  }
+
+  async function completeConnect(overrides: ConnectOverrides = {}): Promise<Connection> {
+    const { connecting } = await beginConnect(overrides);
+    sdk.last.setupComplete();
+    return connecting;
+  }
+
+  return {
     clock,
-    setupTimeoutSeconds: 15,
-    createClient: sdk.createClient
-  });
-  const recorded = recordingSink();
-  return { clock, sdk, connector, ...recorded };
-}
-
-async function prepare(
-  connector: Connector,
-  settings: Parameters<Connector['open']>[0] = { apiKey: 'test-key' },
-  state: EffectiveState = INITIAL_STATE,
-  config: ConnectorConfig = IMMEDIATE_CONFIG
-): Promise<void> {
-  await connector.open(settings);
-  await connector.prepare(state, config);
-}
-
-async function beginStart(
-  connector: Connector,
-  sink: AudioSink,
-  sdk: FakeLiveMusic,
-  runId = 'run-1',
-  timing: ConnectorTiming = TIMING
-): Promise<{ readonly started: Promise<void> }> {
-  const expectedConnections = sdk.connections.length + 1;
-  const started = connector.start(sink, timing, runId);
-  await flushAsync();
-  expect(sdk.connections).toHaveLength(expectedConnections);
-  expect(sdk.last.model).toBe(LYRIA_RT_MODEL_ID);
-  sdk.last.open();
-  await flushAsync();
-  return { started };
-}
-
-async function completeStart(
-  connector: Connector,
-  sink: AudioSink,
-  sdk: FakeLiveMusic,
-  runId = 'run-1',
-  timing: ConnectorTiming = TIMING
-): Promise<void> {
-  const { started } = await beginStart(connector, sink, sdk, runId, timing);
-  sdk.last.setupComplete();
-  await started;
+    sdk,
+    connector,
+    chunks,
+    warnings,
+    errors,
+    connect,
+    beginConnect,
+    completeConnect
+  };
 }
 
 /** `TIMING` in another meter, at a tempo counted in that meter's beat unit. */
@@ -125,15 +124,16 @@ function timingIn(beatsPerBar: number, beatUnit: number, tempo: number): Connect
   return {
     ...TIMING,
     tempo,
+    quarterNoteTempo: (tempo * 4) / beatUnit,
     timeSignature: { beatsPerBar, beatUnit },
     secondsPerBar: (60 / tempo) * beatsPerBar
   };
 }
 
-describe('Lyria RealTime connector description and settings', () => {
-  it('describes immutable model facts without constructing a client', async () => {
+describe('Lyria RealTime connector description and options', () => {
+  it('describes immutable model facts without constructing a client', () => {
     const { connector, sdk } = setup();
-    const description = await connector.describe();
+    const { description } = connector;
     expect(description.id).toBe('lyria-rt');
     expect(description.model).toMatchObject({
       modelId: LYRIA_RT_MODEL_ID,
@@ -141,7 +141,9 @@ describe('Lyria RealTime connector description and settings', () => {
       sampleFormat: 's16le',
       sampleRate: 48_000,
       channels: 2,
-      chunkDurationSeconds: 2
+      chunkDurationSeconds: 2,
+      // Measured in manual/startup.mjs: p95 1.0 s, max 1.17 s.
+      startupDelaySeconds: 1.2
     });
     expect(description.capabilities.intents).toEqual({
       flavor: 'supported',
@@ -153,17 +155,21 @@ describe('Lyria RealTime connector description and settings', () => {
       notes: 'unsupported',
       motif: 'unsupported'
     });
+    expect('supportsFlowControl' in description).toBe(false);
     expect(Object.isFrozen(description)).toBe(true);
     expect(Object.isFrozen(description.capabilities.intents)).toBe(true);
-    expect(sdk.connections.length).toBe(0);
+    expect(sdk.options).toEqual([]);
   });
 
   it.each([
     {},
     { apiKey: '' },
     { apiKey: '   ' },
+    { apiKey: 42 },
     { apiKey: 'x', extra: true },
     { apiKey: 'x', accessMode: 'byok' },
+    { apiKey: 'x', translate: 'loud' },
+    { apiKey: 'x', transition: {} },
     { endpoint: 'https://proxy.example' },
     { apiKey: 'x', endpoint: '' },
     { apiKey: 'x', endpoint: 'not-a-url' },
@@ -173,30 +179,28 @@ describe('Lyria RealTime connector description and settings', () => {
     { apiKey: 'x', endpoint: 'https://proxy.example/path' },
     { apiKey: 'x', endpoint: 'https://proxy.example?key=secret' },
     { apiKey: 'x', endpoint: 'https://proxy.example#fragment' }
-  ])('rejects invalid settings before connection: %j', async (settings) => {
-    const { connector, sdk } = setup();
-    await expect(connector.open(settings)).rejects.toMatchObject({
-      code: 'lyria-rt-invalid-settings',
-      reason: 'internal',
-      retryable: false
-    });
-    expect(sdk.connections.length).toBe(0);
+  ])('throws for invalid options at once: %j', (options) => {
+    const sdk = new FakeLiveMusic();
+    expect(() =>
+      createLyriaRtConnectorWithDependencies(options as unknown as LyriaRtConnectorOptions, {
+        clock: new VirtualClock(),
+        setupTimeoutSeconds: 15,
+        createClient: sdk.createClient
+      })
+    ).toThrow(expect.objectContaining({ code: 'lyria-rt-invalid-settings', retryable: false }));
+    expect(sdk.options).toEqual([]);
   });
 
-  it('constructs the client only at start, with an endpoint only when one was given', async () => {
+  it('constructs the client only at connect, with an endpoint only when one was given', async () => {
     const direct = setup();
-    await prepare(direct.connector);
     expect(direct.sdk.options).toEqual([]);
-    const { started: directStart } = await beginStart(direct.connector, direct.sink, direct.sdk);
+    await direct.completeConnect();
     expect(direct.sdk.options).toEqual([{ apiKey: 'test-key', apiVersion: 'v1alpha' }]);
-    direct.sdk.last.setupComplete();
-    await directStart;
 
     // A trailing slash is a path the origin does not need; the endpoint is
     // normalised so two spellings of one origin cannot behave differently.
-    const routed = setup();
-    await prepare(routed.connector, { apiKey: 'test-key', endpoint: 'https://proxy.example/' });
-    const { started: routedStart } = await beginStart(routed.connector, routed.sink, routed.sdk);
+    const routed = setup({ endpoint: 'https://proxy.example/' });
+    await routed.completeConnect();
     expect(routed.sdk.options).toEqual([
       {
         apiKey: 'test-key',
@@ -204,11 +208,34 @@ describe('Lyria RealTime connector description and settings', () => {
         httpOptions: { baseUrl: 'https://proxy.example' }
       }
     ]);
-    routed.sdk.last.setupComplete();
-    await routedStart;
   });
 
-  it('reports every configuration problem at once, by JSON Pointer', async () => {
+  it('calls a key function once per connect', async () => {
+    let issued = 0;
+    const apiKey = vi.fn(async () => `token-${++issued}`);
+    const { sdk, completeConnect } = setup({ apiKey });
+    await completeConnect();
+    await completeConnect();
+    expect(apiKey).toHaveBeenCalledTimes(2);
+    expect(sdk.options.map((options) => options.apiKey)).toEqual(['token-1', 'token-2']);
+  });
+
+  it.each([
+    ['throws', () => Promise.reject(new Error('secret-token-service-detail'))],
+    ['returns an empty string', () => '']
+  ] as const)('rejects when the key function %s', async (_, apiKey) => {
+    const { sdk, connect } = setup({ apiKey });
+    const failure = await connect().connecting.catch((error: unknown) => error);
+    expect(failure).toMatchObject({
+      code: 'lyria-rt-api-key-unavailable',
+      reason: 'auth',
+      retryable: true
+    });
+    expect(JSON.stringify(failure)).not.toMatch(/secret-token-service-detail/);
+    expect(sdk.options).toEqual([]);
+  });
+
+  it('reports every configuration problem at once, by JSON Pointer', () => {
     const { connector } = setup();
     expect(connector.validateConfig?.(DEFAULT_LYRIA_RT_CONFIG)).toEqual({ ok: true });
     expect(connector.validateConfig?.({})).toEqual({ ok: true });
@@ -236,19 +263,26 @@ describe('Lyria RealTime connector description and settings', () => {
       ]
     });
   });
+
+  it('rejects an invalid configuration without constructing a client', async () => {
+    const { sdk, connect } = setup();
+    await expect(
+      connect({ config: { generation: { topK: 0, vendorSecret: 'hidden' } } }).connecting
+    ).rejects.toMatchObject({ code: 'lyria-rt-invalid-configuration' });
+    expect(sdk.options).toEqual([]);
+  });
 });
 
 describe('Lyria RealTime connector startup and model configuration', () => {
-  it('waits for setup complete before config, prompts, and play', async () => {
-    const { clock, connector, sdk, sink } = setup();
-    await prepare(connector);
-    const { started } = await beginStart(connector, sink, sdk);
+  it('waits for setup before config, prompts, and play', async () => {
+    const { clock, sdk, beginConnect } = setup();
+    const { connecting } = await beginConnect();
     expect(sdk.last.calls).toEqual([]);
 
     sdk.last.setupComplete();
-    await started;
+    await connecting;
     expect(clock.pendingDeadlines()).toEqual([]);
-    expect(sdk.last.calls.map((call) => call.kind)).toEqual(['config', 'prompts', 'play']);
+    expect(sdk.last.kinds()).toEqual(['config', 'prompts', 'play']);
     expect(sdk.last.calls[0].value).toMatchObject({
       bpm: 96,
       scale: 'C_MAJOR_A_MINOR',
@@ -260,25 +294,23 @@ describe('Lyria RealTime connector startup and model configuration', () => {
   });
 
   it('times out startup safely and closes the session', async () => {
-    const { connector, sdk, sink, clock } = setup();
-    await prepare(connector);
-    const { started } = await beginStart(connector, sink, sdk);
+    const { clock, sdk, beginConnect } = setup();
+    const { connecting } = await beginConnect();
     clock.advanceBy(15);
-    await expect(started).rejects.toMatchObject({
+    await expect(connecting).rejects.toMatchObject({
       code: 'lyria-rt-setup-timeout',
       reason: 'network',
       retryable: true
     });
-    expect(sdk.last.calls).toContainEqual({ kind: 'close' });
+    expect(sdk.last.released).toBe(true);
   });
 
   it('resends the complete config then resets context before prompt updates', async () => {
-    const { connector, sdk, sink } = setup();
-    await prepare(connector);
-    await completeStart(connector, sink, sdk);
+    const { sdk, completeConnect } = setup();
+    const connection = await completeConnect();
     sdk.last.calls.length = 0;
 
-    const boundary = await connector.update(
+    const applied = await connection.update(
       {
         state: {
           ...INITIAL_STATE,
@@ -293,8 +325,8 @@ describe('Lyria RealTime connector startup and model configuration', () => {
       },
       { bar: 3 }
     );
-    expect(boundary).toEqual({ bar: 3 });
-    expect(sdk.last.calls.map((call) => call.kind)).toEqual(['config', 'reset', 'prompts']);
+    expect(applied).toEqual({ bar: 3 });
+    expect(sdk.last.kinds()).toEqual(['config', 'reset', 'prompts']);
     expect(sdk.last.calls[0].value).toMatchObject({
       bpm: 140,
       scale: 'D_MAJOR_B_MINOR',
@@ -304,9 +336,9 @@ describe('Lyria RealTime connector startup and model configuration', () => {
     });
   });
 
-  // A GAS tempo counts the meter's beat unit; Lyria RealTime's bpm counts quarter notes.
-  // Without the conversion every non-quarter meter would be generated at the
-  // wrong tempo, and clamping would be decided against the wrong number.
+  // A GAS tempo counts the meter's beat unit; Lyria RealTime's bpm counts quarter
+  // notes. The connector converts through `quarterNoteTempo`, and clamps against
+  // the converted number.
   it.each([
     { meter: '4/4', beatsPerBar: 4, beatUnit: 4, tempo: 120, bpm: 120, clamped: false },
     { meter: '6/8', beatsPerBar: 6, beatUnit: 8, tempo: 120, bpm: 60, clamped: false },
@@ -315,10 +347,9 @@ describe('Lyria RealTime connector startup and model configuration', () => {
   ])(
     'sends $tempo bpm in $meter as $bpm quarter-note bpm',
     async ({ beatsPerBar, beatUnit, tempo, bpm, clamped }) => {
-      const { connector, sdk, sink, warnings } = setup();
+      const { sdk, warnings, completeConnect } = setup();
       const state = { ...INITIAL_STATE, globals: { ...INITIAL_STATE.globals, tempo } };
-      await prepare(connector, { apiKey: 'test-key' }, state);
-      await completeStart(connector, sink, sdk, 'run-1', timingIn(beatsPerBar, beatUnit, tempo));
+      await completeConnect({ state, timing: timingIn(beatsPerBar, beatUnit, tempo) });
 
       expect(sdk.last.calls[0].value).toMatchObject({ bpm });
       expect(warnings.map((warning) => warning.code)).toEqual(
@@ -328,122 +359,108 @@ describe('Lyria RealTime connector startup and model configuration', () => {
   );
 
   it('converts a live tempo change in a non-quarter meter and resets context', async () => {
-    const { connector, sdk, sink } = setup();
+    const { sdk, completeConnect } = setup();
     const state = { ...INITIAL_STATE, globals: { ...INITIAL_STATE.globals, tempo: 120 } };
-    await prepare(connector, { apiKey: 'test-key' }, state);
-    await completeStart(connector, sink, sdk, 'run-1', timingIn(6, 8, 120));
+    const connection = await completeConnect({ state, timing: timingIn(6, 8, 120) });
     expect(sdk.last.calls[0].value).toMatchObject({ bpm: 60 });
     sdk.last.calls.length = 0;
 
-    await connector.update(
+    await connection.update(
       { state: { ...state, globals: { ...state.globals, tempo: 160 } } },
       { bar: 3 }
     );
     // Config and reset, but no prompt send: a tempo change alters the model
     // context without altering a single prompt.
-    expect(sdk.last.calls.map((call) => call.kind)).toEqual(['config', 'reset']);
+    expect(sdk.last.kinds()).toEqual(['config', 'reset']);
     expect(sdk.last.calls[0].value).toMatchObject({ bpm: 80 });
   });
 
-  it('clamps tempo and warns once for each distinct out-of-range value', async () => {
-    const { connector, sdk, sink, warnings } = setup();
+  it('clamps tempo and warns once for each distinct out-of-range value, per connection', async () => {
+    const { warnings, completeConnect } = setup();
     const state = { ...INITIAL_STATE, globals: { ...INITIAL_STATE.globals, tempo: 240 } };
-    await prepare(connector, { apiKey: 'test-key' }, state);
-    await completeStart(connector, sink, sdk);
-    expect(sdk.last.calls[0].value).toMatchObject({ bpm: 200 });
+    const connection = await completeConnect({ state });
     expect(warnings.map((warning) => warning.code)).toEqual(['lyria-rt-tempo-clamped']);
 
-    await connector.update({ state }, { bar: 2 });
-    await connector.update(
+    await connection.update({ state }, { bar: 2 });
+    await connection.update(
       { state: { ...state, globals: { ...state.globals, tempo: 250 } } },
       { bar: 3 }
     );
-    expect(warnings.map((warning) => warning.code)).toEqual([
-      'lyria-rt-tempo-clamped',
-      'lyria-rt-tempo-clamped'
-    ]);
-  });
+    expect(warnings).toHaveLength(2);
 
-  it('rejects invalid direct-call configuration without constructing a client', async () => {
-    const { connector, sdk } = setup();
-    await connector.open({ apiKey: 'test-key' });
-    await expect(
-      connector.prepare(INITIAL_STATE, { generation: { topK: 0, vendorSecret: 'hidden' } })
-    ).rejects.toMatchObject({ code: 'lyria-rt-invalid-configuration' });
-    expect(sdk.connections.length).toBe(0);
+    // The next Play warns again.
+    await completeConnect({ state });
+    expect(warnings).toHaveLength(3);
   });
 });
 
-describe('Lyria RealTime connector prompts, flow control, and audio', () => {
-  it('starts empty without play, resumes for prompts, and never sends an empty SDK prompt set', async () => {
-    const { connector, sdk, sink } = setup();
-    await prepare(connector, { apiKey: 'test-key' }, EMPTY_STATE);
-    await completeStart(connector, sink, sdk);
-    expect(sdk.last.calls.map((call) => call.kind)).toEqual(['config']);
+describe('Lyria RealTime connector prompts, pause, and audio', () => {
+  it('starts empty without play, plays for prompts, and never sends an empty prompt set', async () => {
+    const { sdk, completeConnect } = setup();
+    const connection = await completeConnect({ state: EMPTY_STATE });
+    expect(sdk.last.kinds()).toEqual(['config']);
 
-    await connector.update({ state: INITIAL_STATE }, { bar: 2 });
-    await connector.update({ state: EMPTY_STATE }, { bar: 3 });
+    await connection.update({ state: INITIAL_STATE }, { bar: 2 });
+    await connection.update({ state: EMPTY_STATE }, { bar: 3 });
     const promptCalls = sdk.last.calls.filter((call) => call.kind === 'prompts');
     expect(promptCalls).toHaveLength(1);
     expect(promptCalls[0].value).not.toEqual([]);
-    expect(sdk.last.calls.map((call) => call.kind)).toEqual(['config', 'prompts', 'play', 'pause']);
+    expect(sdk.last.kinds()).toEqual(['config', 'prompts', 'play', 'pause']);
   });
 
-  it('gives flow pause precedence and suppresses duplicate controls', async () => {
-    const { connector, sdk, sink, statuses } = setup();
-    await prepare(connector);
-    await completeStart(connector, sink, sdk);
+  it('gives pause precedence over prompts and suppresses duplicate controls', async () => {
+    const { sdk, completeConnect } = setup();
+    const connection = await completeConnect();
     sdk.last.calls.length = 0;
 
-    await connector.setGenerationPaused?.(true);
-    await connector.setGenerationPaused?.(true);
-    await connector.setGenerationPaused?.(false);
-    await connector.setGenerationPaused?.(false);
-    expect(sdk.last.calls.map((call) => call.kind)).toEqual(['pause', 'play']);
-    expect(statuses).toEqual(['streaming', 'throttled', 'streaming']);
+    await connection.pause();
+    await connection.pause();
+    await connection.resume();
+    await connection.resume();
+    expect(sdk.last.kinds()).toEqual(['pause', 'play']);
   });
 
-  it('cancels a crossfade still in flight when stopped', async () => {
-    const { clock, connector, sdk, sink, failures } = setup();
-    await prepare(connector, { apiKey: 'test-key' }, INITIAL_STATE, DEFAULT_LYRIA_RT_CONFIG);
-    await completeStart(connector, sink, sdk);
+  // The renderer resumes one lead before a track comes in after a rest, then
+  // sends the entry's update. The model must not play until it has prompts.
+  it('resumes during a rest without playing, and plays at the next update with prompts', async () => {
+    const { sdk, completeConnect } = setup();
+    const connection = await completeConnect();
+    await connection.pause();
+    await connection.update({ state: EMPTY_STATE }, { bar: 3 });
+    sdk.last.calls.length = 0;
+
+    await connection.resume();
+    expect(sdk.last.kinds()).toEqual([]);
+    await connection.update({ state: INITIAL_STATE }, { bar: 5 });
+    expect(sdk.last.kinds()).toEqual(['prompts', 'play']);
+  });
+
+  it('cancels a crossfade in flight on close, and resolves once the socket closes', async () => {
+    const { clock, sdk, errors, completeConnect } = setup();
+    const connection = await completeConnect({ config: DEFAULT_LYRIA_RT_CONFIG });
     expect(clock.pendingDeadlines()).not.toEqual([]);
 
-    await connector.stop('run-1');
+    let closed = false;
+    const closing = connection.close().then(() => (closed = true));
     expect(clock.pendingDeadlines()).toEqual([]);
+    expect(closed).toBe(false);
+    await closing;
+    expect(sdk.last.kinds().slice(-2)).toEqual(['stop', 'close']);
+
     clock.advanceBy(10);
     await flushAsync();
-    expect(failures).toEqual([]);
-  });
-
-  it('settles a start stopped while connecting as cancelled', async () => {
-    const { connector, sink } = setup();
-    await prepare(connector);
-    const started = connector.start(sink, TIMING, 'run-1');
-    await flushAsync();
-    await connector.stop('run-1');
-    await expect(started).rejects.toMatchObject({ code: 'lyria-rt-start-cancelled' });
-  });
-
-  it('ignores a Stop for another run', async () => {
-    const { connector, sdk, sink } = setup();
-    await prepare(connector);
-    await completeStart(connector, sink, sdk);
-    await connector.stop('run-0');
-    expect(sdk.last.released).toBe(false);
-    await connector.update({ state: EMPTY_STATE }, { bar: 2 });
+    expect(errors).toEqual([]);
   });
 
   it('decodes and emits every audio chunk with exact metadata and duration', async () => {
-    const { connector, sdk, sink, chunks } = setup();
-    await prepare(connector);
-    await completeStart(connector, sink, sdk);
+    const { sdk, chunks, completeConnect } = setup();
+    await completeConnect();
     sdk.last.audio([1, 2, 3, 4], [5, 6, 7, 8, 9, 10, 11, 12]);
 
     expect(chunks).toHaveLength(2);
     expect([...chunks[0].bytes]).toEqual([1, 2, 3, 4]);
-    expect(chunks[0]).toMatchObject({
-      runId: 'run-1',
+    expect(chunks[0]).toEqual({
+      bytes: expect.any(Uint8Array),
       codec: 'pcm',
       sampleFormat: 's16le',
       sampleRate: 48_000,
@@ -454,27 +471,155 @@ describe('Lyria RealTime connector prompts, flow control, and audio', () => {
   });
 
   it('sanitizes filtered prompts and malformed audio', async () => {
-    const { connector, sdk, sink, warnings, failures } = setup();
-    await prepare(connector);
-    await completeStart(connector, sink, sdk);
+    const { sdk, warnings, errors, completeConnect } = setup();
+    await completeConnect();
     sdk.last.message({
       filteredPrompt: { text: 'private prompt', filteredReason: 'vendor detail' },
       serverContent: { audioChunks: [{ data: 'not-base64' }] }
     });
 
     expect(warnings.map((warning) => warning.code)).toEqual(['lyria-rt-prompt-filtered']);
-    expect(failures).toHaveLength(1);
-    expect(failures[0]).toMatchObject({
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatchObject({
       code: 'lyria-rt-malformed-audio',
       reason: 'provider',
-      retryable: true,
-      runId: 'run-1'
+      retryable: true
     });
-    expect(JSON.stringify({ warnings, failures })).not.toMatch(/private prompt|vendor detail/);
+    expect(sdk.last.released).toBe(true);
+    expect(JSON.stringify({ warnings, errors })).not.toMatch(/private prompt|vendor detail/);
+  });
+
+  it('reports malformed audio at once but closes only on the close event', async () => {
+    const { sdk, warnings, errors, completeConnect } = setup();
+    const connection = await completeConnect();
+    sdk.last.holdCloseEvent();
+    sdk.last.message({ serverContent: { audioChunks: [{ data: 'not-base64' }] } });
+    expect(errors.map((error) => error.code)).toEqual(['lyria-rt-malformed-audio']);
+
+    sdk.last.message({ warning: 'late' });
+    expect(warnings).toEqual([]);
+
+    let closed = false;
+    void connection.close().then(() => {
+      closed = true;
+    });
+    await flushAsync();
+    expect(closed).toBe(false);
+    expect(sdk.last.kinds().filter((kind) => kind === 'stop')).toEqual([]);
+
+    sdk.last.releaseClose();
+    await flushAsync();
+    expect(closed).toBe(true);
+    expect(errors).toHaveLength(1);
   });
 });
 
-describe('Lyria RealTime connector failure and lifecycle guards', () => {
+describe('Lyria RealTime connector hooks', () => {
+  it('uses the translate hook for the first prompts and every update', async () => {
+    const translate = vi.fn((state: EffectiveState, config) =>
+      translatePrompts(state, config.prompt).map((prompt) => ({ ...prompt, text: 'hooked' }))
+    );
+    const { sdk, completeConnect } = setup({ translate });
+    const connection = await completeConnect();
+    await connection.update({ state: INITIAL_STATE }, { bar: 2 });
+
+    expect(translate).toHaveBeenCalledTimes(2);
+    // The hook gets the resolved config, so it never sees a missing member.
+    expect(translate.mock.calls[0][1]).toEqual(IMMEDIATE_CONFIG);
+    expect(sdk.last.calls[1].value).toEqual([{ text: 'hooked', weight: 0.75 }]);
+  });
+
+  it.each([
+    [
+      'throws',
+      () => {
+        throw new Error('hook-internal-detail');
+      }
+    ],
+    ['returns an empty text', () => [{ text: ' ', weight: 1 }]],
+    ['returns a weight that is not finite', () => [{ text: 'a', weight: Number.NaN }]],
+    ['returns something other than a list', () => 'a' as unknown as []]
+  ] as const)('fails with lyria-rt-translate-failed when the hook %s', async (_, translate) => {
+    const { sdk, beginConnect } = setup({ translate });
+    const { connecting } = await beginConnect();
+    sdk.last.setupComplete();
+    const failure = await connecting.catch((error: unknown) => error);
+    expect(failure).toMatchObject({
+      code: 'lyria-rt-translate-failed',
+      reason: 'internal',
+      retryable: false
+    });
+    expect(JSON.stringify(failure)).not.toMatch(/hook-internal-detail/);
+    expect(sdk.last.released).toBe(true);
+  });
+
+  it('closes the socket and hides the detail when the transition hook throws', async () => {
+    const transition = () => {
+      throw new Error('hook-internal-detail');
+    };
+    const { sdk, beginConnect } = setup({ transition });
+    const { connecting } = await beginConnect();
+    sdk.last.setupComplete();
+    const failure = await connecting.catch((error: unknown) => error);
+    expect(failure).toMatchObject({
+      code: 'lyria-rt-startup-failure',
+      reason: 'internal',
+      retryable: false
+    });
+    expect(JSON.stringify(failure)).not.toMatch(/hook-internal-detail/);
+    expect(sdk.last.kinds().slice(-2)).toEqual(['stop', 'close']);
+  });
+
+  it('makes one transition per connection with the transition hook', async () => {
+    const transition = vi.fn(createPromptTransition);
+    const { completeConnect } = setup({ transition });
+    await completeConnect();
+    await completeConnect();
+    expect(transition).toHaveBeenCalledTimes(2);
+    expect(transition.mock.calls[0][0]).toMatchObject({
+      transitionDurationMs: 0,
+      transitionSteps: 1
+    });
+  });
+});
+
+// Cancelling, close and failure reporting in general are in conformance.test.ts.
+describe('Lyria RealTime connector connections and cancelling', () => {
+  it('rejects at once when the signal aborts during the first sends', async () => {
+    const { sdk, beginConnect } = setup();
+    const { connecting, controller } = await beginConnect();
+    // Hold the config send so the abort lands while it is pending.
+    const pending = sdk.last.session.setMusicGenerationConfig;
+    sdk.last.session.setMusicGenerationConfig = () => new Promise(() => undefined);
+    sdk.last.setupComplete();
+    await flushAsync();
+    controller.abort();
+    await expect(connecting).rejects.toMatchObject({ code: 'lyria-rt-start-cancelled' });
+    sdk.last.session.setMusicGenerationConfig = pending;
+    await flushAsync();
+    expect(sdk.last.released).toBe(true);
+  });
+
+  it('reports a failed update only as its rejection', async () => {
+    const { sdk, errors, completeConnect } = setup();
+    const connection = await completeConnect();
+    sdk.last.session.setWeightedPrompts = () => Promise.reject(new Error('socket gone'));
+    await expect(
+      connection.update(
+        {
+          state: {
+            ...INITIAL_STATE,
+            tracks: [{ ...INITIAL_STATE.tracks[0], timbre: { kind: 'text', text: 'glassy' } }]
+          }
+        },
+        { bar: 2 }
+      )
+    ).rejects.toMatchObject({ code: 'lyria-rt-network-failure' });
+    expect(errors).toEqual([]);
+  });
+});
+
+describe('Lyria RealTime connector close codes', () => {
   it.each([
     [1002, 'lyria-rt-provider-failure', 'provider', true],
     [1011, 'lyria-rt-provider-failure', 'provider', true],
@@ -487,51 +632,39 @@ describe('Lyria RealTime connector failure and lifecycle guards', () => {
     [4429, 'lyria-rt-network-failure', 'network', true],
     [4500, 'lyria-rt-network-failure', 'network', true]
   ] as const)('maps runtime close %i to %s', async (closeCode, code, reason, retryable) => {
-    const { connector, sdk, sink, failures } = setup();
-    await prepare(connector, { apiKey: 'test-key', endpoint: 'https://proxy.example' });
-    await completeStart(connector, sink, sdk);
+    const { sdk, errors, completeConnect } = setup({ endpoint: 'https://proxy.example' });
+    await completeConnect();
     sdk.last.serverClose(closeCode);
-    expect(failures).toHaveLength(1);
-    expect(failures[0]).toMatchObject({ code, reason, retryable, runId: 'run-1', closeCode });
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatchObject({ code, reason, retryable, closeCode });
   });
 
   it.each([1007, 1008] as const)(
     'maps pre-setup close %i to auth without leaking close detail',
     async (closeCode) => {
-      const { connector, sdk, sink } = setup();
-      await prepare(connector);
-      const { started } = await beginStart(connector, sink, sdk);
+      const { sdk, errors, beginConnect } = setup();
+      const { connecting } = await beginConnect();
       sdk.last.serverClose(closeCode);
-      const failure = await started.catch((error: unknown) => error);
+      const failure = await connecting.catch((error: unknown) => error);
       expect(failure).toMatchObject({
         code: 'lyria-rt-auth-rejected',
         reason: 'auth',
         retryable: false,
         closeCode
       });
+      expect(errors).toEqual([]);
       expect(JSON.stringify(failure)).not.toMatch(/test-key/);
     }
   );
 
-  it('stops and closes idempotently, supports a later explicit run, and ignores stale callbacks', async () => {
-    const { connector, sdk, sink, chunks } = setup();
-    await prepare(connector);
-    await completeStart(connector, sink, sdk);
-    const stale = sdk.last;
-    // A chunk already in flight still arrives while the close completes.
-    const stopping = connector.stop('run-1');
-    stale.audio([1, 2, 3, 4]);
-    await stopping;
-    await connector.stop('run-1');
-    expect(stale.kinds().filter((kind) => kind === 'stop')).toHaveLength(1);
-    expect(stale.kinds().filter((kind) => kind === 'close')).toHaveLength(1);
-    expect(chunks).toEqual([]);
-
-    await connector.prepare(INITIAL_STATE, IMMEDIATE_CONFIG);
-    await completeStart(connector, sink, sdk, 'run-2');
-    expect(sdk.connections.length).toBe(2);
-    await connector.close();
-    await connector.close();
-    await expect(connector.open({ apiKey: 'new-key' })).rejects.toBeInstanceOf(ConnectorError);
+  it('rejects connect, not onError, for a close during the first sends', async () => {
+    const { sdk, errors, beginConnect } = setup();
+    const { connecting } = await beginConnect();
+    sdk.last.session.setMusicGenerationConfig = () => new Promise(() => undefined);
+    sdk.last.setupComplete();
+    await flushAsync();
+    sdk.last.serverClose(1011);
+    await expect(connecting).rejects.toMatchObject({ code: 'lyria-rt-provider-failure' });
+    expect(errors).toEqual([]);
   });
 });

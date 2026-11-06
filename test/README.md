@@ -1,8 +1,7 @@
 # Tests
 
 Module tests live in `packages/gas/test/<module>/` and follow that module's import rules. Connector
-tests live in each connector's `test/` directory, and `test/support/connector-conformance.ts` has
-the lifecycle cases every connector runs. This directory holds tests that combine modules, plus
+tests live in each connector's `test/` directory. This directory holds tests that combine modules, plus
 release checks on versions, package contents and README examples.
 
 Run everything with `pnpm test`, or `pnpm exec vitest run` after a build for a quicker loop.

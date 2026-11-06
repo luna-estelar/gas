@@ -103,6 +103,60 @@ tempo 132
   });
 });
 
+describe('parseLiveCommands clears and globals', () => {
+  test('accepts global flavor and level', () => {
+    const statements = expectStatements(parseLiveCommands('flavor "late-night"\nlevel 0.5'));
+    expect(statements).toEqual([
+      expect.objectContaining({ kind: 'GlobalFlavor', value: 'late-night' }),
+      expect.objectContaining({ kind: 'GlobalLevel', value: 0.5 })
+    ]);
+  });
+
+  test('rejects a global level out of range', () => {
+    expect(codes(parseLiveCommands('level 1.5'))).toContain('invalid-level');
+  });
+
+  test.each(['flavor', 'timbre', 'level', 'notes', 'motif'] as const)(
+    'accepts a %s clear on a track',
+    (slot) => {
+      expect(expectStatements(parseLiveCommands(`lead.${slot} clear`))).toEqual([
+        expect.objectContaining({ kind: 'ClearTrack', trackName: 'lead', slot })
+      ]);
+    }
+  );
+
+  test.each(['tempo', 'flavor', 'level'] as const)('accepts a global %s clear', (slot) => {
+    expect(expectStatements(parseLiveCommands(`${slot} clear`))).toEqual([
+      expect.objectContaining({ kind: 'ClearGlobal', slot })
+    ]);
+  });
+
+  test('accepts release and track removal', () => {
+    expect(expectStatements(parseLiveCommands('lead.release\ntrack lead clear'))).toEqual([
+      expect.objectContaining({ kind: 'Release', trackName: 'lead' }),
+      expect.objectContaining({ kind: 'RemoveTrack', name: 'lead' })
+    ]);
+  });
+
+  test('keeps clear and release usable as track names', () => {
+    const statements = expectStatements(
+      parseLiveCommands('track clear "c"\nclear.play\ntrack release "r"\nrelease.level clear')
+    );
+    expect(statements).toEqual([
+      expect.objectContaining({ kind: 'DeclareTrack', name: 'clear' }),
+      expect.objectContaining({ kind: 'Play', trackName: 'clear' }),
+      expect.objectContaining({ kind: 'DeclareTrack', name: 'release' }),
+      expect.objectContaining({ kind: 'ClearTrack', trackName: 'release', slot: 'level' })
+    ]);
+  });
+
+  test('rejects a clear with a value', () => {
+    const result = parseLiveCommands('strings.level clear 0.3');
+    expect(result.ok).toBe(false);
+    expect(categories(result)).toContain('syntax');
+  });
+});
+
 describe('parseLiveCommands exclusions', () => {
   test('rejects a section definition', () => {
     const result = parseLiveCommands('section intro:\n    bar 1:\n        drums.play\n');
@@ -135,9 +189,7 @@ describe('parseLiveCommands exclusions', () => {
   for (const [source, label] of [
     ['key "D minor"', 'key'],
     ['time_signature 4/4', 'time_signature'],
-    ['length bars 16', 'length'],
-    ['flavor "nocturnal synthwave"', 'global flavor'],
-    ['level 0.8', 'global level']
+    ['length bars 16', 'length']
   ] as const) {
     test(`rejects a global ${label} declaration`, () => {
       const result = parseLiveCommands(source);

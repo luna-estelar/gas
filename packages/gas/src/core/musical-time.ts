@@ -1,7 +1,6 @@
 // The one conversion between musical position and clock seconds. It lives in
-// Core because both the Renderer (scheduling) and a browser host (placing the
-// audible playhead) need it, and a host must not depend on the Renderer to get
-// it.
+// Core because both the session (scheduling) and the browser (placing the
+// audible playhead) need it.
 //
 // Tempo is beats per minute where a beat is the meter's `beatUnit` note. So
 // `secondsPerBeat = 60 / tempo` and `secondsPerBar = beatsPerBar x 60 / tempo`,
@@ -14,7 +13,7 @@ import type {
   BeatOffset,
   MusicalContext,
   MusicalPosition,
-  RendererDefaults,
+  DocumentDefaults,
   TimeSignature
 } from '../protocol/index.js';
 
@@ -50,7 +49,7 @@ export type TempoSegmentMap = readonly TempoSegment[];
 
 export function resolveTiming(
   authored: MusicalContext | undefined,
-  defaults: RendererDefaults = {}
+  defaults: DocumentDefaults = {}
 ): ResolvedTiming {
   const tempo = authored?.tempo ?? defaults.tempo ?? DEFAULT_TEMPO;
   const timeSignature = authored?.timeSignature ?? defaults.timeSignature ?? DEFAULT_TIME_SIGNATURE;
@@ -137,7 +136,7 @@ export function barToTime(segments: TempoSegmentMap, bar: number): number {
  * The continuous bar coordinate at `time`: bar 2.5 is halfway through bar 2.
  * This is not a {@link MusicalPosition} — protocol bars are integers — so it is
  * for callers doing bar arithmetic, above all re-anchoring a tempo change at the
- * exact current instant. Use {@link timeToPosition} for anything a host sees.
+ * exact current instant. Use {@link timeToPosition} for anything an app sees.
  */
 export function timeToBarFraction(segments: TempoSegmentMap, time: number): number {
   assertSegments(segments);

@@ -44,8 +44,8 @@ The checked-in fixtures under `manual/fixtures/` map to the numbered rows. Row 6
 
 ## Transport smoke
 
-The transport smoke exercises the concrete connector lifecycle, prompt/config update, flow pause,
-resume, stop, and close. It makes real provider calls and must be run only with authorized settings.
+The smoke plays a document through `createSession`, changes its tempo and flavor, stops, plays
+again and closes, and fails unless both Plays got audio. It makes real provider calls and must be run only with authorized settings.
 It accepts connection settings only through the environment and never records them.
 
 ```sh
@@ -59,3 +59,20 @@ the Lyria RealTime WebSocket protocol, for checking a deployment of your own.
 `GAS_LYRIA_RT_SMOKE_OUTPUT` is also optional; without it the script keeps chunks only in memory
 and reports their count and duration.
 Do not run this command in CI or attach the resulting audio to a public issue without reviewing it.
+
+## Start-up delay
+
+The startup script measures how long Lyria RealTime takes to send audio after it opens and after it
+resumes from a pause. It uses `openLyriaRtSession` directly, so the numbers don't include GAS. Each
+run plays, then pauses for 2, 4 and 8 s and resumes with new prompts. It makes real provider calls,
+and takes about 40 s a run.
+
+```sh
+GAS_LYRIA_RT_API_KEY=... \
+GAS_LYRIA_RT_STARTUP_RUNS=10 \
+GAS_LYRIA_RT_STARTUP_OUTPUT=/absolute/path/to/ignored-startup.json \
+pnpm --filter @luna-estelar/gas-lyria-rt manual:startup
+```
+
+It prints min, median, p90, p95 and max for each measure. `GAS_LYRIA_RT_STARTUP_OUTPUT` is optional
+and writes the raw samples too. The connector's `startupDelaySeconds` covers the slowest resume measured.

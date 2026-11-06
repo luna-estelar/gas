@@ -1,21 +1,19 @@
 // The cascade: derive the complete effective state at a musical position from the
 // session input state. Nothing position-dependent is ever stored — this is the
-// derivation that keeps that promise. Five layers, later layers winning:
+// derivation that keeps that promise. Four layers, later layers winning:
 //
 //   1. authored global defaults (globals, musicalContext)
 //   2. authored track declarations and their defaults, in array order
-//   3. staged overrides, in application order
-//   4. authored timed and section events at or before the position, ordered by
+//   3. authored timed and section events at or before the position, ordered by
 //      position then sequence; section-scoped events count only while the active
 //      section instance contains the position
-//   5. live overrides, in application order
+//   4. app values, in list order
 //
-// Clears restore the layers below them: a staged clear resets its slot to the
-// end-of-layer-2 checkpoint (the authored base), a live clear to the end-of-layer-4
-// checkpoint (authored plus events). Within a layer, application order decides, so
-// a later set beats an earlier clear and vice versa. Values are protocol
-// `IntentValue`s; override payloads are wrapped here. No clock, no gain math: the
-// Renderer/connector combine levels and act on tempo.
+// App values sit above the score however and whenever they were set. A clear
+// removes its slot's app value, so nothing in layer 4 covers that slot and the
+// score's value at the position shows through. Values are protocol
+// `IntentValue`s; app value payloads are wrapped here. There is no clock or gain
+// math here. The session and connector combine levels and act on tempo.
 
 import type {
   ArrangementInstance,
@@ -32,13 +30,13 @@ import type {
   TimelineEvent,
   TrackDefaultAction
 } from '../protocol/index.js';
-import type { InputState, Override } from './state.js';
+import type { InputState, AppValue } from './state.js';
 import { comparePositions } from './positions.js';
 
 export type { EffectiveGlobals, EffectiveState, EffectiveTrack } from '../protocol/index.js';
 
-// Renderer-derived position context. Section events require an active instance;
-// loopIteration is reserved and currently does not affect state derivation.
+// Where in the arrangement the position is. Section events need an active
+// instance. loopIteration is reserved and doesn't change the result yet.
 export interface EffectiveStateOptions {
   readonly loopIteration?: number;
   readonly activeSection?: ArrangementInstance;
@@ -75,8 +73,8 @@ export function effectiveStateAt(
     globals.timeSignature = timeline.musicalContext.timeSignature;
   }
 
-  // Every authored track (array order) then every host track (array order). The
-  // namespace is unique, so a host id never collides with an authored one.
+  // Every authored track (array order) then every app track (array order). The
+  // namespace is unique, so an app id never collides with an authored one.
   const tracks = new Map<string, WorkingTrack>();
   for (const track of timeline.tracks) {
     tracks.set(track.trackId, {
@@ -86,12 +84,12 @@ export function effectiveStateAt(
       active: false
     });
   }
-  for (const host of state.hostTracks) {
-    if (tracks.has(host.id)) continue;
-    tracks.set(host.id, {
-      trackId: host.id,
-      name: host.name ?? host.id,
-      description: host.description,
+  for (const app of state.appTracks) {
+    if (tracks.has(app.id)) continue;
+    tracks.set(app.id, {
+      trackId: app.id,
+      name: app.name ?? app.id,
+      description: app.description,
       active: false
     });
   }
@@ -105,27 +103,14 @@ export function effectiveStateAt(
     }
   }
 
-  // Authored base checkpoint (end of layer 2): a staged clear restores to here.
-  const baseGlobals = snapshotGlobals(globals);
-  const baseTracks = snapshotTracks(tracks);
-
-  // Layer 3: staged overrides, in application order.
-  for (const override of state.staged) {
-    applyOverride(override, globals, tracks, baseGlobals, baseTracks);
-  }
-
-  // Layer 4: authored events at or before the position.
+  // Layer 3: authored events at or before the position.
   for (const event of eventsUpTo(timeline.events, position, activeSection)) {
     applyEvent(event, globals, tracks);
   }
 
-  // Authored-plus-events checkpoint (end of layer 4): a live clear restores here.
-  const afterEventGlobals = snapshotGlobals(globals);
-  const afterEventTracks = snapshotTracks(tracks);
-
-  // Layer 5: live overrides, in application order.
-  for (const override of state.live) {
-    applyOverride(override, globals, tracks, afterEventGlobals, afterEventTracks);
+  // Layer 4: app values, in list order.
+  for (const value of state.appValues) {
+    applyAppValue(value, globals, tracks);
   }
 
   return freezeEffectiveState(globals, tracks);
@@ -151,29 +136,6 @@ interface WorkingTrack {
   level?: IntentValue;
   notes?: IntentValue;
   motif?: IntentValue;
-}
-
-// Only the slots a clear can restore need checkpointing. `notes`/`motif` are
-// set-only (no clear), and activity/key/timeSignature have no clear either.
-interface GlobalCheckpoint {
-  readonly flavor?: IntentValue;
-  readonly level?: IntentValue;
-  readonly tempo?: number;
-}
-
-type ClearableTrackSlot = 'flavor' | 'timbre' | 'level';
-type TrackCheckpoint = Pick<WorkingTrack, ClearableTrackSlot>;
-
-function snapshotGlobals(globals: WorkingGlobals): GlobalCheckpoint {
-  return { flavor: globals.flavor, level: globals.level, tempo: globals.tempo };
-}
-
-function snapshotTracks(tracks: Map<string, WorkingTrack>): Map<string, TrackCheckpoint> {
-  const snapshot = new Map<string, TrackCheckpoint>();
-  for (const [id, track] of tracks) {
-    snapshot.set(id, { flavor: track.flavor, timbre: track.timbre, level: track.level });
-  }
-  return snapshot;
 }
 
 // --- Layer application --------------------------------------------------------
@@ -230,61 +192,52 @@ function applyEvent(
   }
 }
 
-function applyOverride(
-  override: Override,
+function applyAppValue(
+  value: AppValue,
   globals: WorkingGlobals,
-  tracks: Map<string, WorkingTrack>,
-  globalCheckpoint: GlobalCheckpoint,
-  trackCheckpoints: Map<string, TrackCheckpoint>
+  tracks: Map<string, WorkingTrack>
 ): void {
-  switch (override.kind) {
+  switch (value.kind) {
     case 'playTrack':
-      setActive(tracks, override.trackId, true);
+      setActive(tracks, value.trackId, true);
       return;
     case 'stopTrack':
-      setActive(tracks, override.trackId, false);
+      setActive(tracks, value.trackId, false);
       return;
     case 'setGlobalFlavor':
-      globals.flavor = textValue(override.value);
-      return;
-    case 'clearGlobalFlavor':
-      globals.flavor = globalCheckpoint.flavor;
+      globals.flavor = textValue(value.value);
       return;
     case 'setGlobalLevel':
-      globals.level = levelValue(override.value);
-      return;
-    case 'clearGlobalLevel':
-      globals.level = globalCheckpoint.level;
+      globals.level = levelValue(value.value);
       return;
     case 'setTempo':
-      globals.tempo = override.bpm;
-      return;
-    case 'clearTempo':
-      globals.tempo = globalCheckpoint.tempo;
+      globals.tempo = value.bpm;
       return;
     case 'setTrackFlavor':
-      setSlot(tracks, override.trackId, 'flavor', textValue(override.value));
-      return;
-    case 'clearTrackFlavor':
-      restoreSlot(tracks, trackCheckpoints, override.trackId, 'flavor');
+      setSlot(tracks, value.trackId, 'flavor', textValue(value.value));
       return;
     case 'setTrackTimbre':
-      setSlot(tracks, override.trackId, 'timbre', textValue(override.value));
-      return;
-    case 'clearTrackTimbre':
-      restoreSlot(tracks, trackCheckpoints, override.trackId, 'timbre');
+      setSlot(tracks, value.trackId, 'timbre', textValue(value.value));
       return;
     case 'setTrackLevel':
-      setSlot(tracks, override.trackId, 'level', levelValue(override.value));
-      return;
-    case 'clearTrackLevel':
-      restoreSlot(tracks, trackCheckpoints, override.trackId, 'level');
+      setSlot(tracks, value.trackId, 'level', levelValue(value.value));
       return;
     case 'setTrackNotes':
-      setSlot(tracks, override.trackId, 'notes', aldaValue(override.alda));
+      setSlot(tracks, value.trackId, 'notes', aldaValue(value.alda));
       return;
     case 'setTrackMotif':
-      setSlot(tracks, override.trackId, 'motif', aldaValue(override.alda));
+      setSlot(tracks, value.trackId, 'motif', aldaValue(value.alda));
+      return;
+    // Clears are never stored in app values; see `applyCommand`.
+    case 'clearGlobalFlavor':
+    case 'clearGlobalLevel':
+    case 'clearTempo':
+    case 'clearTrackPlay':
+    case 'clearTrackFlavor':
+    case 'clearTrackTimbre':
+    case 'clearTrackLevel':
+    case 'clearTrackNotes':
+    case 'clearTrackMotif':
       return;
   }
 }
@@ -332,20 +285,7 @@ function setSlot(
   }
 }
 
-function restoreSlot(
-  tracks: Map<string, WorkingTrack>,
-  checkpoints: Map<string, TrackCheckpoint>,
-  trackId: string,
-  slot: ClearableTrackSlot
-): void {
-  const track = tracks.get(trackId);
-  if (track === undefined) {
-    return;
-  }
-  track[slot] = checkpoints.get(trackId)?.[slot];
-}
-
-// Override payloads are wrapped into protocol intent values at derivation time,
+// App value payloads are wrapped into protocol intent values at derivation time,
 // frozen because Core owns them (authored values are referenced as-is).
 function textValue(text: string): TextValue {
   return Object.freeze({ kind: 'text', text });

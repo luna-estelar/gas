@@ -1,16 +1,20 @@
-// Pure session state, command and lifecycle semantics.
+// Session state and commands, as pure functions.
 
-export type { HostTrack, InputState, Override } from './state.js';
+export type { AppTrack, InputState, AppValue } from './state.js';
 export { createInputState } from './state.js';
 
 export type {
   ApplyCommandOptions,
   ApplyCommandResult,
+  ApplyCommandsResult,
   ClearGlobalFlavorCommand,
   ClearGlobalLevelCommand,
   ClearTempoCommand,
   ClearTrackFlavorCommand,
   ClearTrackLevelCommand,
+  ClearTrackMotifCommand,
+  ClearTrackNotesCommand,
+  ClearTrackPlayCommand,
   ClearTrackTimbreCommand,
   Command,
   CommandFailure,
@@ -18,9 +22,9 @@ export type {
   CommandWarning,
   DefineTrackCommand,
   DefineTrackResult,
-  OverrideCommand,
-  PlaybackPhase,
+  AppValueCommand,
   PlayTrackCommand,
+  RemoveTrackCommand,
   SetGlobalFlavorCommand,
   SetGlobalLevelCommand,
   SetTempoCommand,
@@ -31,7 +35,7 @@ export type {
   SetTrackTimbreCommand,
   StopTrackCommand
 } from './commands.js';
-export { applyCommand, defineTrack } from './commands.js';
+export { applyCommand, applyCommands, defineTrack, removeTrack } from './commands.js';
 export { warningsForTimeline } from './warnings.js';
 
 export type { TimelineProblem, TimelineProblemCode, ValidateTimelineResult } from './validate.js';
@@ -65,4 +69,5 @@ export { effectiveStateAt, sectionInstanceAt } from './cascade.js';
 
 export { authoredEventSchedule } from './schedule.js';
 
-export { applyStop, applyCompletion, applyLoopBoundary, applyRetry } from './transitions.js';
+export type { AppValuesMode, NewTimelineResult } from './transitions.js';
+export { applyNewTimeline } from './transitions.js';

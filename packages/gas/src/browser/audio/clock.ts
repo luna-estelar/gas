@@ -1,4 +1,4 @@
-// The renderer's clock, read from the audio device so musical time and audible
+// The session's clock, read from the audio device so musical time and audible
 // time share one timeline.
 import type { ClockTimer, MonotonicClock } from '../../protocol/index.js';
 

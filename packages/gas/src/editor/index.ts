@@ -54,7 +54,7 @@ export function retainTimeline(
 export interface LiveStatementView {
   readonly label: string;
   readonly kind: LiveStatement['kind'];
-  /** The track the statement addresses. Absent for `tempo`. */
+  /** The track the statement addresses. Absent for global statements such as `tempo`. */
   readonly trackName?: string;
 }
 
@@ -79,21 +79,43 @@ export function describeLiveStatement(statement: LiveStatement): LiveStatementVi
   return {
     label: labelLiveStatement(statement),
     kind: statement.kind,
-    trackName:
-      statement.kind === 'Tempo'
-        ? undefined
-        : statement.kind === 'DeclareTrack'
-          ? statement.name
-          : statement.trackName
+    trackName: liveTrackName(statement)
   };
+}
+
+function liveTrackName(statement: LiveStatement): string | undefined {
+  switch (statement.kind) {
+    case 'Tempo':
+    case 'GlobalFlavor':
+    case 'GlobalLevel':
+    case 'ClearGlobal':
+      return undefined;
+    case 'DeclareTrack':
+    case 'RemoveTrack':
+      return statement.name;
+    default:
+      return statement.trackName;
+  }
 }
 
 export function labelLiveStatement(statement: LiveStatement): string {
   switch (statement.kind) {
     case 'DeclareTrack':
       return `declare track ${statement.name}`;
+    case 'RemoveTrack':
+      return `remove track ${statement.name}`;
     case 'Tempo':
       return `tempo ${statement.bpm}`;
+    case 'GlobalFlavor':
+      return 'flavor';
+    case 'GlobalLevel':
+      return `level ${statement.value}`;
+    case 'ClearGlobal':
+      return `${statement.slot} clear`;
+    case 'ClearTrack':
+      return `${statement.trackName}.${statement.slot} clear`;
+    case 'Release':
+      return `${statement.trackName}.release`;
     case 'Play':
       return `${statement.trackName}.play`;
     case 'Stop':

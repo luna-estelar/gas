@@ -2,17 +2,13 @@ import { describe, expect, it } from 'vitest';
 import type { IntentValue, Timeline } from '../../src/protocol/index.js';
 import {
   applyCommand,
-  applyCompletion,
-  applyLoopBoundary,
-  applyRetry,
-  applyStop,
+  applyNewTimeline,
   authoredEventSchedule,
   createInputState,
   effectiveStateAt,
   sectionInstanceAt,
   type Command,
-  type InputState,
-  type PlaybackPhase
+  type InputState
 } from '../../src/core/index.js';
 import { globalsOnlyTimeline, validTimeline } from './support/timelines.js';
 
@@ -28,91 +24,151 @@ const ALL_SUPPORTED = {
     motif: 'supported'
   }
 } as const;
+const OPTIONS = { capabilities: ALL_SUPPORTED };
 
-function mustApply(state: InputState, command: Command, phase: PlaybackPhase): InputState {
-  const result = applyCommand(state, command, { phase, capabilities: ALL_SUPPORTED });
+function mustApply(state: InputState, command: Command): InputState {
+  const result = applyCommand(state, command, OPTIONS);
   if (!result.ok) {
     throw new Error(`Expected the command to apply: ${result.failure.message}`);
   }
   return result.state;
 }
 
-// A state carrying a host track, a staged override, and a live override — enough
-// for every transition to prove what it clears and what it keeps.
+// An app track with a value, a document track value and a global value.
 function loadedState(): InputState {
   let state = createInputState(validTimeline());
-  state = mustApply(state, { kind: 'defineTrack', id: 'host.synth', name: 'Synth' }, 'stopped');
-  state = mustApply(state, { kind: 'setGlobalFlavor', value: 'staged' }, 'stopped');
-  state = mustApply(state, { kind: 'playTrack', trackId: 'track.lead' }, 'active');
+  state = mustApply(state, { kind: 'defineTrack', id: 'app.synth', name: 'Synth' });
+  state = mustApply(state, { kind: 'playTrack', trackId: 'app.synth' });
+  state = mustApply(state, { kind: 'setTrackLevel', trackId: 'track.lead', value: 0.3 });
+  state = mustApply(state, { kind: 'setGlobalFlavor', value: 'app flavor' });
   return state;
 }
 
-// --- Override clearing --------------------------------------------------------
+// A second document that keeps track.pad, drops track.lead and adds track.lead2.
+function nextTimeline(): Timeline {
+  const timeline = validTimeline();
+  return {
+    ...timeline,
+    timelineId: 'next',
+    tracks: [
+      timeline.tracks[0],
+      { trackId: 'track.lead2', name: 'Lead 2', description: '', defaults: [] }
+    ],
+    events: timeline.events.filter(
+      (event) => event.type !== 'track' || event.targetId === 'track.pad'
+    )
+  };
+}
 
-describe('stop, completion, and retry clear overrides and keep host tracks', () => {
-  for (const [name, transition] of [
-    ['applyStop', applyStop],
-    ['applyCompletion', applyCompletion],
-    ['applyRetry', applyRetry]
-  ] as const) {
-    it(`${name} empties staged and live while preserving host tracks and the timeline`, () => {
-      const state = loadedState();
-      const next = transition(state);
-      expect(next.staged).toEqual([]);
-      expect(next.live).toEqual([]);
-      expect(next.hostTracks).toEqual([{ id: 'host.synth', name: 'Synth' }]);
-      expect(next.timeline).toBe(state.timeline);
-    });
-  }
+// --- New timeline -------------------------------------------------------------
 
-  it('after stop, the authored document alone determines effective state', () => {
-    // No host tracks here, so a stopped state should derive identically to a
-    // freshly loaded one — the "authored document alone" sentence, tested literally.
-    let state = createInputState(validTimeline());
-    state = mustApply(state, { kind: 'setGlobalFlavor', value: 'staged' }, 'stopped');
-    state = mustApply(state, { kind: 'setTrackLevel', trackId: 'track.pad', value: 0.1 }, 'active');
-
-    const stopped = applyStop(state);
-    const fresh = createInputState(validTimeline());
-    for (const bar of [1, 9]) {
-      const options = { activeSection: sectionInstanceAt(validTimeline(), { bar }) };
-      expect(effectiveStateAt(stopped, { bar }, options)).toEqual(
-        effectiveStateAt(fresh, { bar }, options)
-      );
-    }
+describe('applyNewTimeline', () => {
+  it("'keep' carries values over and drops values for tracks that are gone", () => {
+    const timeline = nextTimeline();
+    const result = applyNewTimeline(loadedState(), timeline, 'keep', OPTIONS);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.timeline).toBe(timeline);
+    expect(result.state.appTracks).toEqual([{ id: 'app.synth', name: 'Synth' }]);
+    expect(result.state.appValues).toEqual([
+      { kind: 'playTrack', trackId: 'app.synth' },
+      { kind: 'setGlobalFlavor', value: 'app flavor' }
+    ]);
+    expect(result.warnings).toEqual([
+      {
+        code: 'app-value-dropped',
+        trackId: 'track.lead',
+        command: { kind: 'setTrackLevel', trackId: 'track.lead', value: 0.3 },
+        message: expect.stringContaining('track.lead')
+      }
+    ]);
   });
 
-  it('applyCompletion clears overrides exactly like applyStop', () => {
+  it("'keep' fails when the new document declares an app track's id", () => {
     const state = loadedState();
-    expect(applyCompletion(state)).toEqual(applyStop(state));
+    const timeline: Timeline = {
+      ...validTimeline(),
+      tracks: [
+        ...validTimeline().tracks,
+        { trackId: 'app.synth', name: 'Doc synth', description: '', defaults: [] }
+      ]
+    };
+    const result = applyNewTimeline(state, timeline, 'keep', OPTIONS);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure).toMatchObject({ code: 'duplicate-track', trackId: 'app.synth' });
+    expect(state.appTracks).toEqual([{ id: 'app.synth', name: 'Synth' }]);
+    expect(state.appValues).toHaveLength(3);
   });
-});
 
-// --- Loop boundary ------------------------------------------------------------
-
-describe('applyLoopBoundary preserves staged and live overrides', () => {
-  it('keeps both override arrays and the host tracks (identity in v1)', () => {
-    const state = loadedState();
-    const next = applyLoopBoundary(state);
-    expect(next.staged).toEqual(state.staged);
-    expect(next.live).toEqual(state.live);
-    expect(next.hostTracks).toEqual(state.hostTracks);
-    expect(next.timeline).toBe(state.timeline);
+  it("'clear' and a command list allow a document track with an app track's id", () => {
+    const timeline: Timeline = {
+      ...validTimeline(),
+      tracks: [
+        ...validTimeline().tracks,
+        { trackId: 'app.synth', name: 'Doc synth', description: '', defaults: [] }
+      ]
+    };
+    expect(applyNewTimeline(loadedState(), timeline, 'clear', OPTIONS).ok).toBe(true);
+    expect(applyNewTimeline(loadedState(), timeline, [], OPTIONS).ok).toBe(true);
   });
-});
 
-// --- Immutability -------------------------------------------------------------
+  it("'clear' starts with no app tracks and no app values", () => {
+    const timeline = nextTimeline();
+    const result = applyNewTimeline(loadedState(), timeline, 'clear', OPTIONS);
+    expect(result).toEqual({ ok: true, state: createInputState(timeline), warnings: [] });
+  });
 
-describe('transitions never mutate their input', () => {
+  it('a command list replaces the app values', () => {
+    const timeline = globalsOnlyTimeline();
+    const result = applyNewTimeline(
+      loadedState(),
+      timeline,
+      [
+        { kind: 'defineTrack', id: 'app.bells' },
+        { kind: 'setTrackLevel', trackId: 'track.drums', value: 0.2 }
+      ],
+      OPTIONS
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.appTracks).toEqual([{ id: 'app.bells' }]);
+    expect(result.state.appValues).toEqual([
+      { kind: 'setTrackLevel', trackId: 'track.drums', value: 0.2 }
+    ]);
+  });
+
+  it('a failing command list fails the whole load', () => {
+    const result = applyNewTimeline(
+      loadedState(),
+      globalsOnlyTimeline(),
+      [{ kind: 'setTrackLevel', trackId: 'track.pad', value: 0.2 }],
+      OPTIONS
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure.code).toBe('unknown-track');
+  });
+
+  it('rejects an unknown mode', () => {
+    const result = applyNewTimeline(
+      loadedState(),
+      validTimeline(),
+      'wipe' as unknown as 'keep',
+      OPTIONS
+    );
+    expect(result.ok).toBe(false);
+  });
+
   it('returns frozen states and leaves the original untouched', () => {
     const state = loadedState();
-    const next = applyStop(state);
-    expect(Object.isFrozen(next)).toBe(true);
-    expect(Object.isFrozen(next.staged)).toBe(true);
-    expect(Object.isFrozen(next.live)).toBe(true);
-    expect(Object.isFrozen(next.hostTracks)).toBe(true);
-    expect(state.staged).toHaveLength(1);
-    expect(state.live).toHaveLength(1);
+    const result = applyNewTimeline(state, nextTimeline(), 'keep', OPTIONS);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(Object.isFrozen(result.state)).toBe(true);
+    expect(Object.isFrozen(result.state.appValues)).toBe(true);
+    expect(Object.isFrozen(result.state.appTracks)).toBe(true);
+    expect(state.appValues).toHaveLength(3);
   });
 });
 

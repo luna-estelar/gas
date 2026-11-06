@@ -4,17 +4,12 @@ import { fileURLToPath } from 'node:url';
 import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
 import addFormatsImport, { type FormatsPlugin } from 'ajv-formats';
 import { describe, expect, it } from 'vitest';
-import {
-  createSession,
-  type CompileResult,
-  type SessionState
-} from '../packages/gas/src/api/index.js';
+import { type CompileResult, type SessionState } from '../packages/gas/src/api/index.js';
 import { createLyriaRtConnector, LYRIA_RT_CAPABILITIES } from '../packages/lyria-rt/src/index.js';
+import { createMagentaRt2Connector } from '../packages/magenta-rt2/src/index.js';
 import {
   applyCommand,
   createInputState,
-  effectiveStateAt,
-  sectionInstanceAt,
   validateTimeline,
   type CommandFailure,
   type CommandWarning,
@@ -32,19 +27,10 @@ import type {
   ConnectorConfigProblem,
   ConnectorConfigValidation,
   GasDiagnostic as ProtocolGasDiagnostic,
-  LifecycleEvent,
-  RendererFailure,
-  RendererPositionEvent,
-  RendererStatusEvent,
   SessionState as ProtocolSessionState,
   Timeline as ProtocolTimeline,
   TimelineProblem as ProtocolTimelineProblem
 } from '../packages/gas/src/protocol/index.js';
-import { ConnectorError, isCloseCode } from '../packages/gas/src/protocol/index.js';
-import {
-  capabilitiesWith,
-  createFakeWiring
-} from '../packages/gas/test/api/support/fake-renderer.js';
 import { readExample } from '../examples/support.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -94,10 +80,10 @@ describe('landed values match canonical protocol schemas', () => {
       message: 'Invalid shape.'
     } satisfies TimelineProblem;
     const state: ProtocolSessionState = {
-      lifecycle: 'ready',
-      playback: 'stopped',
-      timelineLoaded: false,
-      tracks: []
+      status: 'stopped',
+      loaded: false,
+      tracks: [],
+      appValues: []
     } satisfies SessionState;
 
     expect(compiled.formatVersion).toEqual({ major: 1, minor: 0 });
@@ -106,7 +92,7 @@ describe('landed values match canonical protocol schemas', () => {
     expect(failure.code).toBe('invalid-value');
     expect(warning.intent).toBe('motif');
     expect(problem.code).toBe('invalid-shape');
-    expect(state.playback).toBe('stopped');
+    expect(state.status).toBe('stopped');
   });
 
   it('validates real compiler diagnostics and Core outcomes', () => {
@@ -125,7 +111,7 @@ describe('landed values match canonical protocol schemas', () => {
     const warned = applyCommand(
       loaded,
       { kind: 'setTrackMotif', trackId, alda: 'c d e' },
-      { phase: 'active', capabilities: LYRIA_RT_CAPABILITIES }
+      { capabilities: LYRIA_RT_CAPABILITIES }
     );
     expect(warned.ok).toBe(true);
     if (!warned.ok) return;
@@ -136,7 +122,7 @@ describe('landed values match canonical protocol schemas', () => {
     const failed = applyCommand(
       loaded,
       { kind: 'playTrack', trackId: 'ghost' },
-      { phase: 'active', capabilities: LYRIA_RT_CAPABILITIES }
+      { capabilities: LYRIA_RT_CAPABILITIES }
     );
     expect(failed.ok).toBe(false);
     if (failed.ok) return;
@@ -151,109 +137,25 @@ describe('landed values match canonical protocol schemas', () => {
     }
   });
 
-  it('validates actual state, capabilities, and connector configuration', async () => {
-    const compiled = timeline();
-    const input = createInputState(compiled);
-    const effective = effectiveStateAt(
-      input,
-      { bar: 1 },
-      {
-        activeSection: sectionInstanceAt(compiled, { bar: 1 })
-      }
-    );
-
-    expect(schema(`${base}/state.schema.json#/$defs/InputState`)(input)).toBe(true);
-    expect(schema(`${base}/state.schema.json#/$defs/EffectiveState`)(effective)).toBe(true);
-
-    // A description carries the capabilities, config schema and default config,
-    // and its schema checks each of them.
-    for (const connector of [createLyriaRtConnector()]) {
-      const description = await connector.describe();
-      expect(schema(`${base}/renderer.schema.json#/$defs/ConnectorDescription`)(description)).toBe(
-        true
-      );
+  it('validates a connector description against the capabilities and config schemas', () => {
+    // The runtime-shape schemas are no longer published; the data a description
+    // carries still has schemas.
+    for (const connector of [
+      createLyriaRtConnector({ apiKey: 'test-key' }),
+      createMagentaRt2Connector({ endpoint: 'ws://127.0.0.1:8765' })
+    ]) {
+      const { description } = connector;
+      expect(schema(`${base}/capabilities.schema.json`)(description.capabilities)).toBe(true);
+      expect(
+        schema(`${base}/config.schema.json#/$defs/ConnectorConfigSchema`)(description.configSchema)
+      ).toBe(true);
+      expect(
+        schema(`${base}/config.schema.json#/$defs/ConnectorConfig`)(description.defaultConfig)
+      ).toBe(true);
     }
   });
 
-  it('validates representative Renderer and API event payloads', async () => {
-    const status: RendererStatusEvent = {
-      lifecycle: 'ready',
-      playback: 'running',
-      runId: 'run.1',
-      stream: 'streaming'
-    };
-    const position: RendererPositionEvent = {
-      runId: 'run.1',
-      position: { bar: 2 },
-      seconds: 2,
-      loopIteration: 1
-    };
-    expect(schema(`${base}/renderer.schema.json#/$defs/RendererStatusEvent`)(status)).toBe(true);
-    expect(schema(`${base}/renderer.schema.json#/$defs/RendererPositionEvent`)(position)).toBe(
-      true
-    );
-
-    const wiring = createFakeWiring(undefined, capabilitiesWith({ level: 'approximated' }));
-    const session = await createSession(wiring);
-    const states: unknown[] = [];
-    const lifecycles: unknown[] = [];
-    const warnings: unknown[] = [];
-    session.on('state', (event) => states.push(event));
-    session.on('lifecycle', (event) => lifecycles.push(event));
-    session.on('warning', (event) => warnings.push(event));
-
-    const compileResult = await session.compileSource(readExample('minimal'));
-    expect(schema(`${base}/session.schema.json#/$defs/CompileResult`)(compileResult)).toBe(true);
-    const compiled = compileResult.timeline;
-    await session.loadTimeline(compiled);
-    const commandResult = await session.setTrackLevel(compiled.tracks[0].trackId, 0.5);
-    const liveResult = await session.submitLiveCommands('tempo 132');
-    await session.play();
-    wiring.current().emitStatus({
-      lifecycle: 'ready',
-      playback: 'running',
-      runId: 'run-1',
-      stream: 'streaming'
-    });
-
-    expect(schema(`${base}/session.schema.json#/$defs/CommandResult`)(commandResult)).toBe(true);
-    expect(schema(`${base}/session.schema.json#/$defs/LiveCommandResult`)(liveResult)).toBe(true);
-    expect(warnings).toHaveLength(1);
-    expect(schema(`${base}/session.schema.json#/$defs/WarningEvent`)(warnings[0])).toBe(true);
-    expect(lifecycles).toHaveLength(1);
-    expect(schema(`${base}/session.schema.json#/$defs/LifecycleEvent`)(lifecycles[0])).toBe(true);
-    for (const sessionState of states) {
-      expect(schema(`${base}/session.schema.json#/$defs/SessionState`)(sessionState)).toBe(true);
-    }
-    await session.close();
-  });
-
-  it('validates the 0.2 additions: close codes, completion, and config problems', () => {
-    // A finite piece that reached its declared length: the run id is still on the
-    // status, and `stream` is absent because completion is not a stream state.
-    const completed: RendererStatusEvent = {
-      lifecycle: 'ready',
-      playback: 'stopped',
-      runId: 'run.1',
-      completed: true
-    };
-    const lifecycle: LifecycleEvent = {
-      lifecycle: 'ready',
-      playback: 'stopped',
-      rendererPlayback: 'stopped',
-      runId: 'run.1',
-      completed: true
-    };
-    // An application close code the connector classified only as a network
-    // failure; the raw number rides along for the host to map.
-    const failure: RendererFailure = {
-      code: 'lyria-rt-network-failure',
-      message: 'The connector lost its connection to the model.',
-      reason: 'network',
-      runId: 'run.1',
-      retryable: true,
-      closeCode: 4429
-    };
+  it('validates config problems', () => {
     const problem: ConnectorConfigProblem = {
       path: '/generation/temperature',
       code: 'out-of-range',
@@ -261,42 +163,9 @@ describe('landed values match canonical protocol schemas', () => {
     };
     const validation: ConnectorConfigValidation = { ok: false, problems: [problem] };
 
-    expect(schema(`${base}/renderer.schema.json#/$defs/RendererStatusEvent`)(completed)).toBe(true);
-    expect(schema(`${base}/session.schema.json#/$defs/LifecycleEvent`)(lifecycle)).toBe(true);
-    expect(schema(`${base}/diagnostics.schema.json#/$defs/RendererFailure`)(failure)).toBe(true);
-    expect(schema(`${base}/renderer.schema.json#/$defs/ConnectorConfigProblem`)(problem)).toBe(
-      true
-    );
-    // The root pointer is the whole configuration, so an empty path is legal.
-    expect(
-      schema(`${base}/renderer.schema.json#/$defs/ConnectorConfigProblem`)({ ...problem, path: '' })
-    ).toBe(true);
     expect(validation.ok).toBe(false);
     if (validation.ok) return;
     expect(validation.problems).toEqual([problem]);
-  });
-
-  it('keeps the foreign-error guard and failure schema on the same close-code range', () => {
-    const validate = schema(`${base}/diagnostics.schema.json#/$defs/RendererFailure`);
-    for (const closeCode of [1000, 1006, 4429, 4999, 999, 5000, 1000.5, Number.NaN, Infinity]) {
-      const error = new Error('Provider text must not determine the classification.');
-      error.name = 'ConnectorError';
-      Object.assign(error, {
-        code: 'network-failure',
-        reason: 'network',
-        retryable: true,
-        closeCode
-      });
-      const failure: RendererFailure = {
-        code: 'network-failure',
-        message: 'The connector lost its connection.',
-        reason: 'network',
-        retryable: true,
-        closeCode
-      };
-      expect(ConnectorError.isConnectorError(error)).toBe(isCloseCode(closeCode));
-      expect(validate(failure)).toBe(isCloseCode(closeCode));
-    }
   });
 
   it('keeps schema validation before Core reference validation', () => {

@@ -56,25 +56,27 @@ npm install @luna-estelar/gas-lyria-rt
 ```
 
 ```ts
-import { createRenderer, createSession, sourceText } from '@luna-estelar/gas';
+import { createSession, sourceText } from '@luna-estelar/gas';
 import { compileSource } from '@luna-estelar/gas/language';
 import { createLyriaRtConnector } from '@luna-estelar/gas-lyria-rt';
 ```
 
-| Package                                                       | What it is                                                 |
-| ------------------------------------------------------------- | ---------------------------------------------------------- |
-| [`@luna-estelar/gas`](./packages/gas/README.md)               | The language, sessions, renderer, browser playback and CLI |
-| [`@luna-estelar/gas-lyria-rt`](./packages/lyria-rt/README.md) | The Lyria RealTime connector                               |
+| Package                                                                   | What it is                                       |
+| ------------------------------------------------------------------------- | ------------------------------------------------ |
+| [`@luna-estelar/gas`](./packages/gas/README.md)                           | The language, sessions, browser playback and CLI |
+| [`@luna-estelar/gas-lyria-rt`](./packages/lyria-rt/README.md)             | The Google Lyria RealTime connector              |
+| [`@luna-estelar/gas-magenta-rt2`](./packages/magenta-rt2/README.md)       | The Magenta RealTime 2 connector                 |
+| [`@luna-estelar/gas-connector-test`](./packages/connector-test/README.md) | Checks a connector against the contract          |
 
 ## How it works
 
 ```text
-document → compiler → timeline → session → renderer → connector → model
+document → compiler → timeline → session → connector → connection → model
 ```
 
 The compiler turns a document into a model-independent timeline. The session is what your
-application talks to: it loads the timeline, takes changes and controls playback. The renderer
-schedules requests against a clock, and a connector translates them for one model. Each connector
+application talks to: it loads the timeline, takes changes and controls playback. For each Play
+it opens a connection through a connector, which translates the session's updates for one model. Each connector
 lists what its model supports; see [Lyria RealTime](./packages/lyria-rt/README.md#what-lyria-realtime-supports).
 
 ## Status

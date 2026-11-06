@@ -14,16 +14,17 @@ export const ALLOW_MAP = {
   highlight: [],
   notation: ['protocol'],
   core: ['protocol'],
-  api: ['protocol', 'language', 'core'],
+  // The renderer is internal to the session, which builds it.
+  api: ['protocol', 'language', 'core', 'renderer'],
   renderer: ['protocol', 'core', 'notation'],
   cli: ['language'],
   editor: ['protocol', 'language'],
-  browser: ['protocol', 'core', 'api', 'renderer']
+  browser: ['protocol', 'core', 'api']
 };
 
 // The entry files behind the export map, and the modules each re-exports.
 export const FACADES = {
-  'index.ts': ['api', 'renderer', 'version'],
+  'index.ts': ['api', 'version'],
   'language.ts': ['language', 'editor'],
   'browser.ts': ['browser'],
   'protocol.ts': ['protocol'],
@@ -41,21 +42,28 @@ const VERSION_UNIT = 'version';
 // the renderer would quietly couple one module's tests to another's code.
 const FIXTURE_ALLOW = ['protocol'];
 
-// The renderer is the concrete runtime. Only these files outside it may import
-// it: the browser session wires it up, and the root entry re-exports it.
+// The renderer is the concrete runtime, internal to the session. Only the
+// session builds it. Tests may import it.
 const RUNTIME_MODULE = 'renderer';
-const RUNTIME_WIRING = ['browser/session.ts', 'index.ts'];
+const RUNTIME_WIRING = ['api/session.ts'];
 
 // The only package specifier a connector package may use: each peers on gas for
 // the protocol, and nothing else.
 const CONNECTOR_ALLOWED = ['@luna-estelar/gas/protocol'];
-const CONNECTOR_UNITS = ['lyria-rt'];
+const CONNECTOR_UNITS = ['lyria-rt', 'magenta-rt2'];
 
-const PACKAGE_UNITS = ['gas', ...CONNECTOR_UNITS];
+// The connector conformance suite is held to the connector rule: it peers on gas
+// for the protocol and runs inside a connector author's tests.
+const SUITE_UNITS = ['connector-test'];
+
+// A connector's tests, and only its tests, may also run the conformance suite.
+const CONNECTOR_TEST_ALLOWED = ['@luna-estelar/gas-connector-test'];
+
+const PACKAGE_UNITS = ['gas', ...CONNECTOR_UNITS, ...SUITE_UNITS];
 
 // Units that are not modules. A module directory with one of these names would
 // share its permissions, so it is rejected.
-const RESERVED_UNITS = [VERSION_UNIT, ...CONNECTOR_UNITS, 'fixtures', 'examples'];
+const RESERVED_UNITS = [VERSION_UNIT, ...CONNECTOR_UNITS, ...SUITE_UNITS, 'fixtures', 'examples'];
 
 // Export-map keys that load assets rather than code, with their exact targets.
 const ASSET_EXPORTS = { './protocol/schemas/1.0/*': './schemas/1.0/*' };
@@ -198,7 +206,14 @@ export function findViolations(files, srcRoot = path.join(ROOT, 'packages', 'gas
       }
       if (specifier.startsWith(SCOPE)) {
         // Inside gas nothing imports a package by name, itself included.
-        if (CONNECTOR_UNITS.includes(file.unit) && CONNECTOR_ALLOWED.includes(specifier)) continue;
+        const peersOnGas = CONNECTOR_UNITS.includes(file.unit) || SUITE_UNITS.includes(file.unit);
+        if (peersOnGas && CONNECTOR_ALLOWED.includes(specifier)) continue;
+        if (
+          CONNECTOR_UNITS.includes(file.unit) &&
+          file.connectorTest === true &&
+          CONNECTOR_TEST_ALLOWED.includes(specifier)
+        )
+          continue;
         report(file, specifier, specifier);
         continue;
       }
@@ -217,7 +232,11 @@ export function findViolations(files, srcRoot = path.join(ROOT, 'packages', 'gas
         report(file, `${target.unit}/${target.file}`, specifier);
         continue;
       }
-      if (target.unit === RUNTIME_MODULE && !RUNTIME_WIRING.includes(file.wiring)) {
+      if (
+        target.unit === RUNTIME_MODULE &&
+        file.testDirectory === undefined &&
+        !RUNTIME_WIRING.includes(file.wiring)
+      ) {
         report(file, target.unit, specifier);
       }
     }
@@ -299,11 +318,12 @@ export async function collectGasFiles(gasRoot) {
 
 /** Collect a connector package's sources and tests as one unit named after it. */
 export async function collectConnectorFiles(packageRoot, unit) {
-  const paths = [
-    ...(await walkSource(path.join(packageRoot, 'src'), { required: true })),
-    ...(await walkSource(path.join(packageRoot, 'test')))
+  const sources = await walkSource(path.join(packageRoot, 'src'), { required: true });
+  const tests = await walkSource(path.join(packageRoot, 'test'));
+  return [
+    ...(await readFiles(sources, () => ({ unit }))),
+    ...(await readFiles(tests, () => ({ unit, connectorTest: true })))
   ];
-  return readFiles(paths, () => ({ unit }));
 }
 
 /**
@@ -340,7 +360,9 @@ export async function collectAll(root = ROOT) {
     ...(await collectGasFiles(path.join(packagesRoot, 'gas'))),
     ...(
       await Promise.all(
-        CONNECTOR_UNITS.map((unit) => collectConnectorFiles(path.join(packagesRoot, unit), unit))
+        [...CONNECTOR_UNITS, ...SUITE_UNITS].map((unit) =>
+          collectConnectorFiles(path.join(packagesRoot, unit), unit)
+        )
       )
     ).flat(),
     ...(await collectExampleFiles(path.join(root, 'examples'))),
@@ -455,6 +477,7 @@ export async function assertCoverage(files, root = ROOT) {
     ...Object.keys(FACADES).map(facadeUnit),
     VERSION_UNIT,
     ...CONNECTOR_UNITS,
+    ...SUITE_UNITS,
     'fixtures',
     'examples'
   ];

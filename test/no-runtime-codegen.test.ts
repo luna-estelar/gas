@@ -38,27 +38,24 @@ async function countGeneratedFunctions(specifier: string): Promise<number> {
 }
 
 // Importing cleanly is not enough if a later call compiles a schema. Every
-// renderer config path runs here under a Function constructor that throws, as
+// connector config path runs here under a Function constructor that throws, as
 // a strict CSP would. The connector validates its own configuration.
 const CONFIG_PATHS_SCRIPT = `
-  const { createRenderer } = await import('@luna-estelar/gas');
+  const { createSession } = await import('@luna-estelar/gas');
   globalThis.Function = new Proxy(Function, {
     construct() { throw new EvalError('Code generation from strings disallowed'); }
   });
   const validated = [];
   const connector = {
-    async describe() {
-      return {
-        id: 'inline', displayName: 'Inline',
-        capabilities: { intents: {} },
-        model: {
-          connectorId: 'inline', modelId: 'inline', displayName: 'Inline', codec: 'pcm',
-          sampleFormat: 's16le', sampleRate: 48000, channels: 2, chunkDurationSeconds: 2
-        },
-        configSchema: { type: 'object', properties: { level: { type: 'number' } } },
-        defaultConfig: { level: 1 },
-        supportsFlowControl: false
-      };
+    description: {
+      id: 'inline', displayName: 'Inline',
+      capabilities: { intents: {} },
+      model: {
+        connectorId: 'inline', modelId: 'inline', displayName: 'Inline', codec: 'pcm',
+        sampleFormat: 's16le', sampleRate: 48000, channels: 2, chunkDurationSeconds: 2
+      },
+      configSchema: { type: 'object', properties: { level: { type: 'number' } } },
+      defaultConfig: { level: 1 }
     },
     validateConfig(config) {
       validated.push(config);
@@ -66,16 +63,14 @@ const CONFIG_PATHS_SCRIPT = `
         ? { ok: true }
         : { ok: false, problems: [{ path: '/level', code: 'wrong-type', message: 'Level is a number.' }] };
     },
-    async open() {}, async prepare() {}, async start() {}, async update(_u, at) { return at; },
-    async stop() {}, async close() {}
+    async connect() { throw new Error('Not used.'); }
   };
   const clock = { now: () => 0, schedule: () => ({ token: 0 }), cancel() {} };
-  const renderer = await createRenderer({
-    clock, connector, connectorConfig: { level: 2 }
-  });
-  await renderer.updateConnectorConfig({ level: 3 });
-  const rejected = await renderer.updateConnectorConfig({ level: 'loud' }).then(() => false, () => true);
-  console.log(JSON.stringify({ validated: validated.length, rejected, level: renderer.getConnectorConfig().level }));
+  const session = await createSession({ clock, connector, connectorConfig: { level: 2 } });
+  await session.updateConnectorConfig({ level: 3 });
+  const rejected = await session.updateConnectorConfig({ level: 'loud' }).then(() => false, () => true);
+  await session.setConnector(connector, { level: 4 });
+  console.log(JSON.stringify({ validated: validated.length, rejected, level: session.getConnectorConfig().level }));
 `;
 
 describe('runtime code generation', () => {
@@ -83,12 +78,12 @@ describe('runtime code generation', () => {
     expect(await countGeneratedFunctions(specifier)).toBe(0);
   });
 
-  it('validates connector configuration on every renderer path without generating code', async () => {
+  it('validates connector configuration on every session path without generating code', async () => {
     const { stdout } = await run(
       process.execPath,
       ['--input-type=module', '-e', CONFIG_PATHS_SCRIPT],
       { cwd: resolveFrom }
     );
-    expect(JSON.parse(stdout.trim())).toEqual({ validated: 4, rejected: true, level: 3 });
+    expect(JSON.parse(stdout.trim())).toEqual({ validated: 6, rejected: true, level: 4 });
   });
 });

@@ -3,11 +3,10 @@
   "$id": "https://gas.luna-estelar.com/protocol/1.0/config.schema.json",
   "title": "GAS Connector Configuration Values 1.0",
   "$defs": {
-    "ConnectorSettings": { "$ref": "common.schema.json#/$defs/JsonObject" },
     "ConnectorConfig": { "$ref": "common.schema.json#/$defs/JsonObject" },
     "ConnectorConfigSchema": {
       "type": "object",
-      "description": "A synchronous JSON Schema accepted by the Renderer configuration validator."
+      "description": "A synchronous JSON Schema accepted by the connector's config validator."
     }
   }
 }

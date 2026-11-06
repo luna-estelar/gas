@@ -1,4 +1,4 @@
-// Restrict DOM access to the browser host modules that require it. Classify
+// Restrict DOM access to the browser modules that require it. Classify
 // identifier uses to catch aliases and shadowing without matching comments or
 // property names. fetch remains allowed as a shared Node/browser API.
 //
@@ -194,7 +194,7 @@ function parse(text: string, name = 'probe.ts'): ts.SourceFile {
 }
 
 describe('browser-global boundary', () => {
-  it('keeps browser globals out of every module, and confines them in the browser host', () => {
+  it('keeps browser globals out of every module, and confines them to the browser modules', () => {
     const violations = sourceFiles().flatMap((file) => {
       const relative = path.relative(sourceRoot, file).split(path.sep).join('/');
       const source = parse(readFileSync(file, 'utf8'), file);

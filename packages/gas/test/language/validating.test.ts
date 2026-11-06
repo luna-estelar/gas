@@ -286,6 +286,31 @@ intro()
     }
   });
 
+  test.each([
+    ['a track clear', 'lead.level clear', '`clear` only works in live commands.'],
+    ['release', 'lead.release', '`release` only works in live commands.'],
+    ['a track removal', 'track lead clear', '`clear` only works in live commands.'],
+    ['a global clear', 'flavor clear', '`clear` only works in live commands.'],
+    [
+      'a section clear',
+      'section b:\n    length bars 4\n    flavor clear',
+      '`clear` only works in live commands.'
+    ],
+    [
+      'a bar clear',
+      'section b:\n    length bars 4\n    bar 1:\n        lead.timbre clear',
+      '`clear` only works in live commands.'
+    ]
+  ])('rejects %s in a document', (_label, statement, message) => {
+    const result = analyzeGasDocument(
+      `length bars 4\ntrack lead "lead"\n${statement}\n\nsection a:\n    length bars 4\n    bar 1:\n        lead.play\n\na()\n`
+    );
+    expect(result.ok).toBe(false);
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'clear-not-allowed', severity: 'error', message })
+    );
+  });
+
   test('surfaces semantic diagnostics through the Langium validation hook', async () => {
     const document = await parse(`
 length bars 4
