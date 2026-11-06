@@ -7,6 +7,9 @@ GAS owns the connection lifecycle, and the session is the only public object.
 - `createSession({ connector, clock?, documentDefaults?, connectorConfig? })` builds everything.
   The renderer is internal: `createRenderer`, `session.renderer`, `RendererControl`,
   `SessionWiring` and `retryRenderer()` are gone.
+- `firstAudioTimeoutSeconds` on `createSession` and `createBrowserSession` sets how long a playing
+  track may go without audio before the session fails. It defaults to three chunks and is clamped
+  to 2-15 s.
 - Each Play opens a new connection. Play resolves once it is open, rejects with `provider` if it
   can't open, and rejects with `cancelled` if Stop or Close came first. Stop and Close return at
   once.

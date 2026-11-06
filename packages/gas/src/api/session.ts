@@ -81,8 +81,10 @@ export interface CreateSessionOptions {
   /** The tempo, time signature and key for a document that doesn't set them. */
   readonly documentDefaults?: DocumentDefaults;
   /**
-   * How long a playing track may go without audio before the Play fails.
-   * @internal For tests and the browser session.
+   * How long a playing track may go without audio, after Play or after a rest
+   * ends, before the session fails with code `generation-failed`. Defaults to three of the
+   * model's chunks. Clamped to 2-15 s. Raise it for a connector that reaches
+   * the model through a relay or a slow network.
    */
   readonly firstAudioTimeoutSeconds?: number;
 }

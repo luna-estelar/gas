@@ -52,6 +52,6 @@
     "@luna-estelar/gas-connector-test": "workspace:^"
   },
   "peerDependencies": {
-    "@luna-estelar/gas": ">=0.3.0 <1.0.0"
+    "@luna-estelar/gas": ">=0.4.0 <1.0.0"
   }
 }

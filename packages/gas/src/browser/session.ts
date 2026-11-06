@@ -22,7 +22,12 @@ export interface BrowserSessionOptions {
   /** Record each Play so it can be offered as a WAV download. Off by default. */
   readonly capture?: boolean;
   readonly engine?: (context: AudioContext, options: EngineOptions) => PlaybackEngine;
-  /** @internal How long a playing track may go without audio. For tests. */
+  /**
+   * How long a playing track may go without audio, after Play or after a rest
+   * ends, before the session fails with code `generation-failed`. Defaults to three of the
+   * model's chunks. Clamped to 2-15 s. Raise it for a connector that reaches
+   * the model through a relay or a slow network.
+   */
   readonly firstAudioTimeoutSeconds?: number;
 }
 

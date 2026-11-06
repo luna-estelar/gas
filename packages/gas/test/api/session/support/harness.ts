@@ -93,6 +93,7 @@ export const PAD = 'track.pad';
 export interface HarnessOptions {
   readonly connector?: FakeConnectorOptions;
   readonly documentDefaults?: DocumentDefaults;
+  readonly firstAudioTimeoutSeconds?: number;
   /** Loaded before the harness returns, `LOOPS` by default. `null` loads nothing. */
   readonly source?: string | null;
 }
@@ -105,6 +106,9 @@ export async function harness(options: HarnessOptions = {}) {
     clock,
     ...(options.documentDefaults !== undefined
       ? { documentDefaults: options.documentDefaults }
+      : {}),
+    ...(options.firstAudioTimeoutSeconds !== undefined
+      ? { firstAudioTimeoutSeconds: options.firstAudioTimeoutSeconds }
       : {})
   });
   const states: SessionState[] = [];

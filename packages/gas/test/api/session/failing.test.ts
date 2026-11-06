@@ -83,6 +83,25 @@ describe('failing', () => {
     expect(h.session.getState()).toMatchObject({ status: 'stopped', ended: 'failed' });
   });
 
+  it('waits as long as firstAudioTimeoutSeconds before failing a silent track', async () => {
+    const h = await harness({ firstAudioTimeoutSeconds: 10 });
+    await h.session.play();
+    await h.advanceTo(9.99);
+    expect(h.errors).toEqual([]);
+
+    await h.advanceTo(10);
+    expect(h.errors).toHaveLength(1);
+    expect(h.errors[0]).toMatchObject({ kind: 'provider', code: 'generation-failed' });
+  });
+
+  it('clamps firstAudioTimeoutSeconds to the maximum', async () => {
+    const h = await harness({ firstAudioTimeoutSeconds: 60 });
+    await h.session.play();
+    await h.advanceTo(MAX_FIRST_AUDIO_TIMEOUT_SECONDS);
+
+    expect(h.errors).toHaveLength(1);
+  });
+
   it('wraps a non-ConnectorError failure as an internal provider error', async () => {
     const h = await playing();
     h.connector.latest().options.onError(new Error('secret provider text') as ConnectorError);

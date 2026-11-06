@@ -65,5 +65,5 @@ The workflow publishes missing versions with provenance and pushes tags like
 `@luna-estelar/gas@0.3.0`. If it fails partway, rerun the same workflow run. Already published
 versions are skipped. Never unpublish.
 
-Connectors peer on GAS with `>=0.3.0 <1.0.0`, not `^0.3.0`, which on 0.x would mean `<0.4.0`.
+Connectors peer on GAS with `>=0.4.0 <1.0.0`, not `^0.4.0`, which on 0.x would mean `<0.5.0`.
 Before a connector's first publish, check that the npm token can create packages in the scope.

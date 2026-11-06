@@ -177,7 +177,7 @@ describe('packages', () => {
     // The range is written out because on 0.x `^0.3.0` means `<0.4.0`, which
     // would force a connector release for every gas minor.
     const { manifest } = byName.get(name)!;
-    expect(manifest.peerDependencies?.['@luna-estelar/gas']).toBe('>=0.3.0 <1.0.0');
+    expect(manifest.peerDependencies?.['@luna-estelar/gas']).toBe('>=0.4.0 <1.0.0');
     expect(manifest.devDependencies?.['@luna-estelar/gas']).toBe('workspace:^');
     const runtime = Object.keys(manifest.dependencies ?? {}).filter((dependency) =>
       dependency.startsWith('@luna-estelar/')
