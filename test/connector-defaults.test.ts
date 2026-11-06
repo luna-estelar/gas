@@ -18,6 +18,9 @@ import type {
   LyriaRtMusicSession,
   LyriaRtSdkClient
 } from '../packages/lyria-rt/src/transport.js';
+import { MAGENTA_RT2_CAPABILITIES } from '../packages/magenta-rt2/src/index.js';
+import { createMagentaRt2ConnectorWithDependencies } from '../packages/magenta-rt2/src/connector.js';
+import { FakeBridge } from '../packages/magenta-rt2/test/support/fake-bridge.js';
 import { flushAsync } from './support/deferred.js';
 import { testTimeline } from './support/timeline.js';
 import { VirtualClock } from './support/virtual-clock.js';
@@ -87,6 +90,31 @@ describe('connectors return to the run defaults when an initial override is clea
     await renderer.update(applyLive(slow, { kind: 'clearTempo' }, LYRIA_RT_CAPABILITIES));
     await flushAsync();
     expect(configs.at(-1)?.bpm).toBe(120);
+    renderer.close();
+  });
+
+  it('Magenta RT2 states the default tempo again', async () => {
+    const clock = new VirtualClock();
+    const bridge = new FakeBridge();
+    bridge.autoAnswer = true;
+    const connector = createMagentaRt2ConnectorWithDependencies(
+      { endpoint: 'ws://127.0.0.1:8765' },
+      { clock, createSocket: bridge.createSocket }
+    );
+    const renderer = createRenderer({ clock, connector });
+    const slow = loadWithOverride(renderer, MAGENTA_RT2_CAPABILITIES);
+    const playing = renderer.play();
+    await flushAsync();
+    await playing;
+    const globalPrompt = () => {
+      const prompts = bridge.last.commands().at(-1)?.prompts as { text: string }[] | undefined;
+      return prompts?.[0]?.text;
+    };
+    expect(globalPrompt()).toContain('90 BPM');
+
+    await renderer.update(applyLive(slow, { kind: 'clearTempo' }, MAGENTA_RT2_CAPABILITIES));
+    await flushAsync();
+    expect(globalPrompt()).toContain('120 BPM');
     renderer.close();
   });
 });

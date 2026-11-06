@@ -266,6 +266,15 @@ importers:
         specifier: workspace:^
         version: link:../connector-test
 
+  packages/magenta-rt2:
+    devDependencies:
+      '@luna-estelar/gas':
+        specifier: workspace:^
+        version: link:../gas
+      '@luna-estelar/gas-connector-test':
+        specifier: workspace:^
+        version: link:../connector-test
+
 packages:
 
   '@andrewbranch/untar.js@1.0.4':

@@ -70,7 +70,7 @@ function exportTargets(node: unknown, out: string[] = []): string[] {
 
 // Every package, private or not, so a connector is ready to publish the moment
 // its private flag is removed.
-const CONNECTORS = ['lyria-rt'];
+const CONNECTORS = ['lyria-rt', 'magenta-rt2'];
 
 // Packages for connector authors, published with gas.
 const TOOLS = ['connector-test'];
@@ -167,20 +167,21 @@ describe('packages', () => {
     expect(internal).toEqual([]);
   });
 
-  test.each(['@luna-estelar/gas-lyria-rt', '@luna-estelar/gas-connector-test'])(
-    '%s peers on gas and develops against the workspace copy',
-    (name) => {
-      // A peer, not a dependency: an app with two copies of gas would have two
-      // ConnectorError classes, and instanceof checks would fail across them.
-      // The range is written out because on 0.x `^0.3.0` means `<0.4.0`, which
-      // would force a connector release for every gas minor.
-      const { manifest } = byName.get(name)!;
-      expect(manifest.peerDependencies?.['@luna-estelar/gas']).toBe('>=0.3.0 <1.0.0');
-      expect(manifest.devDependencies?.['@luna-estelar/gas']).toBe('workspace:^');
-      const runtime = Object.keys(manifest.dependencies ?? {}).filter((dependency) =>
-        dependency.startsWith('@luna-estelar/')
-      );
-      expect(runtime).toEqual([]);
-    }
-  );
+  test.each([
+    '@luna-estelar/gas-lyria-rt',
+    '@luna-estelar/gas-magenta-rt2',
+    '@luna-estelar/gas-connector-test'
+  ])('%s peers on gas and develops against the workspace copy', (name) => {
+    // A peer, not a dependency: an app with two copies of gas would have two
+    // ConnectorError classes, and instanceof checks would fail across them.
+    // The range is written out because on 0.x `^0.3.0` means `<0.4.0`, which
+    // would force a connector release for every gas minor.
+    const { manifest } = byName.get(name)!;
+    expect(manifest.peerDependencies?.['@luna-estelar/gas']).toBe('>=0.3.0 <1.0.0');
+    expect(manifest.devDependencies?.['@luna-estelar/gas']).toBe('workspace:^');
+    const runtime = Object.keys(manifest.dependencies ?? {}).filter((dependency) =>
+      dependency.startsWith('@luna-estelar/')
+    );
+    expect(runtime).toEqual([]);
+  });
 });

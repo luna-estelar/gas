@@ -3,6 +3,7 @@
   "references": [
     { "path": "packages/gas" },
     { "path": "packages/connector-test" },
-    { "path": "packages/lyria-rt" }
+    { "path": "packages/lyria-rt" },
+    { "path": "packages/magenta-rt2" }
   ]
 }

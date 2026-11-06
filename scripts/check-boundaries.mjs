@@ -50,7 +50,7 @@ const RUNTIME_WIRING = ['api/session.ts'];
 // The only package specifier a connector package may use: each peers on gas for
 // the protocol, and nothing else.
 const CONNECTOR_ALLOWED = ['@luna-estelar/gas/protocol'];
-const CONNECTOR_UNITS = ['lyria-rt'];
+const CONNECTOR_UNITS = ['lyria-rt', 'magenta-rt2'];
 
 // The connector conformance suite is held to the connector rule: it peers on gas
 // for the protocol and runs inside a connector author's tests.

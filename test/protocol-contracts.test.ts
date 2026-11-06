@@ -6,6 +6,7 @@ import addFormatsImport, { type FormatsPlugin } from 'ajv-formats';
 import { describe, expect, it } from 'vitest';
 import { type CompileResult, type SessionState } from '../packages/gas/src/api/index.js';
 import { createLyriaRtConnector, LYRIA_RT_CAPABILITIES } from '../packages/lyria-rt/src/index.js';
+import { createMagentaRt2Connector } from '../packages/magenta-rt2/src/index.js';
 import {
   applyCommand,
   createInputState,
@@ -139,7 +140,10 @@ describe('landed values match canonical protocol schemas', () => {
   it('validates a connector description against the capabilities and config schemas', () => {
     // The runtime-shape schemas are no longer published; the data a description
     // carries still has schemas.
-    for (const connector of [createLyriaRtConnector({ apiKey: 'test-key' })]) {
+    for (const connector of [
+      createLyriaRtConnector({ apiKey: 'test-key' }),
+      createMagentaRt2Connector({ endpoint: 'ws://127.0.0.1:8765' })
+    ]) {
       const { description } = connector;
       expect(schema(`${base}/capabilities.schema.json`)(description.capabilities)).toBe(true);
       expect(
