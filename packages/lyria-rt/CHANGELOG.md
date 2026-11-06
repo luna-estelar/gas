@@ -1,5 +1,42 @@
 # @luna-estelar/gas-lyria-rt
 
+## 0.4.0
+
+### Minor Changes
+
+- The 0.4 connector interface is in `@luna-estelar/gas/protocol`: `Connector` with `connect()`, and
+  `Connection` with `update`, `pause`, `resume` and `close`. `ConnectorTiming` gains
+  `quarterNoteTempo`. `ModelInfo` gains optional `startupDelaySeconds` and
+  `initialStartupDelaySeconds` budgets for warm resumes and the first play on a fresh connection.
+  GAS resumes the model that much plus one chunk before a track comes in after a rest.
+
+  `RendererDefaults` is now `DocumentDefaults`. `TrackView.source` is `'document'` or `'app'`.
+
+  `GasOperationError.kind` is one of `document`, `command`, `state`, `provider` or `cancelled`.
+
+- The Lyria RealTime connector is on the 0.4 `connect()` interface, and each Play opens its own
+  socket.
+
+  - `createLyriaRtConnector({ apiKey, endpoint?, translate?, transition? })` takes what
+    `createRenderer({ settings })` used to. It throws `lyria-rt-invalid-settings` for a bad option.
+    `LyriaRtConnectorSettings` is now `LyriaRtConnectorOptions`.
+  - `apiKey` may be a function. It is called once per Play, so it can fetch a short-lived token. If
+    it fails, Play rejects with `lyria-rt-api-key-unavailable`.
+  - `translate` replaces the prompt translation, and `transition` makes each connection's crossfade.
+    If `translate` throws or returns a bad prompt, the change fails with `lyria-rt-translate-failed`.
+  - New exports: `LYRIA_RT_DESCRIPTION` and `openLyriaRtSession`, for building your own connector.
+  - `PromptTransition` loses `beginRun` and `endRun`, and gains `cancel()`.
+  - The connector reads `quarterNoteTempo` instead of converting the tempo itself.
+  - The description reports Lyria's measured warm `startupDelaySeconds` (1.2 s) and cold
+    `initialStartupDelaySeconds` (5.4 s), covering the measured first-play maximum of 5.3 s.
+  - After the server closes the socket, `close()` resolves instead of waiting for a second close
+    event.
+
+### Patch Changes
+
+- Updated dependencies [`1c4be9d`, `a6fb12e`, `83a2040`, `aeb5384`, `5f7a291`]:
+  - @luna-estelar/gas@0.4.0
+
 ## 0.3.0
 
 ### Minor Changes

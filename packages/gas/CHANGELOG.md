@@ -1,5 +1,96 @@
 # @luna-estelar/gas
 
+## 0.4.0
+
+### Minor Changes
+
+- `audiblePosition()` is now the `audiblePosition` session event, emitted as the listener hears each
+  position: every beat, plus each `generationPosition` with the same payload. `createBrowserSession`
+  takes `documentDefaults`.
+
+- The 0.4 connector interface is in `@luna-estelar/gas/protocol`: `Connector` with `connect()`, and
+  `Connection` with `update`, `pause`, `resume` and `close`. `ConnectorTiming` gains
+  `quarterNoteTempo`. `ModelInfo` gains optional `startupDelaySeconds` and
+  `initialStartupDelaySeconds` budgets for warm resumes and the first play on a fresh connection.
+  GAS resumes the model that much plus one chunk before a track comes in after a rest.
+
+  `RendererDefaults` is now `DocumentDefaults`. `TrackView.source` is `'document'` or `'app'`.
+
+  `GasOperationError.kind` is one of `document`, `command`, `state`, `provider` or `cancelled`.
+
+- Live text can clear what it sets, so an app can hand a value back to the score.
+
+  - `strings.level clear`, and the same for `flavor`, `timbre`, `notes` and `motif`.
+  - `strings.release` hands the track's play state back to the score.
+  - `track strings clear` removes an app track.
+  - `tempo clear`, `flavor clear` and `level clear` for the globals.
+  - Live text now accepts global `flavor "..."` and `level 0.5`, which it used to reject with
+    `live-global-not-allowed`. `key`, `time_signature` and `length` are still rejected.
+
+  `clear` and `release` only work in live text. In a document they give `clear-not-allowed`. Both
+  can still name a track.
+
+- App values now sit above the score however and whenever they were set, and they last until the
+  app clears them. Stop, completion and a failure keep them. A value set before Play sounds
+  the same as one set during Play.
+
+  `submitLiveCommands` applies a submission fully or not at all. A failing statement rejects, and
+  `LiveCommandFailureResult` is gone.
+
+  New session methods: `apply(commands)` applies a group fully or not at all, `clearAppValues()`
+  removes every app track and value, and `clearTrackNotes`, `clearTrackMotif`, `clearTrackPlay` and
+  `removeTrack` cover the new commands. `getState().appValues` lists the app tracks and values as
+  commands you can pass back to `apply`.
+
+  `loadSource` and `loadTimeline` take `{ appValues: 'keep' | 'clear' | Command[] }`, default
+  `'keep'`. A kept value whose track is gone is dropped with an `app-value-dropped` warning. A
+  `'keep'` load fails with `duplicate-track` when the new document declares an app track's id.
+  Commands and a second load reject while a document is loading.
+
+  Defining an app track again with the same name and description does nothing, so a saved
+  `getState().appValues` can be applied to the session that produced it.
+
+  `InputState` is now `{ timeline, appTracks, appValues }`, `HostTrack` is `AppTrack`, and
+  `applyCommand` no longer takes a `phase`. `applyStop`, `applyCompletion` and `applyRetry` are
+  removed. `applyCommands` and `applyNewTimeline` are new.
+
+- GAS owns the connection lifecycle, and the session is the only public object.
+
+  - `createSession({ connector, clock?, documentDefaults?, connectorConfig? })` builds everything.
+    The renderer is internal: `createRenderer`, `session.renderer`, `RendererControl`,
+    `SessionWiring` and `retryRenderer()` are gone.
+  - `firstAudioTimeoutSeconds` on `createSession` and `createBrowserSession` sets how long a playing
+    track may go without audio before the session fails. It defaults to three chunks and is clamped
+    to 2-15 s.
+  - Each Play opens a new connection. Play resolves once it is open, rejects with `provider` if it
+    can't open, and rejects with `cancelled` if Stop or Close came first. Stop and Close return at
+    once.
+  - A failure during playback emits one `error` and leaves the session stopped. Play works again
+    on the same session.
+  - `getState()` is `{ status, loaded, ended?, tracks, appValues }`, and one `state` event reports
+    every change. The events are `state`, `generationPosition`, `audio`, `warning` and `error`.
+    `lifecycle`, `position` and `diagnostic` are gone, and no payload carries a `runId`.
+  - While no track plays, GAS writes silence and musical time keeps going. It pauses the model
+    during a rest and resumes it, with the next track's update, one chunk plus the model's start-up
+    delay before that track comes in. A rest too short to be worth it keeps the entry's prompts
+    active so the connector also keeps generating. Edits during the lead preserve the entry's
+    tracks, and intervening score boundaries cannot replace them with an inactive rest state.
+    If an opening rest is shorter than the cold-start lead, GAS prepares the first entry before
+    starting the musical clock and preserves the full written rest.
+  - New session methods: `getCapabilities`, `getModelInfo`, `getConnectorConfig`,
+    `updateConnectorConfig`, `getConfigSchema`, `getDocumentDefaults`, `updateDocumentDefaults` and
+    `setConnector`.
+  - The `Legacy*` connector types are removed. `createBrowserSession` takes a `Connector`, with no
+    factory, `settings` or `renderer` option.
+  - `diagnostics.schema.json` no longer defines `RendererWarning` or `RendererFailure`. The
+    `session`, `renderer` and `state` schemas are no longer published. The data schemas stay at 1.0.
+  - `OverrideCommand` is `AppValueCommand`, and `Override` is `AppValue`. The schema def in
+    `commands.schema.json` is renamed to match.
+  - `PlaybackWarning` is `PlayWarning`.
+  - `submitLiveCommands` returns `SubmitLiveCommandsResult`, which is `CommandResult` plus
+    `applied`. `LiveCommandSuccess`, `LiveCommandResult` and its `ok` field are gone.
+  - `ConnectorSettings` and `ConnectorAudioChunk.final` are removed.
+
 ## 0.3.0
 
 ### Minor Changes

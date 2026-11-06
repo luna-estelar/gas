@@ -1,6 +1,6 @@
 {
   "name": "@luna-estelar/gas-magenta-rt2",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Play GAS through Magenta RealTime 2: turns tracks, tempo and sections into live style prompts for a local or hosted MRT2 bridge.",
   "keywords": [
     "gas",

@@ -1,6 +1,6 @@
 // Lyria RealTime prompt translation and transport. Vendor types remain behind the protocol boundary.
 
-export const version = '0.3.0';
+export const version = '0.4.0';
 
 export {
   LYRIA_RT_CONFIG_SCHEMA,

@@ -1,6 +1,6 @@
 // Magenta RealTime 2 through a bridge process. Imports GAS's protocol alone.
 
-export const version = '0.3.0';
+export const version = '0.4.0';
 
 export {
   DEFAULT_MAGENTA_RT2_CONFIG,
