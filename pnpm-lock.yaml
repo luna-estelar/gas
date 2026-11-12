@@ -256,8 +256,8 @@ importers:
   packages/lyria-rt:
     dependencies:
       '@google/genai':
-        specifier: ^2.23.0
-        version: 2.24.0(supports-color@7.2.0)
+        specifier: ^3.0.0
+        version: 3.0.0(supports-color@7.2.0)
     devDependencies:
       '@luna-estelar/gas':
         specifier: workspace:^
@@ -544,9 +544,9 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@google/genai@2.24.0':
-    resolution: {integrity: sha512-bIu5eoxF1AaPWs9ivmUJGp1RpDHyapoODvWvnkzRDx2CTIW6UJXFhDdjj0BlRve3ZHMMuEkQBVrA/ALqpW4apA==}
-    engines: {node: '>=20.0.0'}
+  '@google/genai@3.0.0':
+    resolution: {integrity: sha512-0o2uBXPWBNUu0jWg2Id5iBtCnsd7lnxKPQfnijKvNublG/zj40CToERvz/eyfNjzzXt2kwuvxpouLUrRCZ2WUQ==}
+    engines: {node: '>=22.0.0'}
     peerDependencies:
       '@modelcontextprotocol/sdk': ^1.25.2
     peerDependenciesMeta:
@@ -1692,7 +1692,7 @@ snapshots:
   '@esbuild/win32-x64@0.25.12':
     optional: true
 
-  '@google/genai@2.24.0(supports-color@7.2.0)':
+  '@google/genai@3.0.0(supports-color@7.2.0)':
     dependencies:
       google-auth-library: 10.9.0(supports-color@7.2.0)
       p-retry: 4.6.2
