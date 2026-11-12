@@ -10,6 +10,8 @@ it. It needs no API key, and nothing is sent to Google.
 
 ## Install
 
+This package is not on npm yet. Until it is, build it from this repository.
+
 ```bash
 npm install @luna-estelar/gas @luna-estelar/gas-magenta-rt2
 ```

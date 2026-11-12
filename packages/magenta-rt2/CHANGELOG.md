@@ -4,7 +4,7 @@
 
 ### Minor Changes
 
-- The Magenta RT2 connector is on the 0.4 `connect()` interface, and is published for the first time.
+- The Magenta RT2 connector is on the 0.4 `connect()` interface.
 
   - `createMagentaRt2Connector({ endpoint, token?, translate? })` takes what `createRenderer({ settings })`
     used to. It throws `magenta-rt2-invalid-settings` for a bad option. `MagentaRt2ConnectorSettings`
