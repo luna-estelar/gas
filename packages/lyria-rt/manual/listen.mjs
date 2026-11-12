@@ -31,7 +31,11 @@ const { values } = parseArgs({
   options: {
     fixture: { type: 'string' },
     strategy: { type: 'string', default: 'global-plus-tracks' },
+    share: { type: 'string' },
     seed: { type: 'string' },
+    guidance: { type: 'string' },
+    'transition-ms': { type: 'string' },
+    'transition-steps': { type: 'string' },
     duration: { type: 'string', default: '30' },
     out: { type: 'string', default: 'listening' }
   },
@@ -47,6 +51,12 @@ if (values.strategy !== 'per-track' && values.strategy !== 'global-plus-tracks')
   process.exit(1);
 }
 
+const share = values.share !== undefined ? Number(values.share) : undefined;
+if (share !== undefined && !(share > 0 && share < 1)) {
+  console.error('--share must be between 0 and 1.');
+  process.exit(1);
+}
+
 const durationSeconds = Number(values.duration);
 if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
   console.error('--duration must be a positive number of seconds.');
@@ -55,6 +65,24 @@ if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
 const seed = values.seed !== undefined ? Number(values.seed) : undefined;
 if (seed !== undefined && !Number.isInteger(seed)) {
   console.error('--seed must be an integer.');
+  process.exit(1);
+}
+
+const guidance = values.guidance !== undefined ? Number(values.guidance) : undefined;
+if (guidance !== undefined && !(guidance >= 0 && guidance <= 6)) {
+  console.error('--guidance must be between 0 and 6.');
+  process.exit(1);
+}
+const transitionMs =
+  values['transition-ms'] !== undefined ? Number(values['transition-ms']) : undefined;
+if (transitionMs !== undefined && !(Number.isInteger(transitionMs) && transitionMs >= 0)) {
+  console.error('--transition-ms must be a whole number of milliseconds, 0 or more.');
+  process.exit(1);
+}
+const transitionSteps =
+  values['transition-steps'] !== undefined ? Number(values['transition-steps']) : undefined;
+if (transitionSteps !== undefined && !(Number.isInteger(transitionSteps) && transitionSteps >= 1)) {
+  console.error('--transition-steps must be a whole number, 1 or more.');
   process.exit(1);
 }
 
@@ -111,7 +139,7 @@ const classification =
 const config = resolveLyriaRtConfig(DEFAULT_LYRIA_RT_CONFIG);
 const musicGenerationConfig = {
   temperature: config.generation.temperature,
-  guidance: config.generation.guidance,
+  guidance: guidance ?? config.generation.guidance,
   topK: config.generation.topK,
   musicGenerationMode: config.generation.mode === 'diversity' ? 'DIVERSITY' : 'QUALITY',
   muteBass: config.generation.muteBass,
@@ -122,31 +150,28 @@ const musicGenerationConfig = {
   ...(seed !== undefined ? { seed } : {})
 };
 
-const promptOptions = { ...config.prompt, strategy: values.strategy };
+const promptOptions = {
+  ...config.prompt,
+  strategy: values.strategy,
+  ...(share !== undefined ? { globalShare: share } : {}),
+  ...(transitionMs !== undefined ? { transitionDurationMs: transitionMs } : {}),
+  ...(transitionSteps !== undefined ? { transitionSteps } : {})
+};
 const inputState = createInputState(timeline);
 
-// A monotonic clock backed by wall time; the transition machine schedules
-// against absolute seconds, matching the renderer contract.
+// A monotonic clock in seconds from when the script started. The transition
+// machine schedules against the same seconds `now()` returns, as the renderer's does.
+const startNs = process.hrtime.bigint();
 const clock = {
-  now: () => process.hrtime.bigint(),
-  timers: new Set(),
+  now: () => Number(process.hrtime.bigint() - startNs) / 1e9,
   schedule(deadlineSeconds, callback) {
-    const delayMs = Math.max(
-      0,
-      deadlineSeconds * 1000 - Number(process.hrtime.bigint() / 1_000_000n)
-    );
-    const timer = setTimeout(callback, delayMs);
-    this.timers.add(timer);
+    const timer = setTimeout(callback, Math.max(0, (deadlineSeconds - this.now()) * 1000));
     return { token: timer };
   },
   cancel(timer) {
     clearTimeout(timer.token);
-    this.timers.delete(timer.token);
   }
 };
-// The clock's `now()` must return seconds; wrap hrtime for that.
-const startNs = process.hrtime.bigint();
-clock.now = () => Number(process.hrtime.bigint() - startNs) / 1e9;
 
 const pcmChunks = [];
 const emittedPrompts = [];
@@ -224,8 +249,8 @@ const machine = createPromptTransition({
   onFailure: (failure) => {
     sessionError = failure;
   },
-  transitionDurationMs: config.prompt.transitionDurationMs,
-  transitionSteps: config.prompt.transitionSteps
+  transitionDurationMs: promptOptions.transitionDurationMs,
+  transitionSteps: promptOptions.transitionSteps
 });
 
 await session.setMusicGenerationConfig({ musicGenerationConfig });
@@ -276,7 +301,16 @@ const outDir = path.resolve(process.cwd(), values.out);
 await mkdir(outDir, { recursive: true });
 
 const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-const base = `${fixtureName.replace(/\.gas$/, '')}--${values.strategy}--${stamp}`;
+// The share does nothing in a per-track take, so it stays out of that name.
+const labels = [
+  values.strategy,
+  ...(values.strategy === 'global-plus-tracks' ? [`share-${promptOptions.globalShare}`] : []),
+  ...(guidance !== undefined ? [`guidance-${guidance}`] : []),
+  ...(transitionMs !== undefined || transitionSteps !== undefined
+    ? [`fade-${promptOptions.transitionDurationMs}ms-${promptOptions.transitionSteps}`]
+    : [])
+];
+const base = `${fixtureName.replace(/\.gas$/, '')}--${labels.join('--')}--${stamp}`;
 const wavPath = path.join(outDir, `${base}.wav`);
 const manifestPath = path.join(outDir, `${base}.json`);
 
@@ -287,6 +321,9 @@ await writeFile(
     {
       fixture: fixtureName,
       strategy: values.strategy,
+      globalShare: promptOptions.globalShare,
+      transitionDurationMs: promptOptions.transitionDurationMs,
+      transitionSteps: promptOptions.transitionSteps,
       ...(seed !== undefined ? { seed } : {}),
       timestamp: new Date().toISOString(),
       model: MODEL,
