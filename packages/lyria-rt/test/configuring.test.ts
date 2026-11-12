@@ -50,7 +50,7 @@ describe('Lyria RealTime connector defaults', () => {
     expect(DEFAULT_LYRIA_RT_CONFIG.prompt).toEqual({
       strategy: 'global-plus-tracks',
       trackWeight: 1,
-      globalWeight: 0.8,
+      globalShare: 0.5,
       minimumPositiveWeight: 0.05,
       transitionDurationMs: 1500,
       transitionSteps: 3
@@ -92,7 +92,7 @@ describe('resolveLyriaRtConfig', () => {
 
     expect(resolved.prompt.strategy).toBe('global-plus-tracks');
     expect(resolved.prompt.trackWeight).toBe(2);
-    expect(resolved.prompt.globalWeight).toBe(0.8);
+    expect(resolved.prompt.globalShare).toBe(0.5);
     expect(resolved.generation.temperature).toBe(0.5);
     expect(resolved.generation.guidance).toBe(4);
     expect(resolved.generation.seed).toBe(7);

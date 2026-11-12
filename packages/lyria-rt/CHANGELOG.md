@@ -32,6 +32,10 @@
   - After the server closes the socket, `close()` resolves instead of waiting for a second close
     event.
 
+- The piece or section flavor now holds a fixed share of the prompt mix. `prompt.globalShare`
+  (default 0.5) replaces `prompt.globalWeight`. Before, each playing track took weight from the
+  flavor, so a section's mood faded as the arrangement filled out.
+
 ### Patch Changes
 
 - Updated dependencies [`1c4be9d`, `a6fb12e`, `83a2040`, `aeb5384`, `5f7a291`]:

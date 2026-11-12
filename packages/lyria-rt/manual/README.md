@@ -11,6 +11,7 @@ GAS_LYRIA_RT_API_KEY=... \
 pnpm --filter @luna-estelar/gas-lyria-rt manual:listen \
   --fixture /absolute/path/to/example.gas \
   --strategy global-plus-tracks \
+  --share 0.5 \
   --seed 47 \
   --duration 30 \
   --out /absolute/path/to/ignored-listening
@@ -20,6 +21,9 @@ The harness compiles the fixture, captures raw PCM16LE/48 kHz/stereo, and writes
 manifest containing the normalized prompts and safe model configuration. It never records the API
 key, a proxy URL, raw vendor messages, or a user IP. Keep the output directory ignored and outside
 the repository.
+
+`--guidance` (0 to 6), `--transition-ms` and `--transition-steps` override the connector defaults
+for a take.
 
 The authorized seed-47 matrix was auditioned on 2026-07-21. The selected captures all contained
 non-zero PCM; two short or empty per-track takes were replaced before review. Results:
@@ -38,6 +42,18 @@ Excluding the inconclusive activation/deactivation case and the two ties, `globa
 won three comparisons to one. That result selects `global-plus-tracks` as the connector default;
 `per-track` remains available as an explicit configuration. No additional paid rerun was made for
 case 4.
+
+Those takes had one or two tracks and a fixed global weight of 0.8. In a fuller score that left
+the mood at about a fifth of the mix, so the default is now `globalShare: 0.5`: the mood holds half
+the mix however many tracks play. `--share` overrides it for a take; `--share 0.2` is close to
+what a four-track score got before.
+
+On 2026-11-13 a four-track score with one change per section was captured at shares 0.3, 0.5 and
+0.65, `per-track`, guidance 5 and 6, and a 6 s crossfade. The score was accepted by ear. No setting
+was picked over the defaults, so they stand.
+
+Before that date the script's timer fired every crossfade step at once, so earlier takes switched
+prompts instantly.
 
 The checked-in fixtures under `manual/fixtures/` map to the numbered rows. Row 6 uses `06a` and
 `06b` so the native scale path and modal prompt-context path can be compared independently.
@@ -76,3 +92,21 @@ pnpm --filter @luna-estelar/gas-lyria-rt manual:startup
 
 It prints min, median, p90, p95 and max for each measure. `GAS_LYRIA_RT_STARTUP_OUTPUT` is optional
 and writes the raw samples too. The connector's `startupDelaySeconds` covers the slowest resume measured.
+
+## Reaction to a prompt change
+
+The reaction script measures how late a prompt change lands in the audio while the model keeps
+playing. It plays one prompt, switches to another in a single send, and reads which prompts each
+chunk says it was generated from. It uses the Google SDK directly and makes real provider calls,
+about 40 s a run.
+
+```sh
+GAS_LYRIA_RT_API_KEY=... \
+GAS_LYRIA_RT_REACTION_RUNS=5 \
+GAS_LYRIA_RT_REACTION_OUTPUT=/absolute/path/to/ignored-reaction.json \
+pnpm --filter @luna-estelar/gas-lyria-rt manual:reaction
+```
+
+It prints two measures. `reactionAudioSeconds` is how much audio the model had already sent when the
+first chunk made from the new prompts began. `leadSeconds` is how far the audio received runs ahead
+of real time. If Lyria sends no source metadata, it reports the lead alone and says so.

@@ -10,7 +10,7 @@ import { translatePrompts, type PromptTranslationOptions } from '../src/prompts.
 const PER_TRACK: PromptTranslationOptions = {
   strategy: 'per-track',
   trackWeight: 1,
-  globalWeight: 0.8,
+  globalShare: 0.5,
   minimumPositiveWeight: 0.05
 };
 
@@ -121,10 +121,28 @@ describe('translatePrompts — activation and weights', () => {
     expect(translatePrompts(state, PER_TRACK)[0].weight).toBe(0.05);
   });
 
-  it('weights the standalone global prompt with globalWeight', () => {
+  it('weights the standalone global prompt against the tracks together', () => {
     const state = makeState({ flavor: text('ambient') }, [makeTrack({ name: 'Pad' })]);
     const [globalPrompt] = translatePrompts(state, GLOBAL_PLUS);
-    expect(globalPrompt).toEqual({ text: 'ambient.', weight: 0.8 });
+    expect(globalPrompt).toEqual({ text: 'ambient.', weight: 1 });
+  });
+
+  it.each([
+    { share: 0.5, levels: [1] },
+    { share: 0.5, levels: [1, 1, 1] },
+    { share: 0.5, levels: [1, 0.3, 1, 1, 0.3] },
+    { share: 0.25, levels: [1, 0.6, 0.01] }
+  ])('holds the global share at $share across $levels.length tracks', ({ share, levels }) => {
+    const state = makeState(
+      { flavor: text('ambient') },
+      levels.map((value, index) => makeTrack({ name: `Track ${index}`, level: level(value) }))
+    );
+    const [globalPrompt, ...tracks] = translatePrompts(state, {
+      ...GLOBAL_PLUS,
+      globalShare: share
+    });
+    const total = globalPrompt.weight + tracks.reduce((sum, prompt) => sum + prompt.weight, 0);
+    expect(globalPrompt.weight / total).toBeCloseTo(share, 10);
   });
 });
 
@@ -146,7 +164,7 @@ describe('translatePrompts — defensive value handling', () => {
       makeTrack({ name: 'Pad' })
     ]);
     const [globalPrompt] = translatePrompts(state, GLOBAL_PLUS);
-    expect(globalPrompt.weight).toBe(0.8);
+    expect(globalPrompt.weight).toBe(1);
   });
 });
 
@@ -191,7 +209,7 @@ describe('translatePrompts — duplicate combination', () => {
 
   it('merges a track prompt into an identical global prompt', () => {
     const state = makeState({ flavor: text('ambient') }, [makeTrack({ name: 'ambient' })]);
-    expect(translatePrompts(state, GLOBAL_PLUS)).toEqual([{ text: 'ambient.', weight: 1.8 }]);
+    expect(translatePrompts(state, GLOBAL_PLUS)).toEqual([{ text: 'ambient.', weight: 2 }]);
   });
 });
 

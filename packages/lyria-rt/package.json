@@ -45,6 +45,7 @@
   "scripts": {
     "clean": "tsc -b --clean",
     "manual:listen": "node manual/listen.mjs",
+    "manual:reaction": "node manual/reaction.mjs",
     "manual:smoke": "node manual/smoke.mjs",
     "manual:startup": "node manual/startup.mjs"
   },
