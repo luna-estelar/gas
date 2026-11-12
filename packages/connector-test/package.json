@@ -46,7 +46,7 @@
   },
   "devDependencies": {
     "@luna-estelar/gas": "workspace:^",
-    "vitest": "^5.0.2"
+    "vitest": "^5.1.0"
   },
   "peerDependencies": {
     "@luna-estelar/gas": ">=0.4.0 <1.0.0",
