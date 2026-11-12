@@ -50,7 +50,7 @@
     "manual:startup": "node manual/startup.mjs"
   },
   "dependencies": {
-    "@google/genai": "^2.23.0"
+    "@google/genai": "^3.0.0"
   },
   "devDependencies": {
     "@luna-estelar/gas": "workspace:^",
