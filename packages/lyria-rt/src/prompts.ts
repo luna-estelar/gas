@@ -1,6 +1,9 @@
 // Translate effective state into weighted Lyria RealTime prompts. Authored phrases retain their wording
 // with whitespace normalized. Per-track prompts include global mood; global-plus-tracks
-// sends global mood separately alongside the track prompts.
+// sends global mood as its own prompt, holding a fixed share of the mix.
+//
+// Lyria RealTime normalizes each prompt set, so a fixed weight for the mood would shrink as tracks
+// join. Sizing it against the tracks' total keeps a section's flavor audible in a full arrangement.
 
 import type { EffectiveState, EffectiveTrack, IntentValue } from '@luna-estelar/gas/protocol';
 import type { LyriaRtPromptStrategy } from './config.js';
@@ -14,7 +17,7 @@ export type WeightedPrompt = {
 export type PromptTranslationOptions = {
   readonly strategy: LyriaRtPromptStrategy;
   readonly trackWeight: number;
-  readonly globalWeight: number;
+  readonly globalShare: number;
   readonly minimumPositiveWeight: number;
 };
 
@@ -80,7 +83,7 @@ export function translatePrompts(
   state: EffectiveState,
   options: PromptTranslationOptions
 ): readonly WeightedPrompt[] {
-  const { strategy, trackWeight, globalWeight, minimumPositiveWeight } = options;
+  const { strategy, trackWeight, globalShare, minimumPositiveWeight } = options;
   const foldGlobal = strategy === 'per-track';
 
   const globalFlavor = textFragment(state.globals.flavor);
@@ -119,7 +122,9 @@ export function translatePrompts(
   if (!foldGlobal && trackPrompts.length > 0) {
     const globalFragments = [globalFlavor, nonNativeKey].filter(isDefined);
     if (globalFragments.length > 0) {
-      prompts = [{ text: joinFragments(globalFragments), weight: globalWeight }, ...trackPrompts];
+      const trackTotal = trackPrompts.reduce((total, prompt) => total + prompt.weight, 0);
+      const weight = (globalShare / (1 - globalShare)) * trackTotal;
+      prompts = [{ text: joinFragments(globalFragments), weight }, ...trackPrompts];
     }
   }
 

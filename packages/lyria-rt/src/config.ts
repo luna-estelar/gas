@@ -17,7 +17,7 @@ export type LyriaRtPromptStrategy = 'per-track' | 'global-plus-tracks';
 export type LyriaRtPromptConfig = {
   readonly strategy: LyriaRtPromptStrategy;
   readonly trackWeight: number;
-  readonly globalWeight: number;
+  readonly globalShare: number;
   readonly minimumPositiveWeight: number;
   readonly transitionDurationMs: number;
   readonly transitionSteps: number;
@@ -81,11 +81,14 @@ export const LYRIA_RT_CONFIG_SCHEMA: ConnectorConfigSchema = deepFreeze({
           exclusiveMinimum: 0,
           default: 1
         },
-        globalWeight: {
-          description: 'Influence of the standalone global prompt in global-plus-tracks.',
+        globalShare: {
+          description:
+            'Share of the whole mix the standalone global prompt takes in global-plus-tracks, ' +
+            'however many tracks play.',
           type: 'number',
           exclusiveMinimum: 0,
-          default: 0.8
+          exclusiveMaximum: 1,
+          default: 0.5
         },
         minimumPositiveWeight: {
           description: 'Floor for any contributing track so a quiet part still colors the mix.',
@@ -177,7 +180,7 @@ export const DEFAULT_LYRIA_RT_CONFIG = deepFreeze({
   prompt: {
     strategy: 'global-plus-tracks',
     trackWeight: 1,
-    globalWeight: 0.8,
+    globalShare: 0.5,
     minimumPositiveWeight: 0.05,
     transitionDurationMs: 1500,
     transitionSteps: 3
@@ -232,7 +235,7 @@ export function resolveLyriaRtConfig(config: ConnectorConfig): LyriaRtConnectorC
     prompt: {
       strategy: asStrategy(prompt.strategy),
       trackWeight: asNumber(prompt.trackWeight, defaults.prompt.trackWeight),
-      globalWeight: asNumber(prompt.globalWeight, defaults.prompt.globalWeight),
+      globalShare: asNumber(prompt.globalShare, defaults.prompt.globalShare),
       minimumPositiveWeight: asNumber(
         prompt.minimumPositiveWeight,
         defaults.prompt.minimumPositiveWeight
@@ -262,7 +265,7 @@ const ROOT_KEYS = new Set(['prompt', 'generation']);
 const PROMPT_KEYS = new Set([
   'strategy',
   'trackWeight',
-  'globalWeight',
+  'globalShare',
   'minimumPositiveWeight',
   'transitionDurationMs',
   'transitionSteps'
@@ -303,6 +306,7 @@ interface NumberRule {
   readonly minimum?: number;
   readonly maximum?: number;
   readonly exclusiveMinimum?: number;
+  readonly exclusiveMaximum?: number;
   readonly integer?: boolean;
 }
 
@@ -311,6 +315,7 @@ function rangeMessage(rule: NumberRule): string {
   if (rule.exclusiveMinimum !== undefined) bounds.push(`greater than ${rule.exclusiveMinimum}`);
   if (rule.minimum !== undefined) bounds.push(`at least ${rule.minimum}`);
   if (rule.maximum !== undefined) bounds.push(`at most ${rule.maximum}`);
+  if (rule.exclusiveMaximum !== undefined) bounds.push(`less than ${rule.exclusiveMaximum}`);
   return `The value must be ${bounds.join(' and ')}.`;
 }
 
@@ -382,7 +387,9 @@ function number(
   }
   const low = rule.minimum !== undefined && member < rule.minimum;
   const high = rule.maximum !== undefined && member > rule.maximum;
-  const exclusive = rule.exclusiveMinimum !== undefined && member <= rule.exclusiveMinimum;
+  const exclusive =
+    (rule.exclusiveMinimum !== undefined && member <= rule.exclusiveMinimum) ||
+    (rule.exclusiveMaximum !== undefined && member >= rule.exclusiveMaximum);
   if (low || high || exclusive) record(sink, memberPath, 'out-of-range', rangeMessage(rule));
 }
 
@@ -431,7 +438,7 @@ function collectProblems(config: ConnectorConfig): readonly ConnectorConfigProbl
   if (prompt !== undefined) {
     choice(sink, '/prompt', prompt, 'strategy', PROMPT_STRATEGIES);
     number(sink, '/prompt', prompt, 'trackWeight', { exclusiveMinimum: 0 });
-    number(sink, '/prompt', prompt, 'globalWeight', { exclusiveMinimum: 0 });
+    number(sink, '/prompt', prompt, 'globalShare', { exclusiveMinimum: 0, exclusiveMaximum: 1 });
     number(sink, '/prompt', prompt, 'minimumPositiveWeight', { exclusiveMinimum: 0 });
     number(sink, '/prompt', prompt, 'transitionDurationMs', { minimum: 0, integer: true });
     number(sink, '/prompt', prompt, 'transitionSteps', { minimum: 1, integer: true });

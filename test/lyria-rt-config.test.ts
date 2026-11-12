@@ -25,6 +25,7 @@ interface NumericMember {
   readonly minimum?: number;
   readonly maximum?: number;
   readonly exclusiveMinimum?: number;
+  readonly exclusiveMaximum?: number;
   readonly integer?: boolean;
 }
 
@@ -32,7 +33,7 @@ interface NumericMember {
 // caught by the coverage check below, not silently left untested.
 const NUMERIC_MEMBERS: readonly NumericMember[] = [
   { path: ['prompt', 'trackWeight'], exclusiveMinimum: 0 },
-  { path: ['prompt', 'globalWeight'], exclusiveMinimum: 0 },
+  { path: ['prompt', 'globalShare'], exclusiveMinimum: 0, exclusiveMaximum: 1 },
   { path: ['prompt', 'minimumPositiveWeight'], exclusiveMinimum: 0 },
   { path: ['prompt', 'transitionDurationMs'], minimum: 0, integer: true },
   { path: ['prompt', 'transitionSteps'], minimum: 1, integer: true },
@@ -72,11 +73,9 @@ function edgeCases(member: NumericMember): { label: string; config: ConnectorCon
     ['at the low bound', low],
     ['just above the low bound', low + step]
   ];
-  if (member.maximum !== undefined) {
-    values.push(
-      ['at the high bound', member.maximum],
-      ['above the high bound', member.maximum + step]
-    );
+  const high = member.maximum ?? member.exclusiveMaximum;
+  if (high !== undefined) {
+    values.push(['at the high bound', high], ['above the high bound', high + step]);
   }
   if (member.integer === true) values.push(['a fraction', low + 0.5]);
   return values.map(([label, value]) => ({
